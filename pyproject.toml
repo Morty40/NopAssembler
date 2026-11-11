@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nopa"
+dynamic = ["version"]
+description = "a 6502/Python hybrid cross assembler for Commodore computers"
+keywords = ["6502", "6510", "commodore", "c64", "commodore 64", "c128", "c16", "plus4", "vic20", "assembler", "cross assembler", "disassembler", "retro computing"]
+readme = "README.md"
+authors = [{name = "Morten Perriard", email = "morten@perriard.dk"}]
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE.txt"]
+# standard PyPI tags, from https://pypi.org/classifiers: shown on the project page, and used by PyPI search filters.
+# Keep the Python versions in sync with the test matrix in .github/workflows/test.yml.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Assembly",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Assemblers",
+    "Topic :: Software Development :: Disassemblers",
+]
+
+[project.urls]
+Homepage = "https://github.com/Morty40/NopAssembler"
+Source = "https://github.com/Morty40/NopAssembler"
+Issues = "https://github.com/Morty40/NopAssembler/issues"
+Changelog = "https://github.com/Morty40/NopAssembler/blob/main/CHANGELOG.md"
+
+[project.scripts]
+nopa = "nopa.main:main"
+
+[tool.setuptools]
+packages = ["nopa", "nopa.imports", "nopa.imports.target.c128", "nopa.imports.target.c16", "nopa.imports.target.c64", "nopa.imports.target.cx16", "nopa.imports.target.plus4", "nopa.imports.target.vic20"]
+zip-safe = false
+include-package-data = false # the tests in MANIFEST.in are for the source distribution only, not the installed package
+
+[tool.setuptools.dynamic]
+version = {attr = "nopa.__version__"}

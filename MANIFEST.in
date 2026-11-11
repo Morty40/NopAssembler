@@ -1,0 +1,3 @@
+# the source distribution also has the tests and the changelog, for packagers who build and test from it
+include CHANGELOG.md
+recursive-include nopa/tests *.py

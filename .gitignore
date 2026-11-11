@@ -1,0 +1,10 @@
+# Python bytecode
+__pycache__/
+
+# python -m build, and pip or pipx installs from the source folder
+build/
+dist/
+*.egg-info/
+
+# macOS Finder
+.DS_Store

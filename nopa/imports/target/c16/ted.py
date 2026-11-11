@@ -1,0 +1,55 @@
+"""The TED chip, the 7360 and the 8360: its registers and colors."""
+
+TED_COLOR_BLACK        =  0
+TED_COLOR_WHITE        =  1
+TED_COLOR_RED          =  2
+TED_COLOR_CYAN         =  3
+TED_COLOR_PURPLE       =  4
+TED_COLOR_GREEN        =  5
+TED_COLOR_BLUE         =  6
+TED_COLOR_YELLOW       =  7
+TED_COLOR_ORANGE       =  8
+TED_COLOR_BROWN        =  9
+TED_COLOR_YELLOW_GREEN = 10
+TED_COLOR_PINK         = 11
+TED_COLOR_BLUE_GREEN   = 12
+TED_COLOR_LIGHT_BLUE   = 13
+TED_COLOR_DARK_BLUE    = 14
+TED_COLOR_LIGHT_GREEN  = 15
+
+tedColor = lambda color, luminance: (color & 0xf) | ((luminance & 7) << 4) # luminance from 0 to 7
+
+TED_TIMER1_LO             = 0xff00 # counts down from the last value written
+TED_TIMER1_HI             = 0xff01
+TED_TIMER2_LO             = 0xff02
+TED_TIMER2_HI             = 0xff03
+TED_TIMER3_LO             = 0xff04
+TED_TIMER3_HI             = 0xff05
+TED_CONTROL_SCROLL_Y      = 0xff06 # bits 2-0: scroll, 3: 25 rows, 4: screen on, 5: bitmap, 6: extended color
+TED_CONTROL_SCROLL_X      = 0xff07 # bits 2-0: scroll, 3: 40 columns, 4: multicolor, 5: stop, 6: NTSC, 7: 256 characters, no reverse
+TED_KEYBOARD              = 0xff08 # write to latch the input lines, read for the latched value
+TED_INTERRUPT_REGISTER    = 0xff09 # bit 1: raster, 3: timer 1, 4: timer 2, 6: timer 3, 7: any. Write back to acknowledge
+TED_INTERRUPT_ENABLED     = 0xff0a # bit 0: bit 8 of TED_RASTER_COMPARE, 1: raster, 3: timer 1, 4: timer 2, 6: timer 3
+TED_RASTER_COMPARE        = 0xff0b
+TED_CURSOR_HI             = 0xff0c # bits 1-0
+TED_CURSOR_LO             = 0xff0d
+TED_VOICE1_FREQUENCY_LO   = 0xff0e
+TED_VOICE2_FREQUENCY_LO   = 0xff0f
+TED_VOICE2_FREQUENCY_HI   = 0xff10 # bits 1-0
+TED_SOUND_CONTROL         = 0xff11 # bits 3-0: volume, 4: voice 1, 5: voice 2 square, 6: voice 2 noise, 7: D/A
+TED_VOICE1_FREQUENCY_HI   = 0xff12 # bits 1-0. Bit 2: character data from ROM, bits 5-3: bits 15-13 of the bitmap address
+TED_CHARSET               = 0xff13 # bit 0: ROM selected (read only), 1: single clock, bits 7-2: bits 15-10 of the character address
+TED_SCREEN                = 0xff14 # bits 7-3: bits 15-11 of the color memory address, with the characters $400 after it
+TED_BACKGROUND_COLOR0     = 0xff15 # the colors: bits 3-0: color, 6-4: luminance, see tedColor
+TED_BACKGROUND_COLOR1     = 0xff16
+TED_BACKGROUND_COLOR2     = 0xff17
+TED_BACKGROUND_COLOR3     = 0xff18
+TED_BORDER_COLOR          = 0xff19
+TED_CHARACTER_POSITION_HI = 0xff1a # bits 1-0
+TED_CHARACTER_POSITION_LO = 0xff1b
+TED_RASTER_HI             = 0xff1c # bit 0
+TED_RASTER_LO             = 0xff1d
+TED_HORIZONTAL_POSITION   = 0xff1e
+TED_CHARACTER_LINE_FLASH  = 0xff1f # bits 2-0: line in the character, 6-3: flash counter
+TED_ROM_SELECT            = 0xff3e # write to select ROM from $8000
+TED_RAM_SELECT            = 0xff3f # write to select RAM from $8000

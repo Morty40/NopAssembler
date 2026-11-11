@@ -1,0 +1,61 @@
+"""The KERNAL ROM routines of the C64, at the same addresses, and the 16-bit registers of the X16's own KERNAL calls."""
+
+KERNAL_ROM        = 0xc000 # in ROM bank 0, ROM_BANK_KERNAL
+
+KERNAL_ROM_SCINIT = 0xff81
+KERNAL_ROM_IOINIT = 0xff84
+KERNAL_ROM_RAMTAS = 0xff87
+KERNAL_ROM_RESTOR = 0xff8a
+KERNAL_ROM_VECTOR = 0xff8d
+KERNAL_ROM_SETMSG = 0xff90
+KERNAL_ROM_LSTNSA = 0xff93
+KERNAL_ROM_TALKSA = 0xff96
+KERNAL_ROM_MEMTOP = 0xff99 # with carry set, also the number of RAM banks in A
+KERNAL_ROM_MEMBOT = 0xff9c
+KERNAL_ROM_SCNKEY = 0xff9f
+KERNAL_ROM_SETTMO = 0xffa2 # does nothing
+KERNAL_ROM_IECIN  = 0xffa5
+KERNAL_ROM_IECOUT = 0xffa8
+KERNAL_ROM_UNTALK = 0xffab
+KERNAL_ROM_UNLSTN = 0xffae
+KERNAL_ROM_LISTEN = 0xffb1
+KERNAL_ROM_TALK   = 0xffb4
+KERNAL_ROM_READST = 0xffb7
+KERNAL_ROM_SETLFS = 0xffba
+KERNAL_ROM_SETNAM = 0xffbd
+KERNAL_ROM_OPEN   = 0xffc0
+KERNAL_ROM_CLOSE  = 0xffc3
+KERNAL_ROM_CHKIN  = 0xffc6
+KERNAL_ROM_CHKOUT = 0xffc9
+KERNAL_ROM_CLRCHN = 0xffcc
+KERNAL_ROM_CHRIN  = 0xffcf
+KERNAL_ROM_CHROUT = 0xffd2
+KERNAL_ROM_LOAD   = 0xffd5 # A=2 and A=3 load into VRAM, from $00000 and $10000
+KERNAL_ROM_SAVE   = 0xffd8
+KERNAL_ROM_SETTIM = 0xffdb
+KERNAL_ROM_RDTIM  = 0xffde
+KERNAL_ROM_STOP   = 0xffe1
+KERNAL_ROM_GETIN  = 0xffe4
+KERNAL_ROM_CLALL  = 0xffe7
+KERNAL_ROM_UDTIM  = 0xffea
+KERNAL_ROM_SCREEN = 0xffed
+KERNAL_ROM_PLOT   = 0xfff0
+KERNAL_ROM_IOBASE = 0xfff3 # returns $9f00, the first VIA
+
+# the 16-bit registers r0 to r15 in zero page, for the arguments of the X16's own KERNAL calls
+KERNAL_R0  = 0x02
+KERNAL_R1  = 0x04
+KERNAL_R2  = 0x06
+KERNAL_R3  = 0x08
+KERNAL_R4  = 0x0a
+KERNAL_R5  = 0x0c
+KERNAL_R6  = 0x0e
+KERNAL_R7  = 0x10
+KERNAL_R8  = 0x12
+KERNAL_R9  = 0x14
+KERNAL_R10 = 0x16
+KERNAL_R11 = 0x18
+KERNAL_R12 = 0x1a
+KERNAL_R13 = 0x1c
+KERNAL_R14 = 0x1e
+KERNAL_R15 = 0x20

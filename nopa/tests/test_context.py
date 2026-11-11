@@ -1,0 +1,46 @@
+#! /usr/bin/env python3
+"""Tests of the assembler state."""
+
+import unittest
+
+from ..context import Context
+from ..cpu import CPU_6502
+
+
+class TestContext(unittest.TestCase):
+    """Tests of the read pointer stack and the messages."""
+
+    def testCPU(self):
+        """A pass assembles for the 6502."""
+        self.assertIs(Context({}).cpu, CPU_6502)
+
+    def testReadPointerStack(self):
+        """The read pointer stack, including the empty stack cases."""
+        context = Context({})
+        self.assertEqual(context.readPointer(), None)            # empty stack
+        self.assertEqual(context.popReadPointer(), None)
+        self.assertEqual(context.advanceReadPointer(), None)
+        context.jumpReadPointer(('a.asm', 5))                    # no effect on an empty stack
+        self.assertEqual(context.readPointer(), None)
+
+        context.pushReadPointer(('a.asm', 0))
+        self.assertEqual(context.advanceReadPointer(), ('a.asm', 1))
+        context.pushReadPointer(('b.asm', 0))                    # e.g. an .import
+        context.jumpReadPointer(('b.asm', 7))                    # e.g. .end jumping back
+        self.assertEqual(context.readPointer(), ('b.asm', 7))
+        self.assertEqual(context.popReadPointer(), ('b.asm', 7)) # end of b.asm
+        self.assertEqual(context.readPointer(), ('a.asm', 1))    # back in a.asm
+
+    def testReport(self):
+        """Warnings and errors are prefixed with the file and line, if any."""
+        context = Context({})
+        context.reportWarning('no position')
+        context.pushReadPointer(('a.asm', 4))                    # line index 4 is line 5
+        context.reportWarning('careful')
+        context.reportError('failed')
+        self.assertEqual(context.warnings, ['warning: no position', 'a.asm:5: warning: careful'])
+        self.assertEqual(context.errors, ['a.asm:5: error: failed'])
+
+
+if __name__ == '__main__':
+    unittest.main()
