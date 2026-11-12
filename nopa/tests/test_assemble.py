@@ -599,6 +599,16 @@ class TestAssemble(unittest.TestCase):
             ('a = zp(254)\nb = zp(1)\n', 'test.asm:2: error: Not enough zero page left: 1 needed, 0 left: "zp(1)"'),
         ])
 
+    def testZeroPageReused(self):
+        """Each zp() allocates new bytes, also for a name that has some, or in a loop. A name holds its latest address,
+        and a use before its first assignment gets the last one."""
+        for source, expected in [
+            ('lda temp\ntemp = zp(1)\nsta temp\ntemp = zp(1)\nsta temp\n',  [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
+            ('.repeat 3\nv = zp(1)\n.end\nnext = zp(1)\n.byte next, v\n',     [0x05, 0x04]),                         # $02 to $04 in the loop
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._memory(source), expected)
+
     def testPrint(self):
         """.print prints once, after the last pass, so values are final, even with errors."""
         anyErrors, output = self._assemble('.print "start", later\njmp later\nlater: rts\n') # later is $1003
