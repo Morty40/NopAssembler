@@ -53,6 +53,8 @@ class Context:
 
     def zp(self, size: int) -> int:
         """Allocate size bytes in zero page, and return the address of the first, e.g. counter = zp(1)."""
+        if type(size) is not int:
+            raise TypeError(f'Zero page size must be an int, not {type(size).__name__}')
         if size < 1:
             raise ValueError(f'Zero page size must be positive: {size}')
         if self.zpAddress + size > 0x100:
