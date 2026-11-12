@@ -1074,6 +1074,8 @@ The Python files in `nopa/imports/` are always imported, and are not specific to
 | `utility.py` | generators: `nop(n)`, `ldax(value)`, `lday(value)`, `ldxy(value)`, `stax(address)`, `stay(address)`, `stxy(address)` |
 | `vector.py` | interrupt vectors, `INTERRUPT_VECTOR_...` |
 
+For example `@ldax(message)` loads the address of `message` into A (low byte) and X (high byte).
+
 `SOURCE_FOLDER` is the folder of the main source file, for generators that read files.
 
 `-t` or `--target` also imports all the files of a target machine, from `nopa/imports/target/`. Without it, no target files are imported, so a symbol such as `VIC_BORDER_COLOR` is not defined.
@@ -1121,8 +1123,6 @@ The `cx16` target, for the Commander X16, is experimental: it hasn't been tried 
             ...
             jsr MUSIC_INIT
 ```
-
-For example `@ldax(message)` loads the address of `message` into a (low byte) and x (high byte).
 
 ### BASIC
 
@@ -1181,7 +1181,7 @@ The `nopa` command then runs the source in the repository, so changes take effec
 Nop Assembler can also run directly from the repository folder, without installing:
 
 ```bash
-python3 -m nopa hello.asm -o hello.prg
+python3 -m nopa hello.asm -t c64 -o hello.prg
 ```
 
 ### Running the tests
