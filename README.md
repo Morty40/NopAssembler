@@ -58,7 +58,7 @@ pipx install --force git+https://github.com/Morty40/NopAssembler.git
 ## Usage
 
 ```
-nopa <asmFile> -o <outFile> [--format prg|bin] [-t c128|c16|c64|plus4|vic20] [--cpu 6502|65C02|R65C02|W65C02] [-D <name>[=<value>]] [-l <labelsFile>] [--vice <viceFile>]
+nopa <asmFile> -o <outFile> [--format prg|bin] [-t c128|c16|c64|cx16|plus4|vic20] [--cpu 6502|65C02|R65C02|W65C02] [-D <name>[=<value>]] [-l <labelsFile>] [--vice <viceFile>]
 nopa -d <binFile> [-o <asmFile>] [--cpu 6502|65C02|R65C02|W65C02] [-l <labelsFile>]
 nopa --version
 ```
@@ -69,7 +69,7 @@ nopa --version
 | `-d`, `--disassemble <binFile>` | disassemble the `.prg` or binary file instead, see [Disassembling](https://github.com/Morty40/NopAssembler#disassembling) |
 | `-o`, `--output <outFile>` | the file to write. Without `-o` the source is assembled and checked, but nothing is saved. When disassembling, the source file to write. Without `-o` the source is printed |
 | `--format <prg\|bin>` | the format of the file to write: `prg` (the default), with the load address, or `bin`, only the bytes. The extension of the file name doesn't matter |
-| `-t`, `--target <c128\|c16\|c64\|plus4\|vic20>` | the target machine, whose [symbols and generators](https://github.com/Morty40/NopAssembler#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
+| `-t`, `--target <c128\|c16\|c64\|cx16\|plus4\|vic20>` | the target machine, whose [symbols and generators](https://github.com/Morty40/NopAssembler#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
 | `--cpu <6502\|65C02\|R65C02\|W65C02>` | the [cpu](https://github.com/Morty40/NopAssembler#cpu), and so the instructions: `6502` (the default), `65C02`, `R65C02` or `W65C02`. When assembling, `.cpu` can change it |
 | `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](https://github.com/Morty40/NopAssembler#constants), so the source can't change them, and lower case names are variables. Can be given more than once |
 | `-l`, `--labels <labelsFile>` | the [labels](https://github.com/Morty40/NopAssembler#labels-file) file to write, as Python assignments. When disassembling, the labels file to read |
@@ -1107,7 +1107,7 @@ For example `@ldax(message)` loads the address of `message` into a (low byte) an
 
 ### BASIC
 
-Each target has the BASIC version of its machine: 2.0 on the `c64` and `vic20`, 3.5 on the `c16` and `plus4`, and 7.0 on the `c128`. Its `basic.py` defines:
+Each target has the BASIC version of its machine: 2.0 on the `c64`, `vic20` and `cx16`, 3.5 on the `c16` and `plus4`, and 7.0 on the `c128`. Its `basic.py` defines:
 
 - the tokens, `BASIC_TOKEN_...`, named after the keywords without `$` and `(`, such as `BASIC_TOKEN_CHR` for `CHR$`, or after the characters, such as `BASIC_TOKEN_PLUS` for `+` and `BASIC_TOKEN_PRINT_FILE` for `PRINT#`, and `BASIC_TOKEN_PI` for the pi character
 - generators for a BASIC start line: `basicStart()`, which sets the address to `BASIC_START_ADDRESS`, `basicLine(lineNumber, text)`, `basicSys(lineNumber, address)`, a line with just a `SYS` to the address, and `basicEnd()`
