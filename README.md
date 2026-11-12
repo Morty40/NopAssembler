@@ -205,11 +205,11 @@ for message in context.warnings + context.errors:
 source = nopa.disassembleFile('game.prg')
 ```
 
-`assembleFile(inFile, target=None, cpu=CPU_6502)` assembles `inFile` for the target (`'c128'`, `'c16'`, `'c64'`, `'plus4'`, `'vic20'` or none) and the cpu (`nopa.cpu.CPU_6502` or `CPU_65C02`), and returns the `Context` of the last pass. Nothing is saved: writing files is up to the caller. Its `memory` is a dict of address to byte, `symbols` has the labels and other symbols, `printed` the `.print` output, and `warnings` and `errors` the messages.
+`assembleFile(inFile, target=None, cpu=CPU_6502, defines=None)` assembles `inFile` for the target (`'c128'`, `'c16'`, `'c64'`, `'plus4'`, `'vic20'`, the experimental `'cx16'`, or none) and the cpu (`nopa.cpu.CPU_6502`, `CPU_65C02`, `CPU_R65C02` or `CPU_W65C02`), and returns the `Context` of the last pass. The defines are assigned before the source, as with `-D`: names and expressions, e.g. `{'NTSC': 'True', 'START': '$c000'}`. Nothing is saved: writing files is up to the caller. Its `memory` is a dict of address to byte, `symbols` has the labels and other symbols, `printed` the `.print` output, and `warnings` and `errors` the messages.
 
 `disassembleFile(inFile, labelsFile=None, cpu=CPU_6502)` returns the source.
 
-Both raise `OSError` if a file can't be read or written. Errors in the source don't raise, they are returned in `context.errors`.
+Both raise `OSError` if a file can't be read or written, and `assembleFile` raises `ValueError` for an unknown target. Errors in the source don't raise, they are returned in `context.errors`.
 
 
 ### Testing 6502 code
@@ -1092,7 +1092,7 @@ For example `@ldax(message)` loads the address of `message` into a (low byte) an
 Each target has the BASIC version of its machine: 2.0 on the `c64` and `vic20`, 3.5 on the `c16` and `plus4`, and 7.0 on the `c128`. Its `basic.py` defines:
 
 - the tokens, `BASIC_TOKEN_...`, named after the keywords without `$` and `(`, such as `BASIC_TOKEN_CHR` for `CHR$`, or after the characters, such as `BASIC_TOKEN_PLUS` for `+` and `BASIC_TOKEN_PRINT_FILE` for `PRINT#`, and `BASIC_TOKEN_PI` for the pi character
-- generators for a BASIC start line: `basicStart()`, which sets the address to `BASIC_START_ADDRESS`, `basicLine(lineNumber, text)`, `basicSys(lineNumber, address)` (kept for compatibility, the same as `basicLine` with a `SYS`), and `basicEnd()`
+- generators for a BASIC start line: `basicStart()`, which sets the address to `BASIC_START_ADDRESS`, `basicLine(lineNumber, text)`, `basicSys(lineNumber, address)`, a line with just a `SYS` to the address, and `basicEnd()`
 
 `basicLine` writes any BASIC line, with the keywords of the target's BASIC as tokens, including the two-byte tokens of BASIC 7.0, such as `BANK`. Keywords of a later version are converted as when typed on the machine: on the C64, `GRAPHIC` stays as text, and `COLOR` becomes `COL` and the token of `OR`. Both give a syntax error when the program runs:
 
