@@ -1175,6 +1175,11 @@ make test
 `make test` runs the unit tests in `nopa/tests/`.
 
 
+## Changelog
+
+What's new in each version is in [CHANGELOG.md](https://github.com/Morty40/NopAssembler/blob/main/CHANGELOG.md).
+
+
 ## License
 
 MIT, see [LICENSE.txt](https://github.com/Morty40/NopAssembler/blob/main/LICENSE.txt).
