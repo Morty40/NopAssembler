@@ -7,6 +7,7 @@ import unittest
 from ..lexer import (
     _fixPrefix,
     join,
+    prefixNames,
     splitByComma,
     splitByNewline,
     Token,
@@ -120,6 +121,29 @@ class TestLexer(unittest.TestCase):
         ]:
             with self.subTest(source=source):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(source))[:-1] if t.string != '\n'], expected)
+
+    def testPrefixNames(self):
+        """The names a file defines get the prefix where they are defined and used: util_draw, or UTIL_SPEED in all capitals."""
+        for source, expected in [
+            ('draw: rts\njsr draw',              ['util_draw', ':', 'rts', 'jsr', 'util_draw']),                                  # a label, and its use
+            ('jmp draw\ndraw: rts',              ['jmp', 'util_draw', 'util_draw', ':', 'rts']),                                  # used before its definition
+            ('draw: nop\n_loop: bne _loop',      ['util_draw', ':', 'nop', 'util_draw_loop', ':', 'bne', 'util_draw_loop']),      # a local label
+            ('SPEED = 3\nldx #SPEED',            ['UTIL_SPEED', '=', '3', 'ldx', '#', 'UTIL_SPEED']),                             # a constant
+            ('count = zp(1)\ndec count',         ['util_count', '=', 'zp', '(', '1', ')', 'dec', 'util_count']),                  # a variable
+            ('draw: lda draw',                   ['util_draw', ':', 'lda', 'util_draw']),                                         # a statement after a label
+            ('jsr other\nlda #VIC_BORDER_COLOR', ['jsr', 'other', 'lda', '#', 'VIC_BORDER_COLOR']),                               # not defined in the file
+            ('draw: rts\n.word Vic.draw',        ['util_draw', ':', 'rts', '.', 'word', 'Vic', '.', 'draw']),                     # after a dot
+            ('draw: rts\n@jump(draw=draw)',      ['util_draw', ':', 'rts', '@', 'jump', '(', 'draw', '=', 'util_draw', ')']),     # a keyword argument
+            ('_ = $2000\nnop',                   ['_', '=', '0x2000', 'nop']),                                                    # the current address
+            ('draw: rts\n.text "{draw}"',        ['util_draw', ':', 'rts', '.', 'text', 'f"{util_draw}"']),                       # in {} of a string
+            ('SPEED = 3\n.text "SPEED"',         ['UTIL_SPEED', '=', '3', '.', 'text', 'f"SPEED"']),                              # other text in a string
+            ('.import "gen.py", "g"\n@g.bla()',  ['.', 'import', 'f"gen.py"', ',', 'f"g"', '@', 'util_g', '.', 'bla', '(', ')']), # a Python namespace
+            ('.import "sprites.asm", "spr"\njsr spr_draw\nlda #SPR_SPEED',   # a namespace the file imports
+             ['.', 'import', 'f"sprites.asm"', ',', 'f"spr"', 'jsr', 'util_spr_draw', 'lda', '#', 'UTIL_SPR_SPEED']),
+        ]:
+            with self.subTest(source=source):
+                tokens = prefixNames(translateLocalLabels(tokenize(source)), 'util')
+                self.assertEqual([t.string for t in tokens[:-1] if t.string != '\n'], expected)
 
     def testPythonBlock(self):
         """A .python block becomes one .python line with the code as a string, keeping the line count."""

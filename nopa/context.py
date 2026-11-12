@@ -36,6 +36,7 @@ class Context:
         self.zpAddress = 2 # the next free zero page address, for zp(): $0 and $1 are reserved
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
+        self.namespacedFiles: dict[str, tuple[str, str]] = {} # read pointer name: (file, namespace), for .import with a namespace
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break
         self.path = '' # folder of the main source file, for .import and .binary
@@ -121,7 +122,8 @@ class Context:
     def _formattedReadPointer(self):
         """Return the current position as 'file:line: ', for messages, as in gcc."""
         rp = self.readPointer()
-        return f'{rp[0]}:{rp[1]+1}: ' if rp else ''
+        fileName = self.namespacedFiles.get(rp[0], (rp[0], None))[0] if rp else '' # the file, also in a namespace
+        return f'{fileName}:{rp[1]+1}: ' if rp else ''
 
     def reportWarning(self, text: str):
         """Add a warning, at the current file and line."""

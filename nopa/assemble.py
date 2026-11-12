@@ -104,7 +104,8 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
             fileName, lineIndex = readPointer
 
             if not fileName in chunks:
-                chunks[fileName] = list(lexer.splitByNewline(lexer.tokenizeFile(fileName)))
+                sourceFile, namespace = context.namespacedFiles.get(fileName, (fileName, None))
+                chunks[fileName] = list(lexer.splitByNewline(lexer.tokenizeFile(sourceFile, namespace)))
 
             allChunks = chunks[fileName]
 

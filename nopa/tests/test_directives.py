@@ -147,12 +147,36 @@ class TestDirectives(unittest.TestCase):
                 context = self._assemble('.import "gen.py", "util"\n.byte util.VALUE\n', {'gen.py': f'VALUE = {value}\n'})
                 self.assertEqual(list(context.memory.values()), [value])
 
+    _LIBRARY = (
+        'SPEED = 3\n'
+        'count = zp(1)\n'
+        'draw:   ldx #SPEED\n'
+        '_loop:  dec count\n'
+        '        bne _loop\n'
+        '        rts\n'
+    )
+
+    def testImportNamespaceSource(self):
+        """A source file imported into a namespace: its labels become namespace_name, and its constants NAMESPACE_NAME."""
+        main = '.import "lib.asm", "util"\njsr util_draw\nlda #UTIL_SPEED\nlda util_count\njmp util_draw_loop\n'
+        self._assertBytes(main, [0xa2, 0x03, 0xc6, 0x02, 0xd0, 0xfc, 0x60,             # lib.asm
+                                 0x20, 0x00, 0x10, 0xa9, 0x03, 0xa5, 0x02, 0x4c, 0x02, 0x10],
+                          {'lib.asm': self._LIBRARY})
+        labels = self._assemble(main, {'lib.asm': self._LIBRARY}).labels
+        self.assertEqual(labels, {'util_draw', 'util_draw_loop'})
+
+    def testImportNamespaceSourceTwice(self):
+        """The same file imported into two namespaces is assembled twice, with separate names."""
+        main = '.import "lib.asm", "a"\n.import "lib.asm", "b"\njsr a_draw\njsr b_draw\n'
+        self._assertBytes(main, [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10], {'lib.asm': 'draw: rts\n'})
+
     def testImportNamespaceMessages(self):
-        """A namespace is for .py files only, and keeps its names to itself, as the program's names are kept from it."""
+        """A namespace keeps its names to itself, and a Python namespace doesn't see the program's names."""
         gen = {'gen.py': self._GENERATORS}
         for source, files, message in [
+            ('.import "lib.asm", "util"\njsr draw\n',                         {'lib.asm': 'draw: rts\n'},                   "test.asm:2: error: Name 'draw' is not defined"),
+            ('.import "lib.asm", "util"\n',                                   {'lib.asm': 'draw: lda nothere\n'},           "lib.asm:1: error: Name 'nothere' is not defined"), # the file's own name
             ('.import "gen.py", "util"\n@bla($1234)\n',                       gen,                                          "test.asm:2: error: Name 'bla' is not defined"),
-            ('.import "x.asm", "util"\n',                                     {'x.asm': 'nop\n'},                           'test.asm:1: error: Only a .py file can be imported into a namespace: "x.asm"'),
             ('util: nop\n.import "gen.py", "util"\n',                          gen,                                          'test.asm:2: error: Symbol "util" cannot change type from int to module'),
             ('.import "gen.py", "util"\nstart: @util.at()\n',                  {'gen.py': 'def at():\n    return start\n'},  "test.asm:2: error: Name 'start' is not defined"), # the program's symbols aren't seen
             ('.import "a.py", "util"\n.import "b.py", "util"\n@util.one()\n',  {'a.py': 'def one():\n    return ""\n', 'b.py': ''},

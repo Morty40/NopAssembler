@@ -417,11 +417,10 @@ def importFile(context, fileName: str, namespace: str | None = None):
     """Import a file: a .py file is executed, any other file is assembled as source code.
 
     A .py file with a namespace runs in a module of that name, so its names are used as namespace.name.
+    In any other file with a namespace, the names it defines get a prefix: namespace_name, or NAMESPACE_NAME.
     """
     path = os.path.join(context.path, fileName)
-    if namespace is not None and os.path.splitext(path)[1] != ".py":
-        context.reportError(f'Only a .py file can be imported into a namespace: "{fileName}"')
-    elif os.path.splitext(path)[1] == ".py":
+    if os.path.splitext(path)[1] == ".py":
         module = types.ModuleType(namespace) if namespace else None
         if module:
             context.setSymbol(namespace, module)
@@ -433,8 +432,11 @@ def importFile(context, fileName: str, namespace: str | None = None):
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
     else:
+        name = path if namespace is None else f'{path} ({namespace})' # its own tokens for each namespace
+        if namespace is not None:
+            context.namespacedFiles[name] = (path, namespace)
         context.advanceReadPointer()
-        context.pushReadPointer( (path, 0) )
+        context.pushReadPointer( (name, 0) )
         return False # the read pointer was moved
 
 
