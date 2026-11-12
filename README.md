@@ -93,6 +93,23 @@ A Makefile rule for building `.prg` files for the C64, with its built-in symbols
 ```
 
 
+### Disk, tape and cartridge images
+
+Nop Assembler writes `.prg` and binary files. Disk, tape and cartridge images are a separate build step after assembling, done by tools made for it, such as `c1541` for disk images and `cartconv` for cartridges, both part of [VICE](https://vice-emu.sourceforge.io).
+
+A Makefile that assembles a program and puts it on a `.d64` disk image:
+
+```make
+%.prg: %.asm
+	nopa $< -t c64 -o $@
+
+game.d64: game.prg
+	c1541 -format "game,01" d64 $@ -write $< game
+```
+
+`-format` creates the image with the disk name `game` and the id `01`, and `-write` copies the program onto it as `game`. `make game.d64` builds both, and `x64sc -autostart game.d64` loads and runs it in VICE.
+
+
 ### Labels file
 
 `-l` writes the labels to a file, as Python assignments sorted by address:
