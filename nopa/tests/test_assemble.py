@@ -489,8 +489,8 @@ class TestAssemble(unittest.TestCase):
     def testRefOtherSymbols(self):
         """A symbol in a block that is not assembled is not defined."""
         self._assertMessages([
-            ('.if ref("t")\nt: nop\nK = 2\n.end\nlda #K\n', "test.asm:5: error: Name 'K' is not defined"),
-            ('.if ref("t")\nt: nop\nv = zp(1)\n.end\nlda v\n',   "test.asm:5: error: Name 'v' is not defined"),
+            ('.if ref("t")\nt: nop\nK = 2\n.end\nlda #K\n',    "test.asm:5: error: Name 'K' is not defined"),
+            ('.if ref("t")\nt: nop\nv = zp(1)\n.end\nlda v\n', "test.asm:5: error: Name 'v' is not defined"),
         ])
 
     def testOptional(self):
@@ -605,7 +605,7 @@ class TestAssemble(unittest.TestCase):
         and a use before its first assignment gets the last one."""
         for source, expected in [
             ('lda temp\ntemp = zp(1)\nsta temp\ntemp = zp(1)\nsta temp\n',  [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
-            ('.repeat 3\nv = zp(1)\n.end\nnext = zp(1)\n.byte next, v\n',     [0x05, 0x04]),                         # $02 to $04 in the loop
+            ('.repeat 3\nv = zp(1)\n.end\nnext = zp(1)\n.byte next, v\n',   [0x05, 0x04]),                           # $02 to $04 in the loop
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
