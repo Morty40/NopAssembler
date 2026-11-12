@@ -170,6 +170,29 @@ class TestDirectives(unittest.TestCase):
         main = '.import "lib.asm", "a"\n.import "lib.asm", "b"\njsr a_draw\njsr b_draw\n'
         self._assertBytes(main, [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10], {'lib.asm': 'draw: rts\n'})
 
+    def testImportNamespaceStacked(self):
+        """A namespace inside a namespace stacks: namespace_inner_name, and the outer file uses inner_name."""
+        files = {'outer.asm': '.import "inner.asm", "spr"\ndraw: jsr spr_draw\nrts\n', 'inner.asm': 'SIZE = 8\ndraw: rts\n'}
+        main = '.import "outer.asm", "util"\njsr util_draw\njsr util_spr_draw\nlda #UTIL_SPR_SIZE\n'
+        self._assertBytes(main, [0x60, 0x20, 0x00, 0x10, 0x60, 0x20, 0x01, 0x10, 0x20, 0x00, 0x10, 0xa9, 0x08], files)
+        self.assertEqual(self._assemble(main, files).labels, {'util_draw', 'util_spr_draw'})
+
+    def testImportNamespaceInherited(self):
+        """A file imported without a namespace inside a namespace shares it, so the files use each other's names as they are."""
+        files = {'outer.asm': '.import "tables.asm"\ndraw: lda sine\nldx #SIZE\nrts\n', 'tables.asm': 'SIZE = 4\nsine: .byte SIZE, 2\n.word draw\n'}
+        main = '.import "outer.asm", "util"\njsr util_sine\nlda #UTIL_SIZE\n'
+        self._assertBytes(main, [0x04, 0x02, 0x04, 0x10, 0xad, 0x00, 0x10, 0xa2, 0x04, 0x60, 0x20, 0x00, 0x10, 0xa9, 0x04], files)
+        self.assertEqual(self._assemble(main, files).labels, {'util_sine', 'util_draw'})
+
+    def testImportNamespacePythonInside(self):
+        """A Python namespace inside a namespace is namespace_inner, and the file uses it as inner."""
+        files = {'outer.asm': '.import "gen.py", "g"\nshow: @g.bla()\n', 'gen.py': 'def bla():\n    return "nop\\n"\n'}
+        context = self._assemble('.import "outer.asm", "util"\njsr util_show\n', files)
+        self.assertEqual(context.errors, [])
+        self.assertEqual(list(context.memory.values()), [0xea, 0x20, 0x00, 0x10])
+        self.assertIn('util_g', context.symbols)
+        self.assertNotIn('g', context.symbols)
+
     def testImportNamespaceMessages(self):
         """A namespace keeps its names to itself, and a Python namespace doesn't see the program's names."""
         gen = {'gen.py': self._GENERATORS}

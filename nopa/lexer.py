@@ -2,6 +2,7 @@
 """The lexer: splits source code into tokens, one line at a time."""
 
 import errno
+import os
 import re
 import textwrap
 from dataclasses import dataclass
@@ -69,17 +70,44 @@ def translateLocalLabels(tokens: list, lastLabel: str='') -> list:
     return newTokens
 
 
-def prefixNames(tokens: list, prefix: str) -> list:
-    """Prefix the names the tokens define, where they are defined and used: util_draw, or UTIL_SPEED in all capitals.
-
-    The names are the labels and the assigned names. Names of a namespace the tokens import, such as spr_draw after
-    .import "sprites.asm", "spr", and the namespace itself, are prefixed too. Names in {} of a string are prefixed,
-    but not a name after a dot, a keyword argument, the statement of a line, or _.
-    """
+def definedNames(tokens: list) -> tuple[set, set]:
+    """The names the tokens define, labels and assigned names other than _, and the namespaces of their .import lines."""
     lines = list(splitByNewline(tokens))
     names = {line[0].string for line in lines if len(line) >= 2 and line[1].string in (':', '=') and line[0].string != '_'}
     namespaces = {line[4].string.lstrip('fFrRbBuU')[1:-1] for line in lines # the text of the string, e.g. spr
                   if len(line) == 5 and [t.string for t in line[:2]] == ['.', 'import']}
+    return names, namespaces
+
+
+def namespaceNames(fileName: str, folder: str) -> tuple[set, set]:
+    """The names a namespace defines, as definedNames: in the file, and in the files it imports without a namespace,
+    whose paths are relative to the folder. They all share the namespace, so they use each other's names as they are."""
+    names: set[str] = set()
+    namespaces: set[str] = set()
+    files = [fileName]
+    for name in files: # grows with the files they import
+        tokens = tokenizeFile(name)
+        fileNames, fileNamespaces = definedNames(tokens)
+        names |= fileNames
+        namespaces |= fileNamespaces
+        for line in splitByNewline(tokens):
+            if len(line) == 3 and [t.string for t in line[:2]] == ['.', 'import']:
+                imported = os.path.join(folder, line[2].string.lstrip('fFrRbBuU')[1:-1])
+                if not imported.endswith('.py') and os.path.isfile(imported) and imported not in files:
+                    files.append(imported)
+    return names, namespaces
+
+
+def prefixNames(tokens: list, prefix: str, defined: tuple[set, set] | None = None) -> list:
+    """Prefix the names the tokens define, where they are defined and used: util_draw, or UTIL_SPEED in all capitals.
+
+    The names are the labels and the assigned names, those of definedNames, or the given (names, namespaces) of all
+    the files in a namespace. Names of a namespace the tokens import, such as spr_draw after .import "sprites.asm", "spr",
+    and the namespace itself, are prefixed too. Names in {} of a string are prefixed, but not a name after a dot,
+    a keyword argument, the statement of a line, or _.
+    """
+    lines = list(splitByNewline(tokens))
+    names, namespaces = defined or definedNames(tokens)
 
     def renamed(name: str) -> str:
         """The name with the prefix, if the tokens define it or import its namespace."""
@@ -185,9 +213,8 @@ def tokenize(text: str, fileName: str='') -> list:
     return tokens
 
 
-def tokenizeFile(fileName: str, namespace: str | None = None) -> list:
-    """Tokenize a source file, translate its local labels, and prefix its names with the namespace, if given.
-    Raises OSError if the file can't be read."""
+def tokenizeFile(fileName: str) -> list:
+    """Tokenize a source file, and translate its local labels. Raises OSError if the file can't be read."""
     try:
         with open(fileName, 'r', encoding='utf-8') as f:
             text = f.read()
@@ -197,8 +224,6 @@ def tokenizeFile(fileName: str, namespace: str | None = None) -> list:
 
     tokens = tokenize(text, fileName)
     tokens = translateLocalLabels(tokens)
-    if namespace is not None:
-        tokens = prefixNames(tokens, namespace)
 
     return tokens
 

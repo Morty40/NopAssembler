@@ -418,12 +418,15 @@ def importFile(context, fileName: str, namespace: str | None = None):
 
     A .py file with a namespace runs in a module of that name, so its names are used as namespace.name.
     In any other file with a namespace, the names it defines get a prefix: namespace_name, or NAMESPACE_NAME.
+    Inside a namespace, namespaces stack, util_spr_name, and a file imported without one shares it.
     """
     path = os.path.join(context.path, fileName)
+    importing = context.namespacedFiles.get(context.readPointer()[0], ('', ''))[1] # the namespace of the importing file
+    prefix = '_'.join(n for n in (importing, namespace) if n) # namespaces stack, and an import without one inherits it
     if os.path.splitext(path)[1] == ".py":
         module = types.ModuleType(namespace) if namespace else None
         if module:
-            context.setSymbol(namespace, module)
+            context.setSymbol(prefix, module)
         try:
             with open(path) as f:
                 _runPython(context, f.read(), module.__dict__ if module else None)
@@ -432,9 +435,11 @@ def importFile(context, fileName: str, namespace: str | None = None):
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
     else:
-        name = path if namespace is None else f'{path} ({namespace})' # its own tokens for each namespace
-        if namespace is not None:
-            context.namespacedFiles[name] = (path, namespace)
+        name = f'{path} ({prefix})' if prefix else path # its own tokens for each namespace
+        if prefix:
+            context.namespacedFiles[name] = (path, prefix)
+        if namespace is not None: # a new namespace: the names its files define
+            context.namespaceNames[prefix] = lexer.namespaceNames(path, context.path)
         context.advanceReadPointer()
         context.pushReadPointer( (name, 0) )
         return False # the read pointer was moved

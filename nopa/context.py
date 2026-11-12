@@ -37,6 +37,7 @@ class Context:
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.namespacedFiles: dict[str, tuple[str, str]] = {} # read pointer name: (file, namespace), for .import with a namespace
+        self.namespaceNames: dict[str, tuple[set, set]] = {} # namespace: the names its files define, see lexer.namespaceNames
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break
         self.path = '' # folder of the main source file, for .import and .binary

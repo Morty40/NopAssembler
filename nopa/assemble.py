@@ -105,7 +105,10 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
 
             if not fileName in chunks:
                 sourceFile, namespace = context.namespacedFiles.get(fileName, (fileName, None))
-                chunks[fileName] = list(lexer.splitByNewline(lexer.tokenizeFile(sourceFile, namespace)))
+                tokens = lexer.tokenizeFile(sourceFile)
+                if namespace is not None:
+                    tokens = lexer.prefixNames(tokens, namespace, context.namespaceNames[namespace])
+                chunks[fileName] = list(lexer.splitByNewline(tokens))
 
             allChunks = chunks[fileName]
 
