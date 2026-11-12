@@ -564,7 +564,7 @@ Besides the Python built-ins, these are available:
 | `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-else-end) |
 | `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](https://github.com/Morty40/NopAssembler#symbol-types) |
 | `ENCODING_...` | the text encodings, see `.encoding` |
-| `CPU_6502`, `CPU_65C02` | the cpus, see `.cpu` |
+| `CPU_6502`, `CPU_65C02`, `CPU_R65C02`, `CPU_W65C02` | the cpus, see `.cpu` |
 
 Nop Assembler prefers readable names to symbols, so the low and high byte are `lo(x)` and `hi(x)`, instead of the `<x` and `>x` of other assemblers.
 
