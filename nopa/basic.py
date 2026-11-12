@@ -130,7 +130,7 @@ class Basic:
             """
 
         def basicSys(lineNumber, address):
-            """A BASIC line with a SYS to the address, the same as basicLine(lineNumber, f"SYS{address}"). Kept for compatibility."""
+            """A BASIC line with just a SYS to the address, the same as basicLine(lineNumber, f"SYS{address}")."""
             return basicLine(lineNumber, f"SYS{address}")
 
         return self.tokens() | {'basicStart': _basicStart, 'basicLine': basicLine, 'basicSys': basicSys, 'basicEnd': _basicEnd}
