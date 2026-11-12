@@ -418,7 +418,8 @@ def importFile(context, fileName: str, namespace: str | None = None):
     """Import a file: a .py file is executed, any other file is assembled as source code.
 
     A .py file can be imported into a namespace, a name that doesn't start with _. It then runs in
-    a module of that name, so its names are used as namespace.name.
+    a module of that name, so its names are used as namespace.name. Files imported into the same
+    namespace share its module.
     """
     path = os.path.join(context.path, fileName)
     if namespace is not None and os.path.splitext(path)[1] != ".py":
@@ -428,8 +429,11 @@ def importFile(context, fileName: str, namespace: str | None = None):
     elif os.path.splitext(path)[1] == ".py":
         variables = None # the symbols
         if namespace is not None:
-            module = types.ModuleType(namespace)
-            context.setSymbol(namespace, module)
+            if namespace not in context.namespaces: # the first import into it in this pass
+                context.namespaces[namespace] = types.ModuleType(namespace)
+            module = context.namespaces[namespace]
+            if not context.setSymbol(namespace, module):
+                return # the name is another type of symbol, so the file isn't run
             variables = module.__dict__
         try:
             with open(path) as f:

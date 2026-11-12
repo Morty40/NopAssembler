@@ -119,6 +119,21 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
+    def testImportNamespaceGenerators(self):
+        """A generator in a namespace is called as @namespace.name(), and its local labels are named after the name,
+        also when two namespaces have a generator of the same name. Its code is assembled with the global names."""
+        wait = 'def wait():\n    return "_x: dex\\nbne _x\\n"\n'
+        files = {'a.py': wait, 'b.py': wait,
+                 'util.py': 'COUNT = 2\ndef fill(v):\n    return f".byte {v}\\n" * COUNT\ndef jump():\n    return "jmp end\\n"\n'}
+        for source, expected in [
+            ('.import "a.py", "a"\n@a.wait()\n',                                     [0xca, 0xd0, 0xfd]),
+            ('.import "a.py", "a"\n.import "b.py", "b"\n@a.wait()\n@b.wait()\n',     [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]),
+            ('.import "util.py", "util"\nv = 7\n@util.fill(v)\n',                    [7, 7]),                   # COUNT from its module
+            ('.import "util.py", "util"\n@util.jump()\nend: rts\n',                  [0x4c, 0x03, 0x10, 0x60]), # a global label
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
     def testImportNamespaceIsolated(self):
         """The names of a file in a namespace are not global, and the file doesn't see the global names."""
         files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n'}
@@ -126,6 +141,27 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py", "util"\n.byte x\n', ['test.asm:2: error: Name \'x\' is not defined: "x"']),
             ('.import "low.py", "low"\n',            ['test.asm:1: error: Failed to execute python code: "low.py" '
                                                       "(NameError: name 'lo' is not defined)"]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
+    def testImportNamespaceMerged(self):
+        """Files imported into the same namespace share it, and a later file sees the names of an earlier one."""
+        files = {'a.py': 'x = 1\n', 'b.py': 'y = x + 1\n'}
+        for source, expected in [
+            ('.import "a.py", "util"\n.import "b.py", "util"\n.byte util.x, util.y\n', [1, 2]),
+            ('.import "a.py", "util"\n.import "a.py", "util"\n.byte util.x\n',         [1]),     # the same file twice
+            ('.byte util.y\n.import "a.py", "util"\n.import "b.py", "util"\n',         [2]),     # used before the imports
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportNamespaceTaken(self):
+        """A namespace can't be the name of another type of symbol, such as a label, and the file isn't run then."""
+        files = {'bad.py': '1/0\n'}
+        for source, expected in [
+            ('.import "bad.py", "sin"\n',            ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to module']),
+            ('util: nop\n.import "bad.py", "util"\n', ['test.asm:2: error: Symbol "util" cannot change type from int to module']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
