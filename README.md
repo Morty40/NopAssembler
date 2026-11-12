@@ -9,7 +9,7 @@ Nop Assembler is a multi-pass 6502 assembler for Commodore computers: the C64, C
 - the 65C02, Rockwell R65C02 and WDC W65C02 instruction sets
 - Python expressions, f-strings and lambdas in operands and directives, and blocks of Python code
 - generators: Python functions that return assembly code
-- local labels, constants, and zero page variable allocation
+- local labels, constants, and zero page variables with `zp()`
 - `.repeat`, `.for` and `.if` blocks, and `.optional` code that is only assembled when it is used
 - named sections, to store code and data in separate areas of memory
 - PETSCII and screen code text encodings, and your own encoding tables
@@ -116,7 +116,6 @@ game.d64: game.prg
 `-l` writes the labels to a file, as Python assignments sorted by address:
 
 ```python
-counter = 0x0002
 start = 0x080d
 start_loop = 0x083b
 irq = 0x0841
@@ -135,7 +134,7 @@ al C:0841 .irq
 break C:0841 if RL > $40
 ```
 
-The labels include zero page variables, and are sorted by address. A local label is named after its global label, e.g. `_loop` after `start:` is `start_loop`. A local label in generated code is named after the generator and how many times it was called, e.g. `_loop` in the second `@wait()` is `wait2_loop`. Other symbols, such as `VALUE = 5`, are not included. Run the file when starting VICE, or in the monitor with `pb "game.vmc"`:
+The labels are sorted by address. A local label is named after its global label, e.g. `_loop` after `start:` is `start_loop`. A local label in generated code is named after the generator and how many times it was called, e.g. `_loop` in the second `@wait()` is `wait2_loop`. Other symbols, such as `VALUE = 5` and zero page variables, are not included. Run the file when starting VICE, or in the monitor with `pb "game.vmc"`:
 
 ```
 x64sc -moncommands game.vmc game.prg
@@ -269,7 +268,7 @@ Two routines to test:
 ```
 ; routines.asm - two small routines, tested by test_routines.py
 
-            .zpbyte "temp"
+temp = zp(1)
 
 ; A = A * 10, for A from 0 to 25
 mul10:      sta temp
@@ -484,7 +483,7 @@ These can't be used:
 
 | Not allowed | Example | Why |
 |---|---|---|
-| All capitals | `VIC:`, `TABLE2:`, `_LOOP:`, `.zpbyte "FOO"` | Names in all capitals are for [constants](https://github.com/Morty40/NopAssembler#constants). A label could otherwise replace a built-in constant such as `VIC_BORDER_COLOR` without any warning, and new built-in constants can never clash with your labels |
+| All capitals | `VIC:`, `TABLE2:`, `_LOOP:` | Names in all capitals are for [constants](https://github.com/Morty40/NopAssembler#constants). A label could otherwise replace a built-in constant such as `VIC_BORDER_COLOR` without any warning, and new built-in constants can never clash with your labels |
 | A local label before any global label | `_x:` first in a file | It has no global label to belong to. Each file needs its own, as the scope doesn't carry over from the importing file |
 | The same name twice | `a:` and `a:` again, or `clear_loop:` after `clear:` and `_loop:` | A label has one address, and a local label's full name counts too |
 | A local label in a loop that runs more than once | `.repeat 2` around `_x:` | Each round defines the same name again. Put the code in a [generator](https://github.com/Morty40/NopAssembler#generators) and call it in the loop, as each call has its own scope |
@@ -524,7 +523,7 @@ Use a variable for a value that changes, for example in each round of a `.for` l
 
 #### Symbol types
 
-A symbol keeps the type of its first value: an `int` can't become a `str`, a function can't become an `int`, and so on. Assigning a value of another type is an error, and the symbol keeps its old value. This applies to assignments, labels, and `.zpbyte` and `.zpword` names, where the last two are always `int`. Symbols set by `.for`, like other Python code, are not checked.
+A symbol keeps the type of its first value: an `int` can't become a `str`, a function can't become an `int`, and so on. Assigning a value of another type is an error, and the symbol keeps its old value. This applies to assignments and labels. Symbols set by `.for`, like other Python code, are not checked.
 
 ```
 count = 1
@@ -542,6 +541,20 @@ sin:        nop             ; error: Symbol "sin" cannot change type from builti
 Note that `int`, `float` and `bool` are different types. To keep a value that can have decimals, start it as a `float`, e.g. `speed = 1.0`, rather than `speed = 1`.
 
 Symbols set by Python code, with `.python` or `.import` of a `.py` file, are not checked.
+
+#### Zero page variables
+
+`zp(size)` allocates `size` bytes in zero page, and returns the address of the first. Assign it to a name to make a zero page variable:
+
+```
+count = zp(1)                   ; $02
+pointer = zp(2)                 ; $03 and $04, e.g. for (pointer),y
+buffer = zp(8)                  ; $05 to $0c
+            lda count
+            sta (pointer),y
+```
+
+Addresses are allocated from `$02` and up, as `$00` and `$01` are used by the CPU port, in the order the source assigns them. A zero page variable is an ordinary symbol, so it can be used before its assignment. It isn't a label, so it isn't in the labels file or the VICE monitor commands. Allocating more than the 254 bytes from `$02` to `$ff` is an error.
 
 ### Expressions
 
@@ -561,6 +574,7 @@ Besides the Python built-ins, these are available:
 | `_` | the current address |
 | `lo(x)`, `hi(x)` | the low and high byte of a 16-bit value |
 | `ord(char)`, `chr(value)` | convert between a character and its value, in the current text encoding |
+| `zp(size)` | allocate zero page bytes, see [zero page variables](https://github.com/Morty40/NopAssembler#zero-page-variables) |
 | `ref("label")` | true if the label was referenced in the last pass, see below |
 | `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-else-end) |
 | `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](https://github.com/Morty40/NopAssembler#symbol-types) |
@@ -813,25 +827,6 @@ wait:       bbr7 $fb,wait           ; wait until bit 7 of $fb is set
             smb0 $fc                ; set bit 0 of $fc
 ```
 
-### Zero page variables
-
-#### .zpbyte
-```
-.zpbyte "name"[, "name", ...]
-```
-Allocates a byte in the zero page for each name, and defines the name as a label with its address. Addresses are allocated from `$02` and up, as `$00` and `$01` are used by the CPU port.
-
-```
-            .zpbyte "count", "index"    ; count = $02, index = $03
-            lda count
-```
-
-#### .zpword
-```
-.zpword "name"[, "name", ...]
-```
-Like `.zpbyte`, but allocates two bytes for each name, for example for pointers used with `(address),y`.
-
 ### Files
 
 #### .import
@@ -951,7 +946,7 @@ With `has("instruction")` as the condition, code can use the best instructions o
 The illegal `lax` loads both A and X:
 
 ```
-            .zpbyte "index"
+index = zp(1)
 
             .if has("lax $12")            ; 2 bytes, 3 cycles
             lax index
@@ -981,7 +976,7 @@ irq:
 The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A:
 
 ```
-            .zpbyte "flags"
+flags = zp(1)
 
             .if has("smb3 $12")           ; 2 bytes, 5 cycles
             smb3 flags
@@ -1015,7 +1010,7 @@ myTable:    .byte 1, 2, 3
             .end
 ```
 
-Only labels written directly in the block count, so not `.zpbyte` names, or labels from generated code or an imported file. A block without labels is never assembled. A nested block is only assembled if the outer block is, and each block only checks its own labels. For anything else, use `.if` with `ref`.
+Only labels written directly in the block count, so not assignments such as zero page variables, or labels from generated code or an imported file. A block without labels is never assembled. A nested block is only assembled if the outer block is, and each block only checks its own labels. For anything else, use `.if` with `ref`.
 
 ### Python
 
@@ -1134,7 +1129,7 @@ For example `@ldax(message)` loads the address of `message` into A (low byte) an
 | `cx16` | `via.py` | VIA 1 and 2 registers, `VIA1_...` and `VIA2_...` |
 | `cx16` | `ym2151.py` | the YM2151's ports, `YM2151_ADDRESS` and `YM2151_DATA`, and the numbers of its internal registers, `YM2151_REGISTER_...`, to write to `YM2151_ADDRESS`. For a channel's register add the channel, 0-7, and for an operator's also 8 times the operator, 0-3 |
 
-The `cx16` target, for the Commander X16, is experimental: it hasn't been tried on an emulator or the real machine yet. The X16 has a WDC 65C02, so use `.cpu CPU_W65C02` or `--cpu W65C02` for its instructions. Its KERNAL uses `$02`-`$21` in zero page, where `.zpbyte` and `.zpword` start, so with the X16's own KERNAL calls, assign zero page variables from `ZERO_PAGE_USER` instead.
+The `cx16` target, for the Commander X16, is experimental: it hasn't been tried on an emulator or the real machine yet. The X16 has a WDC 65C02, so use `.cpu CPU_W65C02` or `--cpu W65C02` for its instructions. Its KERNAL uses `$02`-`$21` in zero page, where `zp()` starts, so with the X16's own KERNAL calls, reserve those bytes first, and `zp()` continues from `ZERO_PAGE_USER`: `kernalZeroPage = zp(ZERO_PAGE_USER - 2)`.
 
 `importMusic(file, prefix)`, with `-t c64`, stores the music data from a SID file, without the header. PSID versions 1 to 4 and RSID versions 2 to 4 are supported, but not Compute!'s Sidplayer MUS data. The symbols `prefix_LOAD`, `prefix_INIT` and `prefix_PLAY` are defined with the load, init and play addresses. The path is relative to the folder of the main source file:
 

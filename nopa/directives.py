@@ -194,32 +194,6 @@ def align(context, n: int):
         context.symbols['_'] = _ - mod + n
 
 
-@directive('zpbyte')
-def zpbyte(context, name: str, *names: str):
-    """Allocate a zero page byte for each name, and define it as a label."""
-    _zpAllocate(context, (name,) + names, 1)
-
-
-@directive('zpword')
-def zpword(context, name: str, *names: str):
-    """Allocate two zero page bytes for each name, and define it as a label."""
-    _zpAllocate(context, (name,) + names, 2)
-
-
-def _zpAllocate(context, names, size: int):
-    """Allocate size zero page bytes for each name, and define it as a label."""
-    for name in names:
-        if context.zpAddress+size > 0x100:
-            context.reportError(f'No space for zero page variable: "{name}"')
-        elif name.isupper():
-            context.reportError(f'Capitals are for constants, not labels: "{name}"')
-        elif name in context.labels:
-            context.reportError(f'Label was already defined: "{name}"')
-        elif context.setSymbol(name, context.zpAddress):
-            context.labels.add(name)
-            context.zpAddress += size
-
-
 @directive('print')
 def printValues(context, value, *values):
     """Print values to the terminal, after the last pass."""
