@@ -595,6 +595,7 @@ class TestAssemble(unittest.TestCase):
             ('a = zp(0)\n',              'test.asm:1: error: Zero page size must be positive: "zp(0)"'),
             ('a = zp(1.5)\n',            'test.asm:1: error: Zero page size must be an int, not float: "zp(1.5)"'),
             ('a = zp("x")\n',            'test.asm:1: error: Zero page size must be an int, not str: "zp(f"x")"'),
+            ('a = zp(True)\n',           'test.asm:1: error: Zero page size must be an int, not bool: "zp(True)"'),
             ('a = zp(255)\n',            'test.asm:1: error: Not enough zero page left: 255 needed, 254 left: "zp(255)"'),
             ('a = zp(254)\nb = zp(1)\n', 'test.asm:2: error: Not enough zero page left: 1 needed, 0 left: "zp(1)"'),
         ])
