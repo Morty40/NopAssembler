@@ -66,14 +66,14 @@ nopa --version
 | Option | Description |
 |---|---|
 | `<asmFile>` | the source file to assemble |
-| `-d`, `--disassemble <binFile>` | disassemble the `.prg` or binary file instead, see [Disassembling](#disassembling) |
+| `-d`, `--disassemble <binFile>` | disassemble the `.prg` or binary file instead, see [Disassembling](https://github.com/Morty40/NopAssembler#disassembling) |
 | `-o`, `--output <outFile>` | the file to write. Without `-o` the source is assembled and checked, but nothing is saved. When disassembling, the source file to write. Without `-o` the source is printed |
 | `--format <prg\|bin>` | the format of the file to write: `prg` (the default), with the load address, or `bin`, only the bytes. The extension of the file name doesn't matter |
-| `-t`, `--target <c128\|c16\|c64\|plus4\|vic20>` | the target machine, whose [symbols and generators](#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
-| `--cpu <6502\|65C02\|R65C02\|W65C02>` | the [cpu](#cpu), and so the instructions: `6502` (the default), `65C02`, `R65C02` or `W65C02`. When assembling, `.cpu` can change it |
-| `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](#constants), so the source can't change them, and lower case names are variables. Can be given more than once |
-| `-l`, `--labels <labelsFile>` | the [labels](#labels-file) file to write, as Python assignments. When disassembling, the labels file to read |
-| `--vice <viceFile>` | the [VICE monitor commands](#vice-monitor-commands) file to write: labels and breakpoints |
+| `-t`, `--target <c128\|c16\|c64\|plus4\|vic20>` | the target machine, whose [symbols and generators](https://github.com/Morty40/NopAssembler#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
+| `--cpu <6502\|65C02\|R65C02\|W65C02>` | the [cpu](https://github.com/Morty40/NopAssembler#cpu), and so the instructions: `6502` (the default), `65C02`, `R65C02` or `W65C02`. When assembling, `.cpu` can change it |
+| `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](https://github.com/Morty40/NopAssembler#constants), so the source can't change them, and lower case names are variables. Can be given more than once |
+| `-l`, `--labels <labelsFile>` | the [labels](https://github.com/Morty40/NopAssembler#labels-file) file to write, as Python assignments. When disassembling, the labels file to read |
+| `--vice <viceFile>` | the [VICE monitor commands](https://github.com/Morty40/NopAssembler#vice-monitor-commands) file to write: labels and breakpoints |
 | `-h`, `--help` | print the usage |
 | `--version` | print the version |
 
@@ -102,11 +102,11 @@ start_loop = 0x083b
 irq = 0x0841
 ```
 
-The labels are named as in the [VICE monitor commands](#vice-monitor-commands), and other symbols, such as `VALUE = 5`, are not included. Another source can use the labels with `.import "game.py"`, and Python scripts with `from game import irq`.
+The labels are named as in the [VICE monitor commands](https://github.com/Morty40/NopAssembler#vice-monitor-commands), and other symbols, such as `VALUE = 5`, are not included. Another source can use the labels with `.import "game.py"`, and Python scripts with `from game import irq`.
 
 ### VICE monitor commands
 
-`--vice` writes a file of commands for the VICE monitor: a label for every label in the source, so the monitor shows and accepts label names instead of addresses, and a breakpoint for every [.break](#break):
+`--vice` writes a file of commands for the VICE monitor: a label for every label in the source, so the monitor shows and accepts label names instead of addresses, and a breakpoint for every [.break](https://github.com/Morty40/NopAssembler#break):
 
 ```
 al C:080d .start
@@ -128,7 +128,7 @@ x64sc -moncommands game.vmc game.prg
 
 - Code is found by trying each byte as the start of some code, following branches, `jmp` and `jsr`. It is only code if every path ends with `jmp`, `rts` or `rti`, or on the 65C02s `bra` or `stp`, before it runs into an unknown opcode, `brk`, the middle of another instruction, or the end. Nothing is assumed about BASIC lines.
 - Branch, `jmp` and `jsr` destinations get labels like `l1000`. Labels are alone on their line.
-- With `-l game.py`, the names from a [labels file](#labels-file) are used instead, for the operands and as labels, also in the data: `jsr irq`, `lda sinTable,x`. A name the code uses for an address outside the program, such as a zero page variable, is assigned at the top: `frame = $02`. Local labels keep their `global_local` names.
+- With `-l game.py`, the names from a [labels file](https://github.com/Morty40/NopAssembler#labels-file) are used instead, for the operands and as labels, also in the data: `jsr irq`, `lda sinTable,x`. A name the code uses for an address outside the program, such as a zero page variable, is assigned at the top: `frame = $02`. Local labels keep their `global_local` names.
 - Bytes the code doesn't reach are written as `.byte`, and 16 or more of the same byte as `.bytefill`. Code that is only reached through jump tables or self-modifying code becomes data too.
 - With `--cpu 65C02`, `R65C02` or `W65C02`, that cpu's instructions are disassembled too, and the source starts with `.cpu CPU_65C02`, `CPU_R65C02` or `CPU_W65C02`, so it assembles to the same bytes.
 - An absolute address below `$100`, e.g. `lda $0010` as `ad 10 00`, is written as `.byte`, as Nop Assembler assembles it with zero page addressing.
@@ -464,16 +464,16 @@ These can't be used:
 
 | Not allowed | Example | Why |
 |---|---|---|
-| All capitals | `VIC:`, `TABLE2:`, `_LOOP:`, `.zpbyte "FOO"` | Names in all capitals are for [constants](#constants). A label could otherwise replace a built-in constant such as `VIC_BORDER_COLOR` without any warning, and new built-in constants can never clash with your labels |
+| All capitals | `VIC:`, `TABLE2:`, `_LOOP:`, `.zpbyte "FOO"` | Names in all capitals are for [constants](https://github.com/Morty40/NopAssembler#constants). A label could otherwise replace a built-in constant such as `VIC_BORDER_COLOR` without any warning, and new built-in constants can never clash with your labels |
 | A local label before any global label | `_x:` first in a file | It has no global label to belong to. Each file needs its own, as the scope doesn't carry over from the importing file |
 | The same name twice | `a:` and `a:` again, or `clear_loop:` after `clear:` and `_loop:` | A label has one address, and a local label's full name counts too |
-| A local label in a loop that runs more than once | `.repeat 2` around `_x:` | Each round defines the same name again. Put the code in a [generator](#generators) and call it in the loop, as each call has its own scope |
+| A local label in a loop that runs more than once | `.repeat 2` around `_x:` | Each round defines the same name again. Put the code in a [generator](https://github.com/Morty40/NopAssembler#generators) and call it in the loop, as each call has its own scope |
 | A built-in function or math name | `lo:`, `ldax:`, `sin:`, `pi:` | These are symbols too, and a symbol can't change type |
 | Other characters | `a.b:`, `a-b:` | `.` and `-` are operators in expressions |
 | Two labels on one line | `a: b: nop` | A line has at most one label. Put them on separate lines to give an address two names |
 | A Python keyword, or a digit first | `if:`, `class:`, `1a:` | Expressions are Python, so using the name is an error |
 
-The name `a` is best avoided for a label: `asl a` would use the label instead of the accumulator, see [Instructions](#instructions). A local label can use any name that isn't all capitals, also `_if` or `_lda`, as its full name is what expressions see.
+The name `a` is best avoided for a label: `asl a` would use the label instead of the accumulator, see [Instructions](https://github.com/Morty40/NopAssembler#instructions). A local label can use any name that isn't all capitals, also `_if` or `_lda`, as its full name is what expressions see.
 
 ### Assignments
 
@@ -488,7 +488,7 @@ squares = [x * x for x in range(16)]
 
 #### Constants
 
-Symbols in all upper case, such as `SCREEN` or `MAX_SPEED`, are constants: once a constant has a value, it can't be assigned a different value. Doing so is an error, and the constant keeps its first value. Symbols with any lower case letters, such as `speed` or `maxSpeed`, are variables, and can be assigned again, with a value of the same [type](#symbol-types).
+Symbols in all upper case, such as `SCREEN` or `MAX_SPEED`, are constants: once a constant has a value, it can't be assigned a different value. Doing so is an error, and the constant keeps its first value. Symbols with any lower case letters, such as `speed` or `maxSpeed`, are variables, and can be assigned again, with a value of the same [type](https://github.com/Morty40/NopAssembler#symbol-types).
 
 ```
 MAX_SPEED = 4
@@ -542,8 +542,8 @@ Besides the Python built-ins, these are available:
 | `lo(x)`, `hi(x)` | the low and high byte of a 16-bit value |
 | `ord(char)`, `chr(value)` | convert between a character and its value, in the current text encoding |
 | `ref("label")` | true if the label was referenced in the last pass, see below |
-| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](#if-else-end) |
-| `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](#symbol-types) |
+| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-else-end) |
+| `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](https://github.com/Morty40/NopAssembler#symbol-types) |
 | `ENCODING_...` | the text encodings, see `.encoding` |
 | `CPU_6502`, `CPU_65C02` | the cpus, see `.cpu` |
 
@@ -597,7 +597,7 @@ def tileMap(fileName, tiles):
 level:      @tileMap("level1.txt", {'.': 0, '#': 1, '*': 2})
 ```
 
-A generator can also write the code itself, working out the best code for its arguments. This one writes speedcode that draws characters on the screen, without a loop. It groups the positions by character, so each character needs only one `lda`, however often it is used. `ord()` gives the value in the current [text encoding](#text-encoding):
+A generator can also write the code itself, working out the best code for its arguments. This one writes speedcode that draws characters on the screen, without a loop. It groups the positions by character, so each character needs only one `lda`, however often it is used. `ord()` gives the value in the current [text encoding](https://github.com/Morty40/NopAssembler#text-encoding):
 
 ```python
 # speedcode.py
@@ -774,7 +774,7 @@ Chooses the cpu, and so the instructions, from the next line on. Each pass start
 
 | Cpu | Instructions |
 |---|---|
-| `CPU_6502` | the documented instructions, and the [illegal instructions](#illegal-instructions) that work the same on all C64 and C128 cpus (default) |
+| `CPU_6502` | the documented instructions, and the [illegal instructions](https://github.com/Morty40/NopAssembler#illegal-instructions) that work the same on all C64 and C128 cpus (default) |
 | `CPU_65C02` | the documented instructions, and those the 65C02 adds: `bra`, `phx`, `phy`, `plx`, `ply`, `stz`, `trb`, `tsb`, more modes for `bit`, `inc a` and `dec a` as `inc` and `dec` without an operand, `(zp)` for `adc`, `and`, `cmp`, `eor`, `lda`, `ora`, `sbc` and `sta`, and `jmp (address,x)` |
 | `CPU_R65C02` | the 65C02's instructions, and the Rockwell bit instructions: `rmb0` to `rmb7` and `smb0` to `smb7` reset and set a bit in zero page, and `bbr0` to `bbr7` and `bbs0` to `bbs7` branch if a bit in zero page is reset or set, e.g. `bbr3 $12,label` |
 | `CPU_W65C02` | the R65C02's instructions, and those only the WDC 65C02 has: `wai` waits for an interrupt, and `stp` stops the cpu until a reset |
@@ -906,7 +906,7 @@ myTable:    .byte 1, 2, 3
 
 `ref` is false in the first pass, so a block starts out left out, and is added in the following passes once something references its label. A block that only references itself is never added. Symbols set in a block that is left out are not defined.
 
-With `has("instruction")` as the condition, code can use the best instructions of the [cpu](#cpu), and still assemble for the others. It is true if that line would assemble on the current cpu, so `has("lax $12")` is true on the 6502, and false on the 65C02s, which don't have `lax`. The operand shows which address mode to ask about, so a plain number is best: `$12` means zero page.
+With `has("instruction")` as the condition, code can use the best instructions of the [cpu](https://github.com/Morty40/NopAssembler#cpu), and still assemble for the others. It is true if that line would assemble on the current cpu, so `has("lax $12")` is true on the 6502, and false on the 65C02s, which don't have `lax`. The operand shows which address mode to ask about, so a plain number is best: `$12` means zero page.
 
 The illegal `lax` loads both A and X:
 
@@ -1036,7 +1036,7 @@ Reports an error if the Python expression `condition` is false, with the message
 ```
 .break ["condition"]
 ```
-Sets a breakpoint in VICE at the current address, written to the [VICE monitor commands](#vice-monitor-commands) file. The optional condition is passed to VICE unchanged, in VICE's own format: registers `A`, `X`, `Y`, `SP`, the raster line `RL` and cycle `CY`, and hex numbers with `$`:
+Sets a breakpoint in VICE at the current address, written to the [VICE monitor commands](https://github.com/Morty40/NopAssembler#vice-monitor-commands) file. The optional condition is passed to VICE unchanged, in VICE's own format: registers `A`, `X`, `Y`, `SP`, the raster line `RL` and cycle `CY`, and hex numbers with `$`:
 
 ```
 irq:        .break                      ; stop each time the interrupt starts
@@ -1047,7 +1047,7 @@ irq:        .break                      ; stop each time the interrupt starts
 
 ## Built-in symbols
 
-The Python files in `nopa/imports/` are always imported, and are not specific to one machine. The upper case symbols are [constants](#constants):
+The Python files in `nopa/imports/` are always imported, and are not specific to one machine. The upper case symbols are [constants](https://github.com/Morty40/NopAssembler#constants):
 
 | File | Contents |
 |---|---|
@@ -1061,7 +1061,7 @@ The Python files in `nopa/imports/` are always imported, and are not specific to
 
 | Target | File | Contents |
 |---|---|---|
-| `c64` | `basic.py` | [BASIC 2.0](#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM` |
+| `c64` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM` |
 | `c64` | `cia.py` | CIA 1 and 2 registers, `CIA1_...` and `CIA2_...` |
 | `c64` | `ioport.py` | the 6510 processor port at `$00` and `$01`, `IO_PORT_DATA_DIRECTION` and `IO_PORT_DATA`, which chooses RAM, ROM or I/O at `$a000`, `$d000` and `$e000` |
 | `c64` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
@@ -1070,22 +1070,22 @@ The Python files in `nopa/imports/` are always imported, and are not specific to
 | `c64` | `music.py` | SID music files, and the generator `importMusic(file, prefix)` |
 | `c64` | `sid.py` | SID registers, `SID_...` |
 | `c64` | `vic.py` | VIC-II registers, `VIC_...` |
-| `c16` | `basic.py` | [BASIC 3.5](#basic), `BASIC_START_ADDRESS` (`$1001`), and `BASIC_ROM` |
+| `c16` | `basic.py` | [BASIC 3.5](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1001`), and `BASIC_ROM` |
 | `c16` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c16` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM` |
 | `c16` | `ted.py` | TED registers and colors, `TED_...`, and `tedColor(color, luminance)` |
 | `plus4` | | the same files as `c16` |
-| `c128` | `basic.py` | [BASIC 7.0](#basic), `BASIC_START_ADDRESS` (`$1C01`), and `BASIC_ROM` |
+| `c128` | `basic.py` | [BASIC 7.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1C01`), and `BASIC_ROM` |
 | `c128` | `cia.py`, `sid.py`, `vic.py`, `ioport.py` | the same as `c64` |
 | `c128` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c128` | `machine.py` | `SCREEN_RAM`, `COLOR_RAM` and `CHAR_ROM`, in 40 columns |
 | `c128` | `mmu.py`, `vdc.py` | MMU and VDC registers, `MMU_...` and `VDC_...` |
-| `vic20` | `basic.py` | [BASIC 2.0](#basic), `BASIC_START_ADDRESS` (`$1001`, without a memory expansion), and `BASIC_ROM` |
+| `vic20` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1001`, without a memory expansion), and `BASIC_ROM` |
 | `vic20` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...`, without `SCINIT`, `IOINIT` and `RAMTAS` |
 | `vic20` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM`, and `SCREEN_RAM_EXPANDED` and `COLOR_RAM_EXPANDED` with 8K or more of memory expansion |
 | `vic20` | `via.py` | VIA 1 and 2 registers, `VIA1_...` and `VIA2_...` |
 | `vic20` | `vic.py` | VIC registers and colors, `VIC_...` |
-| `cx16` | `basic.py` | [BASIC 2.0](#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM`, in ROM bank 4 |
+| `cx16` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM`, in ROM bank 4 |
 | `cx16` | `kernal.py` | the C64's KERNAL ROM routines, `KERNAL_ROM_...`, at the same addresses, and `KERNAL_R0` to `KERNAL_R15`, the 16-bit registers in zero page for the X16's own KERNAL calls |
 | `cx16` | `machine.py` | the bank registers `RAM_BANK` and `ROM_BANK`, the windows `BANKED_RAM` and `BANKED_ROM`, the ROM banks `ROM_BANK_...`, and the zero page free for programs, `ZERO_PAGE_USER` to `ZERO_PAGE_USER_END` |
 | `cx16` | `vera.py` | VERA registers, `VERA_...`, and its VRAM layout, `VERA_VRAM_...` |
