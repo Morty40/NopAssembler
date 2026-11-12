@@ -20,20 +20,38 @@ Nop Assembler is a multi-pass 6502 assembler for Commodore computers: the C64, C
 
 ## Installation
 
-Nop Assembler requires Python 3.11 or later, and installs with [pipx](https://pipx.pypa.io):
+Nop Assembler requires Python 3.11 or later. The easiest way to install it is with [pipx](https://pipx.pypa.io), which installs the `nopa` command in an environment of its own, apart from other Python packages.
+
+### From PyPI
 
 ```bash
-git clone https://github.com/Morty40/NopAssembler.git
-cd NopAssembler
-pipx install .
+pipx install nopa
 ```
 
-This installs the `nopa` command. Run `pipx install --force .` to update after pulling changes, and `pipx uninstall nopa` to remove it.
-
-Nop Assembler can also run directly from the repository folder, without installing:
+To update to the latest release, and to remove it:
 
 ```bash
-python3 -m nopa hello.asm -o hello.prg
+pipx upgrade nopa
+```
+
+```bash
+pipx uninstall nopa
+```
+
+With [uv](https://docs.astral.sh/uv/), `uv tool install nopa` does the same. To use Nop Assembler as a Python library, e.g. for [testing 6502 code](https://github.com/Morty40/NopAssembler#testing-6502-code), install it with `pip install nopa` in a virtual environment.
+
+### From GitHub
+
+The latest source from the repository, including changes that aren't released yet:
+
+```bash
+pipx install git+https://github.com/Morty40/NopAssembler.git
+```
+
+To update it, run the same command with `--force`. `pipx upgrade` doesn't pick up new commits, as it only reinstalls when the version number changes:
+
+```bash
+pipx install --force git+https://github.com/Morty40/NopAssembler.git
 ```
 
 
@@ -1123,13 +1141,29 @@ Assembling a source file runs Python code: expressions, generators, `.python` bl
 
 ## Development
 
-To work on Nop Assembler and try the changes in another project, install it in editable mode from the repository folder:
+To work on Nop Assembler, clone the repository:
+
+```bash
+git clone https://github.com/Morty40/NopAssembler.git
+```
+
+```bash
+cd NopAssembler
+```
+
+Then install it from the local folder in editable mode:
 
 ```bash
 pipx install --editable .
 ```
 
-The `nopa` command then runs the source in the repository, so changes take effect without reinstalling. Only changes to `pyproject.toml`, such as the version or the command name, need a reinstall with `pipx install --force --editable .`.
+The `nopa` command then runs the source in the repository, so changes take effect without reinstalling, also when you use it from another project. Only changes to `pyproject.toml`, such as the version or the command name, need a reinstall with `pipx install --force --editable .`. If `nopa` is already installed from PyPI or GitHub, add `--force` the first time too, to replace it. Without `--editable`, `pipx install .` installs a copy of the source as it is now.
+
+Nop Assembler can also run directly from the repository folder, without installing:
+
+```bash
+python3 -m nopa hello.asm -o hello.prg
+```
 
 ### Running the tests
 
