@@ -556,6 +556,8 @@ buffer = zp(8)                  ; $05 to $0c
 
 Addresses are allocated from `$02` and up, as `$00` and `$01` are used by the CPU port, in the order the source assigns them. A zero page variable is an ordinary symbol, so it can be used before its assignment. It isn't a label, so it isn't in the labels file or the VICE monitor commands. Allocating more than the 254 bytes from `$02` to `$ff` is an error.
 
+Each call of `zp()` allocates new bytes, also when its address is assigned to a name that already has zero page, and in each round of a `.repeat` or `.for`. The name then holds the address from its latest assignment, and a use before its first assignment gets the last one. So give each zero page variable a name of its own, assigned once, and use one call for a block of bytes, such as `zp(8)`.
+
 ### Expressions
 
 Operands and directive arguments are Python expressions, evaluated with all symbols (labels and assignments) as variables. Symbols can be used before they are defined, as Nop Assembler assembles in multiple passes.
