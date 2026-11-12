@@ -59,8 +59,9 @@ class Context:
             raise ValueError('Zero page size must be positive')
         if self.zpAddress + size > 0x100:
             raise ValueError(f'Not enough zero page left: {size} needed, {0x100 - self.zpAddress} left')
+        address = self.zpAddress
         self.zpAddress += size
-        return self.zpAddress - size
+        return address
 
     def setSymbol(self, name: str, value) -> bool:
         """Set a symbol, which keeps its type, e.g. an int can't become a str.
