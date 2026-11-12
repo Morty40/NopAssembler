@@ -56,7 +56,7 @@ class Context:
         if type(size) is not int:
             raise TypeError(f'Zero page size must be an int, not {type(size).__name__}')
         if size < 1:
-            raise ValueError(f'Zero page size must be positive: {size}')
+            raise ValueError('Zero page size must be positive')
         if self.zpAddress + size > 0x100:
             raise ValueError(f'Not enough zero page left: {size} needed, {0x100 - self.zpAddress} left')
         self.zpAddress += size

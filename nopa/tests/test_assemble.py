@@ -592,7 +592,7 @@ class TestAssemble(unittest.TestCase):
     def testZeroPageMessages(self):
         """zp() needs a positive int as the size, and the zero page has 254 bytes, from $02 to $ff."""
         self._assertMessages([
-            ('a = zp(0)\n',              'test.asm:1: error: Zero page size must be positive: 0: "zp(0)"'),
+            ('a = zp(0)\n',              'test.asm:1: error: Zero page size must be positive: "zp(0)"'),
             ('a = zp(1.5)\n',            'test.asm:1: error: Zero page size must be an int, not float: "zp(1.5)"'),
             ('a = zp("x")\n',            'test.asm:1: error: Zero page size must be an int, not str: "zp(f"x")"'),
             ('a = zp(255)\n',            'test.asm:1: error: Not enough zero page left: 255 needed, 254 left: "zp(255)"'),
