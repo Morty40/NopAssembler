@@ -31,6 +31,11 @@ class TestContext(unittest.TestCase):
         self.assertEqual(context.popReadPointer(), ('b.asm', 7)) # end of b.asm
         self.assertEqual(context.readPointer(), ('a.asm', 1))    # back in a.asm
 
+    def testZeroPage(self):
+        """zp(size) allocates zero page bytes from $02, and returns the address of the first."""
+        context = Context({})
+        self.assertEqual([context.symbols['zp'](size) for size in [1, 2, 1, 8, 1]], [0x02, 0x03, 0x05, 0x06, 0x0e])
+
     def testReport(self):
         """Warnings and errors are prefixed with the file and line, if any."""
         context = Context({})

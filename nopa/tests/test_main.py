@@ -176,16 +176,16 @@ class TestMain(unittest.TestCase):
                     self.assertEqual(list(f.read()), expected)
 
     def testSortedLabels(self):
-        """The labels and zero page variables, sorted by address, with local labels as global_local,
-        and generator labels as generator1_local. Other symbols are not included."""
-        source = 'VALUE = 5\n.zpbyte "counter"\nstart: lda #VALUE\n_loop: dex\nbne _loop\nrts\n' \
+        """The labels, sorted by address, with local labels as global_local, and generator labels
+        as generator1_local. Other symbols, such as constants and zero page variables, are not included."""
+        source = 'VALUE = 5\ncounter = zp(1)\nstart: lda #VALUE\n_loop: dex\nbne _loop\nrts\n' \
                  '.python\ndef wait():\n    return "_x: dex\\nbne _x"\n.end\n@wait()\n'
         with tempfile.TemporaryDirectory() as directory:
             asmFile = os.path.join(directory, 'test.asm')
             with open(asmFile, 'w') as f:
                 f.write(source)
             context = assemble.assembleFile(asmFile)
-        self.assertEqual(sortedLabels(context), [(0x0002, 'counter'), (0x1000, 'start'), (0x1002, 'start_loop'), (0x1006, 'wait1_x')])
+        self.assertEqual(sortedLabels(context), [(0x1000, 'start'), (0x1002, 'start_loop'), (0x1006, 'wait1_x')])
 
     def testViceCommands(self):
         """--vice writes a VICE monitor commands file: the labels, then the .break breakpoints.
