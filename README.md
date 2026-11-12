@@ -246,7 +246,7 @@ source = nopa.disassembleFile('game.prg')
 
 `disassembleFile(inFile, labelsFile=None, cpu=CPU_6502)` returns the source.
 
-Both raise `OSError` if a file can't be read or written, and `assembleFile` raises `ValueError` for an unknown target. Errors in the source don't raise, they are returned in `context.errors`.
+Both raise `OSError` if a file can't be read, and `assembleFile` raises `ValueError` for an unknown target. Errors in the source don't raise, they are returned in `context.errors`.
 
 
 ### Testing 6502 code
