@@ -25,6 +25,7 @@ class Context:
         symbols['ord'] = lambda char: text.ord(char, self.encoding)
         symbols['chr'] = lambda value: text.chr(value, self.encoding)
         symbols['ref'] = lambda label: label in self.lastReferences
+        symbols['zp'] = self.zp
         self.symbols = symbols
         self.labels: set[str] = set() # labels defined in this pass, to find duplicates
         self.memory: dict[int, int] = {} # address: byte
@@ -32,7 +33,7 @@ class Context:
         self.warnings: list[str] = []
         self.errors: list[str] = []
         self.blockStack: list[tuple] = [] # per open .repeat, .for or .if: (kind, ...), see directives.py
-        self.zpAddress = 2 # $0 and $1 are reserved
+        self.zpAddress = 2 # the next free zero page address, for zp(): $0 and $1 are reserved
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
@@ -49,6 +50,18 @@ class Context:
         for constant in code.co_consts:
             if isinstance(constant, types.CodeType):
                 self.noteReferences(constant)
+
+    def zp(self, size: int) -> int:
+        """Allocate size bytes in zero page, and return the address of the first, e.g. counter = zp(1)."""
+        if type(size) is not int:
+            raise TypeError(f'Zero page size must be an int, not {type(size).__name__}')
+        if size < 1:
+            raise ValueError('Zero page size must be positive')
+        if self.zpAddress + size > 0x100:
+            raise ValueError(f'Not enough zero page left: {size} needed, {0x100 - self.zpAddress} left')
+        address = self.zpAddress
+        self.zpAddress += size
+        return address
 
     def setSymbol(self, name: str, value) -> bool:
         """Set a symbol, which keeps its type, e.g. an int can't become a str.

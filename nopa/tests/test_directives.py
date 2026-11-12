@@ -65,8 +65,9 @@ class TestDirectives(unittest.TestCase):
             ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]),
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, "x: x+N"\nN = 1\n',           [1, 0, 2, 0, 3, 0]),
-            ('lda aa\nlda bb\n.zpbyte "aa"\n.zpbyte "bb"\n', [0xa5, 0x02, 0xa5, 0x03]),
-            ('lda aa\nlda bb\n.zpword "aa"\n.zpword "bb"\n', [0xa5, 0x02, 0xa5, 0x04]),
+            ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]),
+            ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]),
+            ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)

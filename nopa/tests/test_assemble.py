@@ -53,7 +53,7 @@ class TestAssemble(unittest.TestCase):
             ('x = 1\nx = "a"\n',          'test.asm:2: error: Symbol "x" cannot change type from int to str'),
             ('f = lambda v: v\nf = 1\n',  'test.asm:2: error: Symbol "f" cannot change type from function to int'),
             ('x = "a"\nx: nop\n',         'test.asm:2: error: Symbol "x" cannot change type from str to int'),
-            ('.zpbyte "x"\nx = "a"\n',    'test.asm:2: error: Symbol "x" cannot change type from int to str'),
+            ('x = zp(1)\nx = "a"\n',      'test.asm:2: error: Symbol "x" cannot change type from int to str'),
             # the math module is protected
             ('pi = 3\n',                  'test.asm:1: error: Symbol "pi" cannot change type from float to int'),
             ('e: nop\n',                  'test.asm:1: error: Symbol "e" cannot change type from float to int'),
@@ -293,8 +293,6 @@ class TestAssemble(unittest.TestCase):
             ('TABLE2: nop\n',                                            'test.asm:1: error: Capitals are for constants, not labels: "TABLE2"'),
             ('g:\n_LOOP: nop\n',                                         'test.asm:2: error: Capitals are for constants, not labels: "_LOOP"'),
             ('.python\ndef f():\n    return "_X: nop\\n"\n.end\n@f()\n', 'test.asm:5 @f():1: error: Capitals are for constants, not labels: "_X"'),
-            ('.zpbyte "FOO"\n',                                          'test.asm:1: error: Capitals are for constants, not labels: "FOO"'),
-            ('.zpword "FOO"\n',                                          'test.asm:1: error: Capitals are for constants, not labels: "FOO"'),
             ('_X: nop\n',                                                'test.asm:1: error: Capitals are for constants, not labels: "_X"'),
         ])
         for source in [
@@ -304,7 +302,6 @@ class TestAssemble(unittest.TestCase):
             'g:\n_Loop: nop\n',
             'g:\n_0: nop\n',
             'VICe:\n_BORDER2x: nop\n',
-            '.zpbyte "Foo"\n',
             '.python\n_MAX = 5\n.end\ng: lda #_MAX\n',
         ]:
             with self.subTest(source=source):
@@ -492,15 +489,15 @@ class TestAssemble(unittest.TestCase):
     def testRefOtherSymbols(self):
         """A symbol in a block that is not assembled is not defined."""
         self._assertMessages([
-            ('.if ref("t")\nt: nop\nK = 2\n.end\nlda #K\n', "test.asm:5: error: Name 'K' is not defined"),
-            ('.if ref("t")\nt: nop\n.zpbyte "v"\n.end\nlda v\n', "test.asm:5: error: Name 'v' is not defined"),
+            ('.if ref("t")\nt: nop\nK = 2\n.end\nlda #K\n',    "test.asm:5: error: Name 'K' is not defined"),
+            ('.if ref("t")\nt: nop\nv = zp(1)\n.end\nlda v\n', "test.asm:5: error: Name 'v' is not defined"),
         ])
 
     def testOptional(self):
         """An optional block is only assembled if one of its global labels was referenced in the last pass."""
         table = '.optional\nmyTable: .byte 1, 2, 3\n.end\n'
         functions = '.optional\nfunc1: nop\nrts\nfunc2: nop\nrts\n.end\n'
-        zeroPage = '.optional\n.zpbyte "xyz"\nfunc3: lda xyz\nrts\n.end\n'
+        zeroPage = '.optional\nxyz = zp(1)\nfunc3: lda xyz\nrts\n.end\n'
         selfUse = '.optional\nfunc6: dex\nbne func6\nrts\n.end\n'
         for source, expected in [
             ('.byte 0\n' + table,                         [0]),                                # not referenced
@@ -593,15 +590,25 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(context.memory, {0x1000: 1, 0x1001: 2, 0x1002: 3, 0x2000: 4, 0x2001: 5})
 
     def testZeroPageMessages(self):
-        """.zpbyte and .zpword names that are used twice, or that do not fit."""
+        """zp() needs a positive int as the size, and the zero page has 254 bytes, from $02 to $ff."""
         self._assertMessages([
-            ('.zpbyte "a"\n.zpbyte "a"\n',           'test.asm:2: error: Label was already defined: "a"'),
-            ('.zpbyte []\n',                         'test.asm:1: error: Invalid directive: .zpbyte []'),
-            ('.zpbyte 1\n',                          'test.asm:1: error: Invalid directive: .zpbyte 1'),
-            ('.zpword "a", 1\n',                     'test.asm:1: error: Invalid directive: .zpword f"a",1'),
-            ('.for i=0, i<127, i+=1\n.zpword "v{i}"\n.end\n.zpbyte "last"\n', # $02-$ff is full
-                                                     'test.asm:4: error: No space for zero page variable: "last"'),
+            ('a = zp(0)\n',              'test.asm:1: error: Zero page size must be positive: "zp(0)"'),
+            ('a = zp(1.5)\n',            'test.asm:1: error: Zero page size must be an int, not float: "zp(1.5)"'),
+            ('a = zp("x")\n',            'test.asm:1: error: Zero page size must be an int, not str: "zp(f"x")"'),
+            ('a = zp(True)\n',           'test.asm:1: error: Zero page size must be an int, not bool: "zp(True)"'),
+            ('a = zp(255)\n',            'test.asm:1: error: Not enough zero page left: 255 needed, 254 left: "zp(255)"'),
+            ('a = zp(254)\nb = zp(1)\n', 'test.asm:2: error: Not enough zero page left: 1 needed, 0 left: "zp(1)"'),
         ])
+
+    def testZeroPageReused(self):
+        """Each zp() allocates new bytes, also for a name that has some, or in a loop. A name holds its latest address,
+        and a use before its first assignment gets the last one."""
+        for source, expected in [
+            ('lda temp\ntemp = zp(1)\nsta temp\ntemp = zp(1)\nsta temp\n',  [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
+            ('.repeat 3\nv = zp(1)\n.end\nnext = zp(1)\n.byte next, v\n',   [0x05, 0x04]),                           # $02 to $04 in the loop
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._memory(source), expected)
 
     def testPrint(self):
         """.print prints once, after the last pass, so values are final, even with errors."""
