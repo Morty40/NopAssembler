@@ -1,6 +1,6 @@
 # Changelog
 
-Whats new in Nop Assembler.
+What's new in Nop Assembler.
 
 ## [0.1.0] - unreleased
 
@@ -23,8 +23,7 @@ The first release.
 - import of source files, Python files, binary files and SID music
 - generic 6502 generators and symbols, always imported
 - symbols defined on the command line: `-D NAME=VALUE`, or `-D NAME` for `True`
-- target imports with `-t c128|c16|c64|plus4|vic20`, such as the C64 hardware (VIC, SID, CIA, KERNAL, BASIC)
-- an experimental target for the Commander X16, `-t cx16`
+- target imports with `-t c128|c16|c64|cx16|plus4|vic20`, such as the C64 hardware (VIC, SID, CIA, KERNAL, BASIC). `cx16`, for the Commander X16, is experimental
 - BASIC lines with the keywords as tokens, in the BASIC version of the target: 2.0, 3.5 or 7.0
 - `.prg` and binary output, chosen with `--format prg|bin`, and a memory map after a successful assembly
 - labels file, as Python assignments: `nopa game.asm -l game.py`
