@@ -533,7 +533,7 @@ Operands and directive arguments are Python expressions, evaluated with all symb
             lda #lo(message)
             ldx #hi(message)
             .byte 1 if DEBUG else 0
-            .byte len(message), max(squares)
+            .byte len(squares), max(squares)
 ```
 
 Besides the Python built-ins, these are available:
