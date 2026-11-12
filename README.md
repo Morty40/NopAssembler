@@ -234,14 +234,14 @@ Both raise `OSError` if a file can't be read or written, and `assembleFile` rais
 
 As Nop Assembler is a Python library, your 6502 routines can have unit tests, run in the [py65](https://github.com/mnaberez/py65) 6502 emulator. A test assembles the source, loads it into the emulator, calls a routine, and checks the registers, the memory, and the cycles it took. Python itself is the reference to compare with, so a routine can be tested with every input.
 
-The tests need py65, and Nop Assembler as a library, e.g. in a virtual environment, with Nop Assembler from its repository folder:
+The tests need py65, and Nop Assembler as a library, e.g. in a virtual environment:
 
 ```bash
 python3 -m venv .venv
 ```
 
 ```bash
-.venv/bin/pip install py65 ./NopAssembler
+.venv/bin/pip install py65 nopa
 ```
 
 Two routines to test:
