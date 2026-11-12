@@ -8,6 +8,7 @@ without an annotation accept any type.
 
 import inspect
 import os
+import types
 import typing
 from collections.abc import Callable
 
@@ -414,11 +415,11 @@ def reportOpenBlocks(context):
         context.popReadPointer()
 
 
-def _runPython(context, code: str):
-    """Run Python code with the symbols as its variables, and note the names it uses."""
+def _runPython(context, code: str, variables: dict | None = None):
+    """Run Python code with the symbols as its variables, or the given ones, and note the names it uses."""
     compiled = compile(code, '<string>', 'exec')
     context.noteReferences(compiled)
-    exec(compiled, context.symbols)
+    exec(compiled, context.symbols if variables is None else variables)
 
 
 def _execute(context, code: str) -> bool:
@@ -438,13 +439,21 @@ def python(context, code: str):
 
 
 @directive('import')
-def importFile(context, fileName: str):
-    """Import a file: a .py file is executed, any other file is assembled as source code."""
+def importFile(context, fileName: str, namespace: str | None = None):
+    """Import a file: a .py file is executed, any other file is assembled as source code.
+
+    A .py file with a namespace runs in a module of that name, so its names are used as namespace.name.
+    """
     path = os.path.join(context.path, fileName)
-    if os.path.splitext(path)[1] == ".py":
+    if namespace is not None and os.path.splitext(path)[1] != ".py":
+        context.reportError(f'Only a .py file can be imported into a namespace: "{fileName}"')
+    elif os.path.splitext(path)[1] == ".py":
+        module = types.ModuleType(namespace) if namespace else None
+        if module:
+            context.setSymbol(namespace, module)
         try:
             with open(path) as f:
-                _runPython(context, f.read())
+                _runPython(context, f.read(), module.__dict__ if module else None)
         except Exception as exception:
             context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
     elif not os.path.isfile(path):

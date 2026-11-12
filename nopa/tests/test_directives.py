@@ -117,6 +117,50 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(len(errors), 1, errors)
                 self.assertIn(f'test.asm:1: error: Failed to execute python code: "bad.py" ({exception}', errors[0])
 
+    _GENERATORS = (
+        'from nopa.cpu import lo, hi\n'
+        '\n'
+        'def bla(address):\n'
+        '    return f"lda #{lo(address)}\\nldx #{hi(address)}\\n" + helper()\n'
+        '\n'
+        'def helper():\n'
+        '    return "rts\\n"\n'
+    )
+
+    def _assemble(self, source: str, files: dict):
+        """Assemble source, with the files {name: text} beside it, and return the context."""
+        with tempfile.TemporaryDirectory() as directory:
+            for name, text in {'test.asm': source, **files}.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            return assembleFile(os.path.join(directory, 'test.asm'))
+
+    def testImportNamespace(self):
+        """A .py file imported into a namespace: its functions are used as namespace.name, and can call each other."""
+        self._assertBytes('.import "gen.py", "util"\n@util.bla($1234)\n', [0xa9, 0x34, 0xa2, 0x12, 0x60], {'gen.py': self._GENERATORS})
+
+    def testImportNamespaceRunsEachTime(self):
+        """The file runs each time it is assembled, so a changed file is used, also when assembling again from Python."""
+        for value in [1, 2]:
+            with self.subTest(value=value):
+                context = self._assemble('.import "gen.py", "util"\n.byte util.VALUE\n', {'gen.py': f'VALUE = {value}\n'})
+                self.assertEqual(list(context.memory.values()), [value])
+
+    def testImportNamespaceMessages(self):
+        """A namespace is for .py files only, and keeps its names to itself, as the program's names are kept from it."""
+        gen = {'gen.py': self._GENERATORS}
+        for source, files, message in [
+            ('.import "gen.py", "util"\n@bla($1234)\n',                       gen,                                          "test.asm:2: error: Name 'bla' is not defined"),
+            ('.import "x.asm", "util"\n',                                     {'x.asm': 'nop\n'},                           'test.asm:1: error: Only a .py file can be imported into a namespace: "x.asm"'),
+            ('util: nop\n.import "gen.py", "util"\n',                          gen,                                          'test.asm:2: error: Symbol "util" cannot change type from int to module'),
+            ('.import "gen.py", "util"\nstart: @util.at()\n',                  {'gen.py': 'def at():\n    return start\n'},  "test.asm:2: error: Name 'start' is not defined"), # the program's symbols aren't seen
+            ('.import "a.py", "util"\n.import "b.py", "util"\n@util.one()\n',  {'a.py': 'def one():\n    return ""\n', 'b.py': ''},
+                                                                                                                              "test.asm:3: error: Module 'util' has no attribute 'one'"), # the second file replaces the first
+        ]:
+            with self.subTest(source=source):
+                errors = self._assemble(source, files).errors
+                self.assertTrue(any(message in error for error in errors), errors)
+
     def testIf(self):
         """.if blocks, with .else and .end."""
         for source, expected in [

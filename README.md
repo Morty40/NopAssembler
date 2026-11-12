@@ -836,7 +836,7 @@ Like `.zpbyte`, but allocates two bytes for each name, for example for pointers 
 
 #### .import
 ```
-.import "file"
+.import "file"[, "namespace"]
 ```
 Imports a file, with the path relative to the folder of the main source file. A `.py` file is executed as Python, so its functions and variables become available to expressions and generators. Any other file is assembled as source code, in place of the `.import` line.
 
@@ -844,6 +844,26 @@ Imports a file, with the path relative to the folder of the main source file. A 
             .import "macros.py"
             .import "music.asm"
 ```
+
+A `.py` file can also be imported into a namespace. Its functions and variables are then used as `namespace.name`, and only the namespace itself is added to the symbols, so its names can't clash with the program's:
+
+```python
+# generators.py
+from nopa.cpu import lo, hi
+
+def loadAddress(address):
+    return f"""
+        lda #{lo(address)}
+        ldx #{hi(address)}
+    """
+```
+
+```
+            .import "generators.py", "util"
+            @util.loadAddress($1234)
+```
+
+The file runs as a module of its own, so it sees Python's built-ins and what it imports itself, such as `lo` and `hi` above, but not the program's symbols: give a generator what it needs as arguments. Only a `.py` file can have a namespace, and importing another file into the same namespace replaces the first.
 
 #### .binary
 ```
