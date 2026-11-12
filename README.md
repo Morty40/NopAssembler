@@ -519,7 +519,7 @@ speed = 2                   ; ok, a variable
 
 The built-in symbols, such as `VIC_BORDER_COLOR`, are constants too, so they cannot be given a different value by mistake.
 
-Use a variable for a value that changes, for example in each round of a `.for` loop. Also use a variable for a value calculated from labels that come later in the source, such as `codeSize = end - start`: while the assembler passes settle, such a value can change, which is an error for a constant.
+Use a variable for a value that changes, for example in each round of a `.for` loop. Also use a variable for a value calculated from labels that come later in the source, such as `codeSize = end - start`, or from `zp()`, such as `pointer = zp(2)`: while the assembler passes settle, such a value can change, which is an error for a constant.
 
 #### Symbol types
 
