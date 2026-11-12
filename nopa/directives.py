@@ -7,7 +7,9 @@ without an annotation accept any type.
 """
 
 import inspect
+import keyword
 import os
+import types
 import typing
 from collections.abc import Callable
 
@@ -388,11 +390,11 @@ def reportOpenBlocks(context):
         context.popReadPointer()
 
 
-def _runPython(context, code: str):
-    """Run Python code with the symbols as its variables, and note the names it uses."""
+def _runPython(context, code: str, variables: dict | None = None):
+    """Run Python code with the symbols as its variables, or the given ones, and note the names it uses."""
     compiled = compile(code, '<string>', 'exec')
     context.noteReferences(compiled)
-    exec(compiled, context.symbols)
+    exec(compiled, context.symbols if variables is None else variables)
 
 
 def _execute(context, code: str) -> bool:
@@ -412,13 +414,26 @@ def python(context, code: str):
 
 
 @directive('import')
-def importFile(context, fileName: str):
-    """Import a file: a .py file is executed, any other file is assembled as source code."""
+def importFile(context, fileName: str, namespace: str | None = None):
+    """Import a file: a .py file is executed, any other file is assembled as source code.
+
+    A .py file can be imported into a namespace, a name that doesn't start with _. It then runs in
+    a module of that name, so its names are used as namespace.name.
+    """
     path = os.path.join(context.path, fileName)
-    if os.path.splitext(path)[1] == ".py":
+    if namespace is not None and os.path.splitext(path)[1] != ".py":
+        context.reportError(f'Only a .py file can be imported into a namespace: "{fileName}"')
+    elif namespace is not None and (not namespace.isidentifier() or keyword.iskeyword(namespace) or namespace.startswith('_')):
+        context.reportError(f'Invalid namespace: "{namespace}"')
+    elif os.path.splitext(path)[1] == ".py":
+        variables = None # the symbols
+        if namespace is not None:
+            module = types.ModuleType(namespace)
+            context.setSymbol(namespace, module)
+            variables = module.__dict__
         try:
             with open(path) as f:
-                _runPython(context, f.read())
+                _runPython(context, f.read(), variables)
         except Exception as exception:
             context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
     elif not os.path.isfile(path):

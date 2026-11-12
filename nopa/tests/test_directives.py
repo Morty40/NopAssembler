@@ -24,6 +24,15 @@ class TestDirectives(unittest.TestCase):
         self.assertEqual(context.errors, [])
         return context.memory
 
+    def _errors(self, source: str, files: dict | None = None) -> list:
+        """Assemble source, with the files {name: text} beside it, and return the errors, without the folder."""
+        with tempfile.TemporaryDirectory() as directory:
+            for name, text in {'test.asm': source, **(files or {})}.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            errors = assembleFile(os.path.join(directory, 'test.asm')).errors
+            return [error.replace(directory + os.sep, '') for error in errors]
+
     def _assertBytes(self, source: str, expected: list, files: dict | None = None):
         """Source stores exactly the expected bytes, without gaps, from the default address $1000."""
         memory = self._memory(source, files)
@@ -97,6 +106,46 @@ class TestDirectives(unittest.TestCase):
         """.import assembles a source file, or runs a Python file, found beside the main source file."""
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
+
+    def testImportNamespace(self):
+        """A .py file imported into a namespace runs in a module of that name, so its names are used as namespace.name."""
+        files = {'util.py': 'x = 5\ndef double(v):\n    return v * 2\n'}
+        for source, expected in [
+            ('.import "util.py", "util"\n.byte util.x\n',         [5]),
+            ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
+            ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
+            ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportNamespaceIsolated(self):
+        """The names of a file in a namespace are not global, and the file doesn't see the global names."""
+        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n'}
+        for source, expected in [
+            ('.import "util.py", "util"\n.byte x\n', ['test.asm:2: error: Name \'x\' is not defined: "x"']),
+            ('.import "low.py", "low"\n',            ['test.asm:1: error: Failed to execute python code: "low.py" '
+                                                      "(NameError: name 'lo' is not defined)"]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
+    def testImportNamespaceMessages(self):
+        """Only a .py file can be imported into a namespace, and the namespace is a name that doesn't start with _."""
+        files = {'util.py': 'x = 1\n', 'bytes.txt': '.byte 1\n'}
+        for source, expected in [
+            ('.import "util.py", "util"\n',    []),
+            ('.import "util.py", "myUtil"\n',  []),
+            ('.import "util.py", "my_util"\n', []),
+            ('.import "util.py", "Util2"\n',   []),
+            ('.import "util.py", "UTIL"\n',    []),
+            ('.import "bytes.txt", "util"\n',  ['test.asm:1: error: Only a .py file can be imported into a namespace: "bytes.txt"']),
+            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Invalid namespace: "my-util"']),
+            ('.import "util.py", "if"\n',      ['test.asm:1: error: Invalid namespace: "if"']),
+            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Invalid namespace: "_util"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
 
     def testImportPythonReferences(self):
         """The names used by an imported Python file count as references, also inside its functions."""
