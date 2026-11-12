@@ -83,11 +83,11 @@ The output file is only written when there are no errors. Errors and warnings ar
 
 The `.prg` file starts with the 2-byte load address (the lowest address used), followed by every byte up to the highest address used. Gaps are filled with zeros. A `bin` file is the same, without the load address.
 
-A Makefile rule for building `.prg` files:
+A Makefile rule for building `.prg` files for the C64, with its built-in symbols and generators such as `@basicStart()`:
 
 ```make
 %.prg: %.asm
-	nopa $< -o $@
+	nopa $< -t c64 -o $@
 ```
 
 
