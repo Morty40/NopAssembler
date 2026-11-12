@@ -17,7 +17,7 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 - named sections with `.section`, to store code and data in separate areas of memory
 - data with `.byte`, `.word`, `.text`, `.string`, `.bits`, `.bytefill` and `.wordfill`, with text in PETSCII, screen codes or your own encoding
 - import of source files, Python files and binary files, and SID music on the C64
-- import of a Python file into a namespace, so its functions are used as `namespace.name`: `.import "generators.py", "util"` and `@util.loadAddress($1234)`
+- import into a namespace: a source file's names become `namespace_name` and `NAMESPACE_NAME`, and a Python file's are used as `namespace.name`. Namespaces stack, and a file imported without one shares it: `.import "lib.asm", "util"` and `jsr util_draw`
 - targets with `-t` for the C128, C16, C64, Plus/4 and VIC-20, and an experimental one for the Commander X16: hardware registers, KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
 - symbols defined on the command line with `-D`
 - `.assert`, `.print`, `.warning` and `.error`, to check and report while assembling

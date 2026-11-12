@@ -840,7 +840,33 @@ Imports a file, with the path relative to the folder of the main source file. A 
             .import "music.asm"
 ```
 
-A `.py` file can also be imported into a namespace. Its functions and variables are then used as `namespace.name`, and only the namespace itself is added to the symbols, so its names can't clash with the program's:
+A file can also be imported into a namespace, which keeps its names apart from the program's.
+
+**A source file in a namespace** has the namespace in front of the names it defines: labels and other names become `namespace_name`, and names in all capitals become `NAMESPACE_NAME`, so constants stay constants. The file itself uses its names as they are:
+
+```
+; lib.asm
+SPEED = 3
+count = zp(1)
+draw:       ldx #SPEED
+_loop:      dec count
+            bne _loop
+            rts
+```
+
+```
+            .import "lib.asm", "util"
+            jsr util_draw
+            lda #UTIL_SPEED
+            dec util_count
+            jmp util_draw_loop
+```
+
+Namespaces stack: a file in the `util` namespace that imports `"sprites.asm", "spr"` uses its names as `spr_draw`, and they become `util_spr_draw`. A file imported without a namespace shares the namespace of the file that imports it, as if its code were written there. The same file can be imported into several namespaces, which assembles it once for each.
+
+Only names written as code are prefixed, also in `{}` of a string. These keep the names as written, so they use the program's names instead: lambda strings such as `.bytefill 4, "x: table[x]"`, `ref("name")`, `.python` blocks, and code that a generator writes.
+
+**A Python file in a namespace** runs as a module of that name, so its functions and variables are used as `namespace.name`, and only the namespace itself is added to the symbols:
 
 ```python
 # generators.py
@@ -858,7 +884,7 @@ def loadAddress(address):
             @util.loadAddress($1234)
 ```
 
-The file runs as a module of its own, so it sees Python's built-ins and what it imports itself, such as `lo` and `hi` above, but not the program's symbols: give a generator what it needs as arguments. Only a `.py` file can have a namespace, and importing another file into the same namespace replaces the first.
+The module sees Python's built-ins and what it imports itself, such as `lo` and `hi` above, but not the program's symbols: give a generator what it needs as arguments. Importing another `.py` file into the same namespace replaces the first. A Python file and a source file can use the same namespace, as `@util.loadAddress()` and `jsr util_draw`. Inside a source file's namespace, a Python namespace gets the prefix too: `.import "gen.py", "g"` in the `util` namespace becomes `util_g`, which that file uses as `g`.
 
 #### .binary
 ```
