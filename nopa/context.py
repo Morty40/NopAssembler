@@ -43,7 +43,7 @@ class Context:
         self.encoding: dict[str, int] = text.ENCODING_SCREEN_UPPER
         self.cpu: cpu.CPU = cpu.CPU_6502 # the instructions
         self.references: set[str] = set() # the names used by the Python code and expressions in this pass
-        self.lastReferences: set[str] = set() # the same from the last pass, for ref()
+        self.lastReferences: set[str] = set() # the same from the last pass, for ref() and .optional
 
     def noteReferences(self, code):
         """Note the names used by compiled Python code, including the functions in it."""

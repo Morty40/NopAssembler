@@ -392,10 +392,19 @@ def reportOpenBlocks(context):
 
 
 def _runPython(context, code: str, variables: dict | None = None):
-    """Run Python code with the symbols as its variables, or the given ones, and note the names it uses."""
+    """Run Python code with the symbols as its variables, and note the names it uses as references,
+    for ref() and .optional: a function that uses a label, e.g. return f, refers to it.
+
+    With other variables, such as a namespace's module, the code can't see the symbols, so a name
+    like init is always its own, never a label, and isn't a reference. Nothing is lost: the arguments
+    of @namespace.f(label), and the code a generator returns, are noted where they are assembled.
+    """
     compiled = compile(code, '<string>', 'exec')
-    context.noteReferences(compiled)
-    exec(compiled, context.symbols if variables is None else variables)
+    if variables is None:
+        context.noteReferences(compiled)
+        exec(compiled, context.symbols)
+    else:
+        exec(compiled, variables)
 
 
 def _execute(context, code: str) -> bool:

@@ -190,6 +190,17 @@ class TestDirectives(unittest.TestCase):
         """The names used by an imported Python file count as references, also inside its functions."""
         self._assertBytes('.import "uses.py"\n.optional\nf: nop\n.end\n', [0xea], {'uses.py': 'def g():\n    return f\n'})
 
+    def testImportNamespaceReferences(self):
+        """The names used by a Python file in a namespace are its own, so they don't count as references,
+        but the code its generators return does."""
+        files = {'lib.py': 'def init():\n    return ""\ndef call():\n    return "jsr init\\n"\n'}
+        for source, expected in [
+            ('.import "lib.py", "lib"\n.optional\ninit: rts\n.end\n.byte 0\n',  [0]),                      # init isn't used
+            ('.import "lib.py", "lib"\n@lib.call()\n.optional\ninit: rts\n.end\n', [0x20, 0x03, 0x10, 0x60]), # jsr init
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
     def testImportPythonMessages(self):
         """A Python file that fails is reported by its name, whatever goes wrong."""
         for content, exception in [
