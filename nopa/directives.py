@@ -388,15 +388,16 @@ def reportOpenBlocks(context):
         context.popReadPointer()
 
 
-def _runPython(context, code: str, variables: dict | None = None):
+def _runPython(context, code: str, variables: dict | None = None, fileName: str = '<string>'):
     """Run Python code with the symbols as its variables, and note the names it uses as references,
     for ref() and .optional: a function that uses a label, e.g. return f, refers to it.
 
     With other variables, such as a namespace's module, the code can't see the symbols, so a name
     like init is always its own, never a label, and isn't a reference. Nothing is lost: the arguments
     of @namespace.f(label), and the code a generator returns, are noted where they are assembled.
+    The file name, if the code is from a file, is where Python reports a syntax error.
     """
-    compiled = compile(code, '<string>', 'exec')
+    compiled = compile(code, fileName, 'exec')
     if variables is None:
         context.noteReferences(compiled)
         exec(compiled, context.symbols)
@@ -435,7 +436,7 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
         variables = module.__dict__
     try:
         with open(path) as f:
-            _runPython(context, f.read(), variables)
+            _runPython(context, f.read(), variables, fileName)
     except Exception as exception:
         context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
 
