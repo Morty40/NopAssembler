@@ -14,24 +14,25 @@ from ..directives import assemble, byte, bytefill, _matches, org, printValues
 class TestDirectives(unittest.TestCase):
     """Tests of the directive arguments, and what the directives store."""
 
-    def _memory(self, source: str, files: dict | None = None) -> dict:
-        """Assemble source without errors, with the files {name: text} beside it, and return the memory."""
+    def _assemble(self, source: str, files: dict | None = None) -> tuple[dict, list]:
+        """Assemble source, with the files {name: text} beside it, and return the memory, and the errors without the folder."""
         with tempfile.TemporaryDirectory() as directory:
             for name, text in {'test.asm': source, **(files or {})}.items():
                 with open(os.path.join(directory, name), 'w') as f:
                     f.write(text)
             context = assembleFile(os.path.join(directory, 'test.asm'))
-        self.assertEqual(context.errors, [])
-        return context.memory
+            return context.memory, [error.replace(directory + os.sep, '') for error in context.errors]
+
+    def _memory(self, source: str, files: dict | None = None) -> dict:
+        """Assemble source without errors, with the files {name: text} beside it, and return the memory."""
+        memory, errors = self._assemble(source, files)
+        self.assertEqual(errors, [])
+        return memory
 
     def _errors(self, source: str, files: dict | None = None) -> list:
         """Assemble source, with the files {name: text} beside it, and return the errors, without the folder."""
-        with tempfile.TemporaryDirectory() as directory:
-            for name, text in {'test.asm': source, **(files or {})}.items():
-                with open(os.path.join(directory, name), 'w') as f:
-                    f.write(text)
-            errors = assembleFile(os.path.join(directory, 'test.asm')).errors
-            return [error.replace(directory + os.sep, '') for error in errors]
+        memory, errors = self._assemble(source, files)
+        return errors
 
     def _assertBytes(self, source: str, expected: list, files: dict | None = None):
         """Source stores exactly the expected bytes, without gaps, from the default address $1000."""
