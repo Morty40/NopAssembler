@@ -15,11 +15,11 @@ class TestDirectives(unittest.TestCase):
     """Tests of the directive arguments, and what the directives store."""
 
     def _assemble(self, source: str, files: dict | None = None) -> tuple[dict, list]:
-        """Assemble source, with the files {name: text} beside it, and return the memory, and the errors without the folder."""
+        """Assemble source, with the files {name: text or bytes} beside it, and return the memory, and the errors without the folder."""
         with tempfile.TemporaryDirectory() as directory:
-            for name, text in {'test.asm': source, **(files or {})}.items():
-                with open(os.path.join(directory, name), 'w') as f:
-                    f.write(text)
+            for name, content in {'test.asm': source, **(files or {})}.items():
+                with open(os.path.join(directory, name), 'wb' if type(content) is bytes else 'w') as f:
+                    f.write(content)
             context = assembleFile(os.path.join(directory, 'test.asm'))
             return context.memory, [error.replace(directory + os.sep, '') for error in context.errors]
 
@@ -68,16 +68,16 @@ class TestDirectives(unittest.TestCase):
             ('.word -32768, 0, 32767, 65535',            [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]),
             ('.bits "00000000"\n',                       [0]),
             ('.bits "000000010000001000000011"\n',       [1, 2, 3]),
-            ('.bits "     #  "\n',                       [4]),
+            ('.bits "     #  "\n',                       [4]), # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',       [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n.string "ABC", "DEF"\n', [1, 2, 3, 0, 4, 5, 6, 0]),
             ('.bytefill 3\n',                            [0, 0, 0]),
-            ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]),
+            ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]), # x is the index, and N is assigned later
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, "x: x+N"\nN = 1\n',           [1, 0, 2, 0, 3, 0]),
-            ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]),
-            ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]),
-            ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),
+            ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
+            ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
+            ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),             # buffer is $02 to $09
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
@@ -85,7 +85,7 @@ class TestDirectives(unittest.TestCase):
     def testAddresses(self):
         """.org, .align and assigning _ choose the address of the next byte."""
         for source, expected in [
-            ('.org $1000\n.align 16\n.byte 1\n.align 16\n.byte 2\n', {0x1000: 1, 0x1010: 2}),
+            ('.org $1000\n.align 16\n.byte 1\n.align 16\n.byte 2\n', {0x1000: 1, 0x1010: 2}), # $1000 is already aligned
             ('.org $2000\n.byte 1\n_ = $2010\n.byte 2\n',            {0x2000: 1, 0x2010: 2}),
         ]:
             with self.subTest(source=source):
@@ -96,8 +96,8 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('lax $10\n',                                       [0xa7, 0x10]),                    # the 6502 by default
             ('.cpu CPU_65C02\nstz $d020\nlda ($12)\n',          [0x9c, 0x20, 0xd0, 0xb2, 0x12]),
-            ('.cpu CPU_65C02\nbra later\n.cpu CPU_6502\nlater: lax $10\n', [0x80, 0x00, 0xa7, 0x10]),  # switching
-            ('.cpu CPU_R65C02\nloop: rmb3 $12\nbbr3 $12,loop\n',  [0x37, 0x12, 0x3f, 0x12, 0xfb]),
+            ('.cpu CPU_65C02\nbra later\n.cpu CPU_6502\nlater: lax $10\n', [0x80, 0x00, 0xa7, 0x10]),  # switching, bra to the next line is offset 0
+            ('.cpu CPU_R65C02\nloop: rmb3 $12\nbbr3 $12,loop\n',  [0x37, 0x12, 0x3f, 0x12, 0xfb]), # back to loop is offset -5
             ('.cpu CPU_W65C02\nwai\nstp\nsmb0 $12\n',             [0xcb, 0xdb, 0x87, 0x12]),
         ]:
             with self.subTest(source=source):
@@ -115,7 +115,7 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py", "util"\n.byte util.x\n',         [5]),
             ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
             ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
-            ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import
+            ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import, with util from the last pass
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -127,10 +127,10 @@ class TestDirectives(unittest.TestCase):
         files = {'a.py': wait, 'b.py': wait,
                  'util.py': 'COUNT = 2\ndef fill(v):\n    return f".byte {v}\\n" * COUNT\ndef jump():\n    return "jmp end\\n"\n'}
         for source, expected in [
-            ('.import "a.py", "a"\n@a.wait()\n',                                     [0xca, 0xd0, 0xfd]),
-            ('.import "a.py", "a"\n.import "b.py", "b"\n@a.wait()\n@b.wait()\n',     [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]),
+            ('.import "a.py", "a"\n@a.wait()\n',                                     [0xca, 0xd0, 0xfd]),       # dex, bne -3 to wait1_x
+            ('.import "a.py", "a"\n.import "b.py", "b"\n@a.wait()\n@b.wait()\n',     [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]), # wait1_x and wait2_x
             ('.import "util.py", "util"\nv = 7\n@util.fill(v)\n',                    [7, 7]),                   # COUNT from its module
-            ('.import "util.py", "util"\n@util.jump()\nend: rts\n',                  [0x4c, 0x03, 0x10, 0x60]), # a global label
+            ('.import "util.py", "util"\n@util.jump()\nend: rts\n',                  [0x4c, 0x03, 0x10, 0x60]), # jmp to the global label end, at $1003
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -146,12 +146,12 @@ class TestDirectives(unittest.TestCase):
 
     def testImportNamespaceNotAssembled(self):
         """A namespace imported in a block that is not assembled is not defined, like other symbols."""
-        source = '.if ref("t")\nt: nop\n.import "util.py", "util"\n.end\n.byte util.x\n'
+        source = '.if ref("t")\nt: nop\n.import "util.py", "util"\n.end\n.byte util.x\n' # nothing uses t, so the block is never assembled
         self.assertEqual(self._errors(source, {'util.py': 'x = 5\n'}), ['test.asm:5: error: Name \'util\' is not defined: "util.x"'])
 
     def testImportNamespaceIsolated(self):
         """The names of a file in a namespace are not global, and the file doesn't see the global names."""
-        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n'}
+        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n'} # lo() is a global symbol, not a Python built-in
         for source, expected in [
             ('.import "util.py", "util"\n.byte x\n', ['test.asm:2: error: Name \'x\' is not defined: "x"']),
             ('.import "low.py", "low"\n',            ['test.asm:1: error: Failed to execute python code: "low.py" '
@@ -166,7 +166,7 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "a.py", "util"\n.import "b.py", "util"\n.byte util.x, util.y\n', [1, 2]),
             ('.import "a.py", "util"\n.import "a.py", "util"\n.byte util.x\n',         [1]),     # the same file twice
-            ('.byte util.y\n.import "a.py", "util"\n.import "b.py", "util"\n',         [2]),     # used before the imports
+            ('.byte util.y\n.import "a.py", "util"\n.import "b.py", "util"\n',         [2]),     # used before the imports, from the last pass
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -174,7 +174,7 @@ class TestDirectives(unittest.TestCase):
     def testImportNamespaceTaken(self):
         """A namespace can't be the name of another symbol, such as a label or a module imported by Python code,
         or of a Python built-in, and the file isn't run then."""
-        files = {'bad.py': '1/0\n'}
+        files = {'bad.py': '1/0\n'} # fails if it runs, so a second error would show that it ran
         for source, expected in [
             ('.import "bad.py", "sin"\n',                           ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
             ('util: nop\n.import "bad.py", "util"\n',               ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
@@ -205,6 +205,7 @@ class TestDirectives(unittest.TestCase):
 
     def testImportPythonReferences(self):
         """The names used by an imported Python file count as references, also inside its functions."""
+        # g is never called, but its use of f is enough to assemble the optional block
         self._assertBytes('.import "uses.py"\n.optional\nf: nop\n.end\n', [0xea], {'uses.py': 'def g():\n    return f\n'})
 
     def testImportNamespaceReferences(self):
@@ -213,7 +214,7 @@ class TestDirectives(unittest.TestCase):
         files = {'lib.py': 'def init():\n    return ""\ndef call():\n    return "jsr init\\n"\n'}
         for source, expected in [
             ('.import "lib.py", "lib"\n.optional\ninit: rts\n.end\n.byte 0\n',     [0]),                      # init isn't used
-            ('.import "lib.py", "lib"\n@lib.call()\n.optional\ninit: rts\n.end\n', [0x20, 0x03, 0x10, 0x60]), # jsr init
+            ('.import "lib.py", "lib"\n@lib.call()\n.optional\ninit: rts\n.end\n', [0x20, 0x03, 0x10, 0x60]), # jsr init, at $1003, so the block is assembled
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -225,12 +226,8 @@ class TestDirectives(unittest.TestCase):
             (b'1/0\n',    'ZeroDivisionError'),
             (b'\xff\xfe', 'UnicodeDecodeError'), # can't be read
         ]:
-            with self.subTest(exception=exception), tempfile.TemporaryDirectory() as directory:
-                with open(os.path.join(directory, 'bad.py'), 'wb') as f:
-                    f.write(content)
-                with open(os.path.join(directory, 'test.asm'), 'w') as f:
-                    f.write('.import "bad.py"\n')
-                errors = assembleFile(os.path.join(directory, 'test.asm')).errors
+            with self.subTest(exception=exception):
+                errors = self._errors('.import "bad.py"\n', {'bad.py': content})
                 self.assertEqual(len(errors), 1, errors)
                 self.assertIn(f'test.asm:1: error: Failed to execute python code: "bad.py" ({exception}', errors[0])
 
@@ -244,12 +241,12 @@ class TestDirectives(unittest.TestCase):
             ('.if a>5\n.if a<5\n.byte $ee\n.else\n.byte 4\n.end\n.end\n', [4]), # nested
             ('.if a<5\ninner: .if a>5\n.byte $ee\n.else\n.byte $ee\n.end\n'     # skipped, with a label, a nested if and a loop
              '.repeat 2\n.byte $ee\n.end\n.else\n.byte 5\n.end\n', [5]),
-            ('.if a>5\nboth: .byte 6\n.else\nboth: .byte $ee\n.end\n', [6]),    # the same label in both branches
+            ('.if a>5\nboth: .byte 6\n.else\nboth: .byte $ee\n.end\n', [6]),    # the same label in both branches, as only one is assembled
             ('.if a>5 and not a>10\n.byte 7\n.end\n',          [7]),   # Python keywords in the condition
             ('.for i=0, i<4, i+=1\n.if i % 2 == 0\n.byte i\n.end\n.end\n', [0, 2]), # inside a loop
         ]:
             with self.subTest(source=source):
-                self._assertBytes(f'a = 7\n{source}', expected)
+                self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
     def testFor(self):
         """.for loops, with an initial statement, a condition and a step."""
