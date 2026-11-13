@@ -134,6 +134,11 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
+    def testImportNamespaceNotAssembled(self):
+        """A namespace imported in a block that is not assembled is not defined, like other symbols."""
+        source = '.if ref("t")\nt: nop\n.import "util.py", "util"\n.end\n.byte util.x\n'
+        self.assertEqual(self._errors(source, {'util.py': 'x = 5\n'}), ['test.asm:5: error: Name \'util\' is not defined: "util.x"'])
+
     def testImportNamespaceIsolated(self):
         """The names of a file in a namespace are not global, and the file doesn't see the global names."""
         files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n'}
