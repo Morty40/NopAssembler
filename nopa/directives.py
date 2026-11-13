@@ -6,6 +6,7 @@ annotations the types, e.g. def org(context, address: int). Parameters
 without an annotation accept any type.
 """
 
+import builtins
 import inspect
 import keyword
 import os
@@ -413,33 +414,42 @@ def python(context, code: str):
     _execute(context, code)
 
 
+def _importPyFile(context, path: str, fileName: str, namespace: str | None):
+    """Run a .py file with the symbols as its variables, or in the module of a namespace."""
+    variables = None # the symbols
+    if namespace is not None:
+        if not namespace.isidentifier() or keyword.iskeyword(namespace) or namespace.startswith('_'):
+            context.reportError(f'Invalid namespace: "{namespace}"')
+            return
+        if namespace in dir(builtins): # not in the symbols, so setSymbol can't see it
+            context.reportError(f'Namespace would hide a Python built-in: "{namespace}"')
+            return
+        if namespace not in context.namespaces: # the first import into it in this pass
+            context.namespaces[namespace] = types.ModuleType(namespace)
+        module = context.namespaces[namespace]
+        if not context.setSymbol(namespace, module):
+            return # the name is another type of symbol, so the file isn't run
+        variables = module.__dict__
+    try:
+        with open(path) as f:
+            _runPython(context, f.read(), variables)
+    except Exception as exception:
+        context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
+
+
 @directive('import')
 def importFile(context, fileName: str, namespace: str | None = None):
     """Import a file: a .py file is executed, any other file is assembled as source code.
 
-    A .py file can be imported into a namespace, a name that doesn't start with _. It then runs in
-    a module of that name, so its names are used as namespace.name. Files imported into the same
-    namespace share its module.
+    A .py file can be imported into a namespace, a name that doesn't start with _ and isn't a Python
+    built-in. It then runs in a module of that name, so its names are used as namespace.name. Files
+    imported into the same namespace share its module.
     """
     path = os.path.join(context.path, fileName)
-    if namespace is not None and os.path.splitext(path)[1] != ".py":
+    if os.path.splitext(path)[1] == ".py":
+        _importPyFile(context, path, fileName, namespace)
+    elif namespace is not None:
         context.reportError(f'Only a .py file can be imported into a namespace: "{fileName}"')
-    elif namespace is not None and (not namespace.isidentifier() or keyword.iskeyword(namespace) or namespace.startswith('_')):
-        context.reportError(f'Invalid namespace: "{namespace}"')
-    elif os.path.splitext(path)[1] == ".py":
-        variables = None # the symbols
-        if namespace is not None:
-            if namespace not in context.namespaces: # the first import into it in this pass
-                context.namespaces[namespace] = types.ModuleType(namespace)
-            module = context.namespaces[namespace]
-            if not context.setSymbol(namespace, module):
-                return # the name is another type of symbol, so the file isn't run
-            variables = module.__dict__
-        try:
-            with open(path) as f:
-                _runPython(context, f.read(), variables)
-        except Exception as exception:
-            context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
     else:
