@@ -6,6 +6,7 @@ import unittest
 
 from ..lexer import (
     _fixPrefix,
+    isValidGlobalSymbolName,
     join,
     splitByComma,
     splitByNewline,
@@ -109,6 +110,25 @@ class TestLexer(unittest.TestCase):
         ]:
             with self.subTest(line=line):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(line))[:-1] if t.string != '\n'], expected)
+
+    def testIsValidGlobalSymbolName(self):
+        """A name the source can use for a global symbol: an identifier, but not a Python keyword or a local label."""
+        for name, expected in [
+            ('util',    True),
+            ('myUtil',  True),
+            ('my_util', True),
+            ('UTIL',    True),
+            ('x2',      True),
+            ('_util',   False), # a local label
+            ('_',       False), # the current address
+            ('if',      False),
+            ('True',    False),
+            ('my-util', False),
+            ('2x',      False),
+            ('',        False),
+        ]:
+            with self.subTest(name=name):
+                self.assertEqual(isValidGlobalSymbolName(name), expected)
 
     def testLocalLabelNames(self):
         """A local label is named global_local, after the last global label. Before any global label, or in all capitals, it isn't changed."""

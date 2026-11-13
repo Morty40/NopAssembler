@@ -2,12 +2,12 @@
 """Nop Assembler command line: nopa <asmFile> -o <outFile>, or nopa -d <prgFile> -o <asmFile>"""
 
 import argparse
-import keyword
 import sys
 
 from . import __version__
 from . import assemble
 from . import disassemble
+from . import lexer
 from .cpu import CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
 from .context import Context
 
@@ -97,8 +97,7 @@ def main():
     defines = {}
     for define in arguments.defines:
         name, equals, value = define.partition('=')
-        # a name the source can use: not a local label, a Python keyword or a mnemonic
-        if not name.isidentifier() or name.startswith('_') or keyword.iskeyword(name) or isMnemonic(name):
+        if not lexer.isValidGlobalSymbolName(name) or isMnemonic(name): # a mnemonic would make name = value an instruction
             parser.error(f'Invalid define: {define}')
         defines[name] = value if equals else 'True'
     cpu = CPUS[arguments.cpu]

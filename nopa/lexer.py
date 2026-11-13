@@ -2,6 +2,7 @@
 """The lexer: splits source code into tokens, one line at a time."""
 
 import errno
+import keyword
 import re
 import textwrap
 from dataclasses import dataclass
@@ -49,6 +50,12 @@ def _fixPrefix(word: str) -> str:
     elif word.startswith('"') and word.endswith('"'):
         word = 'f' + word
     return word
+
+
+def isValidGlobalSymbolName(name: str) -> bool:
+    """A name the source can use for a global symbol: an identifier that isn't a Python keyword,
+    and doesn't start with _, as translateLocalLabels() would make it a local label."""
+    return name.isidentifier() and not keyword.iskeyword(name) and not name.startswith('_')
 
 
 def translateLocalLabels(tokens: list, lastLabel: str='') -> list:
