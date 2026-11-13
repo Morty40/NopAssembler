@@ -13,7 +13,7 @@ Nop Assembler is a multi-pass 6502 assembler for Commodore computers: the C64, C
 - `.repeat`, `.for` and `.if` blocks, and `.optional` code that is only assembled when it is used
 - named sections, to store code and data in separate areas of memory
 - PETSCII and screen code text encodings, and your own encoding tables
-- import of source files, Python files, binary files, and SID music on the C64
+- import of source files, binary files, Python files, also into a namespace such as `util.double()`, and SID music on the C64
 - built-in symbols for each machine with `-t`, such as its hardware registers and KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
 - `.assert`, `.print`, `.warning` and `.error`, to check and report while assembling
 - a labels file, and VICE monitor commands with labels and breakpoints
@@ -74,7 +74,7 @@ nopa --version
 | `--format <prg\|bin>` | the format of the file to write: `prg` (the default), with the load address, or `bin`, only the bytes. The extension of the file name doesn't matter |
 | `-t`, `--target <c128\|c16\|c64\|cx16\|plus4\|vic20>` | the target machine, whose [symbols and generators](https://github.com/Morty40/NopAssembler#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
 | `--cpu <6502\|65C02\|R65C02\|W65C02>` | the [cpu](https://github.com/Morty40/NopAssembler#cpu), and so the instructions: `6502` (the default), `65C02`, `R65C02` or `W65C02`. When assembling, `.cpu` can change it |
-| `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](https://github.com/Morty40/NopAssembler#constants), so the source can't change them, and lower case names are variables. Can be given more than once |
+| `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](https://github.com/Morty40/NopAssembler#constants), so the source can't change them, and lower case names are variables. The name can't start with `_`, or be a Python keyword or built-in, such as `len`, or a mnemonic. Can be given more than once |
 | `-l`, `--labels <labelsFile>` | the [labels](https://github.com/Morty40/NopAssembler#labels-file) file to write, as Python assignments. When disassembling, the labels file to read |
 | `--vice <viceFile>` | the [VICE monitor commands](https://github.com/Morty40/NopAssembler#vice-monitor-commands) file to write: labels and breakpoints |
 | `-h`, `--help` | print the usage |
@@ -487,7 +487,7 @@ These can't be used:
 | A local label before any global label | `_x:` first in a file | It has no global label to belong to. Each file needs its own, as the scope doesn't carry over from the importing file |
 | The same name twice | `a:` and `a:` again, or `clear_loop:` after `clear:` and `_loop:` | A label has one address, and a local label's full name counts too |
 | A local label in a loop that runs more than once | `.repeat 2` around `_x:` | Each round defines the same name again. Put the code in a [generator](https://github.com/Morty40/NopAssembler#generators) and call it in the loop, as each call has its own scope |
-| A built-in function or math name | `lo:`, `ldax:`, `sin:`, `pi:` | These are symbols too, and a symbol can't change type |
+| A built-in function or math name, or a namespace | `lo:`, `ldax:`, `sin:`, `pi:`, or `util:` with `.import "util.py", "util"` | These are symbols too, and a symbol can't change type |
 | Other characters | `a.b:`, `a-b:` | `.` and `-` are operators in expressions |
 | Two labels on one line | `a: b: nop` | A line has at most one label. Put them on separate lines to give an address two names |
 | A Python keyword, or a digit first | `if:`, `class:`, `1a:` | Expressions are Python, so using the name is an error |
@@ -523,7 +523,7 @@ Use a variable for a value that changes, for example in each round of a `.for` l
 
 #### Symbol types
 
-A symbol keeps the type of its first value: an `int` can't become a `str`, a function can't become an `int`, and so on. Assigning a value of another type is an error, and the symbol keeps its old value. This applies to assignments and labels. Symbols set by `.for`, like other Python code, are not checked.
+A symbol keeps the type of its first value: an `int` can't become a `str`, a function can't become an `int`, and so on. Assigning a value of another type is an error, and the symbol keeps its old value. This applies to assignments, labels and namespaces. Symbols set by `.for`, like other Python code, are not checked.
 
 ```
 count = 1
@@ -540,7 +540,7 @@ sin:        nop             ; error: Symbol "sin" cannot change type from builti
 
 Note that `int`, `float` and `bool` are different types. To keep a value that can have decimals, start it as a `float`, e.g. `speed = 1.0`, rather than `speed = 1`.
 
-Symbols set by Python code, with `.python` or `.import` of a `.py` file, are not checked.
+Symbols set by Python code, with `.python`, or `.import` of a `.py` file without a namespace, are not checked.
 
 #### Zero page variables
 
@@ -596,7 +596,7 @@ version = 2
 
 In Nop Assembler, macros are replaced by generators, which are much stronger: a generator is an ordinary Python function, with the full Python language and its libraries available to it.
 
-A line starting with `@` is a generator: a Python expression that returns assembly source code as a string. The code is assembled in place of the generator line. Generators are Python functions, typically defined in a Python file and imported with `.import`.
+A line starting with `@` is a generator: a Python expression that returns assembly source code as a string. The code is assembled in place of the generator line. Generators are Python functions, typically defined in a Python file and imported with `.import`, also into a [namespace](https://github.com/Morty40/NopAssembler#import) of their own: `@util.delay(100)`.
 
 ```python
 # macros.py
@@ -833,7 +833,7 @@ wait:       bbr7 $fb,wait           ; wait until bit 7 of $fb is set
 
 #### .import
 ```
-.import "file"
+.import "file"[, "namespace"]
 ```
 Imports a file, with the path relative to the folder of the main source file. A `.py` file is executed as Python, so its functions and variables become available to expressions and generators. Any other file is assembled as source code, in place of the `.import` line.
 
@@ -841,6 +841,31 @@ Imports a file, with the path relative to the folder of the main source file. A 
             .import "macros.py"
             .import "music.asm"
 ```
+
+With a namespace, a `.py` file runs in a module of that name, as with Python's `import ... as`, and its functions and variables are used as `namespace.name`:
+
+```python
+# util.py
+def double(x):
+    return x * 2
+
+def delay(n):
+    return f"""
+        ldx #{n}
+_loop:  dex
+        bne _loop
+    """
+```
+
+```
+            .import "util.py", "util"
+            lda #util.double(21)
+            @util.delay(100)
+```
+
+The names in the file aren't global, so files in namespaces of their own can use the same names, and can't replace a label or a built-in symbol by mistake. The file doesn't see your symbols either: not your labels, the target's constants, or built-in symbols such as `lo()`, `zp()` and `SOURCE_FOLDER`. It gets what it needs as arguments, e.g. `@util.delay(DELAY)`. The code a generator returns is assembled like the rest of the source, so it can use any symbol. The names the file uses don't count as references for `ref()` and `.optional`. A namespace keeps names apart, but it isn't a sandbox: the file is still ordinary Python, with the same access to files, network and system, see [Security](https://github.com/Morty40/NopAssembler#security).
+
+Files imported into the same namespace share it, so a later file sees the names of an earlier one. Only a `.py` file can be imported into a namespace. The namespace is a name that isn't a Python keyword or built-in, such as `len`, doesn't start with `_`, and isn't already another symbol, such as a label. All capitals are fine: `.import "sid.py", "SID"`.
 
 #### .binary
 ```
