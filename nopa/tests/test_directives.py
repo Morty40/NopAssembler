@@ -185,7 +185,8 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(self._errors(source, files), expected)
 
     def testImportNamespaceMessages(self):
-        """Only a .py file can be imported into a namespace, and the namespace is a name that doesn't start with _."""
+        """Only a .py file can be imported into a namespace, and the namespace is a name that isn't a Python keyword
+        or built-in, and doesn't start with _."""
         files = {'util.py': 'x = 1\n', 'bytes.txt': '.byte 1\n'}
         for source, expected in [
             ('.import "util.py", "util"\n',    []),
@@ -210,7 +211,7 @@ class TestDirectives(unittest.TestCase):
         but the code its generators return does."""
         files = {'lib.py': 'def init():\n    return ""\ndef call():\n    return "jsr init\\n"\n'}
         for source, expected in [
-            ('.import "lib.py", "lib"\n.optional\ninit: rts\n.end\n.byte 0\n',  [0]),                      # init isn't used
+            ('.import "lib.py", "lib"\n.optional\ninit: rts\n.end\n.byte 0\n',     [0]),                      # init isn't used
             ('.import "lib.py", "lib"\n@lib.call()\n.optional\ninit: rts\n.end\n', [0x20, 0x03, 0x10, 0x60]), # jsr init
         ]:
             with self.subTest(source=source):
