@@ -157,14 +157,15 @@ class TestDirectives(unittest.TestCase):
                 self._assertBytes(source, expected, files)
 
     def testImportNamespaceTaken(self):
-        """A namespace can't be the name of another type of symbol, such as a label, or of a Python built-in,
-        and the file isn't run then."""
+        """A namespace can't be the name of another symbol, such as a label or a module imported by Python code,
+        or of a Python built-in, and the file isn't run then."""
         files = {'bad.py': '1/0\n'}
         for source, expected in [
-            ('.import "bad.py", "sin"\n',            ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to module']),
-            ('util: nop\n.import "bad.py", "util"\n', ['test.asm:2: error: Symbol "util" cannot change type from int to module']),
-            ('.import "bad.py", "len"\n',            ['test.asm:1: error: Namespace would hide a Python built-in: "len"']),
-            ('.import "bad.py", "print"\n',          ['test.asm:1: error: Namespace would hide a Python built-in: "print"']),
+            ('.import "bad.py", "sin"\n',                           ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
+            ('util: nop\n.import "bad.py", "util"\n',               ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
+            ('.python\nimport os\n.end\n.import "bad.py", "os"\n', ['test.asm:4: error: Symbol "os" cannot change type from module to Namespace']),
+            ('.import "bad.py", "len"\n',                           ['test.asm:1: error: Namespace would hide a Python built-in: "len"']),
+            ('.import "bad.py", "print"\n',                         ['test.asm:1: error: Namespace would hide a Python built-in: "print"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)

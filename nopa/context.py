@@ -8,6 +8,14 @@ from . import cpu
 from . import text
 
 
+class Namespace(types.ModuleType):
+    """The module that .py files are imported into with .import "file.py", "namespace".
+
+    A type of its own, so a symbol can't change between a namespace and another module,
+    e.g. one imported by Python code.
+    """
+
+
 class Context:
     """The state of one assemble pass.
 
@@ -37,7 +45,7 @@ class Context:
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
-        self.namespaces: dict[str, types.ModuleType] = {} # namespace: its module, shared by the .py files imported into it in this pass
+        self.namespaces: dict[str, Namespace] = {} # namespace: its module, shared by the .py files imported into it in this pass
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break
         self.path = '' # folder of the main source file, for .import and .binary
         self.encoding: dict[str, int] = text.ENCODING_SCREEN_UPPER

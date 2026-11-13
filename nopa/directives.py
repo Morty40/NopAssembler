@@ -10,14 +10,13 @@ import builtins
 import inspect
 import keyword
 import os
-import types
 import typing
 from collections.abc import Callable
 
 from . import evaluate
 from . import lexer
 from . import text
-from .context import Context
+from .context import Context, Namespace
 from .cpu import CPU
 
 
@@ -434,7 +433,7 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
             context.reportError(f'Namespace would hide a Python built-in: "{namespace}"')
             return
         if namespace not in context.namespaces: # the first import into it in this pass
-            context.namespaces[namespace] = types.ModuleType(namespace)
+            context.namespaces[namespace] = Namespace(namespace)
         module = context.namespaces[namespace]
         if not context.setSymbol(namespace, module):
             return # the name is another type of symbol, so the file isn't run
