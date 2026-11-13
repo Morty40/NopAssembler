@@ -419,7 +419,7 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
     variables = None # the symbols
     if namespace is not None:
         if not namespace.isidentifier() or keyword.iskeyword(namespace) or namespace.startswith('_'):
-            context.reportError(f'Invalid namespace: "{namespace}"')
+            context.reportError(f'Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "{namespace}"')
             return
         if namespace in dir(builtins): # not in the symbols, so setSymbol can't see it
             context.reportError(f'Namespace would hide a Python built-in: "{namespace}"')

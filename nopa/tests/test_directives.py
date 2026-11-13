@@ -179,9 +179,9 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py", "Util2"\n',   []),
             ('.import "util.py", "UTIL"\n',    []),
             ('.import "bytes.txt", "util"\n',  ['test.asm:1: error: Only a .py file can be imported into a namespace: "bytes.txt"']),
-            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Invalid namespace: "my-util"']),
-            ('.import "util.py", "if"\n',      ['test.asm:1: error: Invalid namespace: "if"']),
-            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Invalid namespace: "_util"']),
+            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "my-util"']),
+            ('.import "util.py", "if"\n',      ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "if"']),
+            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "_util"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
