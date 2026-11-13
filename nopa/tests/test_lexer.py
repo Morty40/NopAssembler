@@ -121,6 +121,7 @@ class TestLexer(unittest.TestCase):
             ('x2',      True),
             ('_util',   False), # a local label
             ('_',       False), # the current address
+            ('_X',      False), # also in capitals, though not translated to a local label
             ('len',     False), # a Python built-in
             ('print',   False),
             ('if',      False),
