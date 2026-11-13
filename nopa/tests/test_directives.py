@@ -24,13 +24,13 @@ class TestDirectives(unittest.TestCase):
             return context.memory, [error.replace(directory + os.sep, '') for error in context.errors]
 
     def _memory(self, source: str, files: dict | None = None) -> dict:
-        """Assemble source without errors, with the files {name: text} beside it, and return the memory."""
+        """Assemble source without errors, with the files {name: text or bytes} beside it, and return the memory."""
         memory, errors = self._assemble(source, files)
         self.assertEqual(errors, [])
         return memory
 
     def _errors(self, source: str, files: dict | None = None) -> list:
-        """Assemble source, with the files {name: text} beside it, and return the errors, without the folder."""
+        """Assemble source, with the files {name: text or bytes} beside it, and return the errors, without the folder."""
         memory, errors = self._assemble(source, files)
         return errors
 
