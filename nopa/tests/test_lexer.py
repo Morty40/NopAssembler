@@ -112,7 +112,7 @@ class TestLexer(unittest.TestCase):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(line))[:-1] if t.string != '\n'], expected)
 
     def testIsValidGlobalSymbolName(self):
-        """A name the source can use for a global symbol: an identifier, but not a Python keyword or a local label."""
+        """A name the source can use for a global symbol: an identifier, but not a Python keyword or built-in, or a local label."""
         for name, expected in [
             ('util',    True),
             ('myUtil',  True),
@@ -121,6 +121,8 @@ class TestLexer(unittest.TestCase):
             ('x2',      True),
             ('_util',   False), # a local label
             ('_',       False), # the current address
+            ('len',     False), # a Python built-in
+            ('print',   False),
             ('if',      False),
             ('True',    False),
             ('my-util', False),

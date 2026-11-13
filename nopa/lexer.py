@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 """The lexer: splits source code into tokens, one line at a time."""
 
+import builtins
 import errno
 import keyword
 import re
@@ -53,9 +54,10 @@ def _fixPrefix(word: str) -> str:
 
 
 def isValidGlobalSymbolName(name: str) -> bool:
-    """A name the source can use for a global symbol: an identifier that isn't a Python keyword,
-    and doesn't start with _, as translateLocalLabels() would make it a local label."""
-    return name.isidentifier() and not keyword.iskeyword(name) and not name.startswith('_')
+    """A name the source can use for a global symbol: an identifier that isn't a Python keyword or built-in,
+    which it would hide from all Python code, and doesn't start with _, as translateLocalLabels() would
+    make it a local label."""
+    return name.isidentifier() and not keyword.iskeyword(name) and not hasattr(builtins, name) and not name.startswith('_')
 
 
 def translateLocalLabels(tokens: list, lastLabel: str='') -> list:

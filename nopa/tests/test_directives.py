@@ -164,8 +164,8 @@ class TestDirectives(unittest.TestCase):
             ('.import "bad.py", "sin"\n',                           ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
             ('util: nop\n.import "bad.py", "util"\n',               ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
             ('.python\nimport os\n.end\n.import "bad.py", "os"\n', ['test.asm:4: error: Symbol "os" cannot change type from module to Namespace']),
-            ('.import "bad.py", "len"\n',                           ['test.asm:1: error: Namespace would hide a Python built-in: "len"']),
-            ('.import "bad.py", "print"\n',                         ['test.asm:1: error: Namespace would hide a Python built-in: "print"']),
+            ('.import "bad.py", "len"\n',                           ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "len"']),
+            ('.import "bad.py", "print"\n',                         ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "print"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
@@ -180,9 +180,9 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py", "Util2"\n',   []),
             ('.import "util.py", "UTIL"\n',    []),
             ('.import "bytes.txt", "util"\n',  ['test.asm:1: error: Only a .py file can be imported into a namespace: "bytes.txt"']),
-            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "my-util"']),
-            ('.import "util.py", "if"\n',      ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "if"']),
-            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword and doesn\'t start with _: "_util"']),
+            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "my-util"']),
+            ('.import "util.py", "if"\n',      ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "if"']),
+            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "_util"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)

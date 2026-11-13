@@ -103,8 +103,8 @@ class TestMain(unittest.TestCase):
             self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors)
 
     def testDefineInvalid(self):
-        """A -D name must be a name the source can use: not a local label, a Python keyword or a mnemonic."""
-        for define in ['_x=1', 'if=1', 'lda=1', '2x=1', 'my-x=1', '=1']:
+        """A -D name must be a name the source can use: not a local label, a Python keyword or built-in, or a mnemonic."""
+        for define in ['_x=1', 'if=1', 'lda=1', 'len=1', 'print', '2x=1', 'my-x=1', '=1']:
             with self.subTest(define=define):
                 code, output, errors = self._main(['test.asm', '-D', define])
                 self.assertEqual(code, 2)
