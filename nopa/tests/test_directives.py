@@ -111,7 +111,7 @@ class TestDirectives(unittest.TestCase):
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
 
     def testImportSourceNamespaceLabels(self):
-        """The labels of a source file imported into a namespace are prefixed with it: draw in spr is spr.draw,
+        """The labels of a source file imported into a namespace are in it: draw in spr is spr.draw,
         so the same file can be imported into two namespaces."""
         files = {'sprites.asm': 'draw: rts\n'}
         for source, expected in [
@@ -219,7 +219,7 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(self._memory(source, files), expected)
 
     def testImportSourceNamespaceNested(self):
-        """A namespace in a namespace stacks the prefixes: draw in util in spr is spr.util.draw. A file imported without
+        """A namespace can be inside a namespace: draw in util in spr is spr.util.draw. A file imported without
         a namespace is in the namespace of the file that imports it, also a .py file."""
         files = {
             'outer.asm':     ('start: rts\n'

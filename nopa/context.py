@@ -194,7 +194,7 @@ class Context:
     def noteReferences(self, code):
         """Note the names used by compiled Python code, including the functions in it,
         as the symbols they are looked up as in the current namespace, e.g. spr.draw for draw,
-        and the dotted names it uses, e.g. spr.draw for spr.draw.
+        and the dotted names it uses, e.g. spr.draw, which Python has as the two names spr and draw.
 
         A name that isn't defined yet is noted as all the symbols it could be, so an optional block
         that defines it is assembled, and the next pass notes just the one it is.
