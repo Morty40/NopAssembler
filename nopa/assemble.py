@@ -96,7 +96,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
             _assembleAssignment(lexer.tokenize(f'{name} = {value}')[:-1], context)
             context.popReadPointer()
 
-        if not builtinNames:
+        if not builtinNames: # in the first pass, after the -D defines and before the first line of source
             builtinNames = set(symbols)
         context.builtinNames = builtinNames
         context.pushReadPointer( (inFile, 0) )
@@ -125,7 +125,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                         context.reportError(f'Capitals are for constants, not labels: "{label}"')
                     elif label.startswith('_'):
                         context.reportError(f'Local label without a global label before it: "{label}"')
-                    label = context.namespacedName(label)
+                    label = context.namespacedName(label) # the rules above are for the name as written, the rest for its full name
                     if label in context.labels:
                         context.reportError(f'Label was already defined: "{label}"')
                     context.setSymbol(label, context.symbols['_'])

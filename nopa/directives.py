@@ -429,7 +429,7 @@ def _namespaceModule(context, namespace: str) -> Namespace | None:
     an error, if the name is another type of symbol."""
     name = context.namespacedName(namespace)
     module = context.symbols.get(name)
-    if type(module) is not Namespace:
+    if type(module) is not Namespace: # the first import into it, or the name is another symbol, which setSymbol() reports
         module = Namespace(name, context.symbols, context.builtinNames)
     return module if context.setSymbol(name, module) else None
 

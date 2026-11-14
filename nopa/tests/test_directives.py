@@ -395,13 +395,19 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(self._errors(source, files), expected)
 
     def testImportNamespace(self):
-        """A .py file imported into a namespace runs in a module of that name, so its names are used as namespace.name."""
-        files = {'util.py': 'x = 5\ndef double(v):\n    return v * 2\n'}
+        """A .py file imported into a namespace runs in a module of that name, so its names are used as namespace.name.
+        It is ordinary Python, also with import and class, which read Python's built-ins in their own ways."""
+        files = {'util.py': 'x = 5\ndef double(v):\n    return v * 2\n',
+                 'lib.py':  ('import math\n'
+                             'class Colors:\n'
+                             '    RED = 2\n'
+                             'value = int(math.sqrt(16)) + Colors.RED\n')}
         for source, expected in [
             ('.import "util.py", "util"\n.byte util.x\n',         [5]),
             ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
             ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
             ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import, with util from the last pass
+            ('.import "lib.py", "lib"\n.byte lib.value\n',        [6]),  # import and class in a namespace
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)

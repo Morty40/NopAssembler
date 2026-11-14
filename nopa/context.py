@@ -27,9 +27,10 @@ class Namespace(types.ModuleType):
     def __init__(self, name: str, symbols: dict, builtinNames: set[str]):
         super().__init__(name)
         self._symbols = symbols
-        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols, builtinNames)
+        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols, builtinNames) # what a .py file in it sees besides its own names
 
     def __getattr__(self, name: str):
+        # only called when the module's __dict__ doesn't have the name, e.g. for a label of a source file in it
         symbol = f'{self.__name__}.{name}'
         if symbol in self._symbols:
             return self._symbols[symbol]
@@ -42,7 +43,7 @@ class NamespaceBuiltins(dict):
     which it holds, as Python reads some directly."""
 
     def __init__(self, namespace: str, symbols: dict, builtinNames: set[str]):
-        super().__init__(builtins.__dict__)
+        super().__init__(builtins.__dict__) # a copy of Python's built-ins, where __getitem__ looks last, e.g. for len and __import__
         self.namespace = namespace
         self.symbols = symbols
         self.builtinNames = builtinNames
@@ -52,7 +53,7 @@ class NamespaceBuiltins(dict):
         if symbol in self.symbols:
             return self.symbols[symbol]
         if name in self.builtinNames:
-            return self.symbols[name]
+            return self.symbols[name] # read when used, as some are new each pass, e.g. zp() and has()
         return super().__getitem__(name)
 
 
@@ -66,13 +67,13 @@ def dottedNames(code) -> list[list[str]]:
         if instruction.opname == 'EXTENDED_ARG': # before an instruction with an argument over 255, part of it
             continue
         if instruction.opname in ('LOAD_NAME', 'LOAD_GLOBAL'):
-            chain = [instruction.argval]
+            chain = [instruction.argval] # a new chain, which the attributes loaded right after it extend
             chains.append(chain)
         elif instruction.opname in ('LOAD_ATTR', 'LOAD_METHOD') and chain is not None: # LOAD_METHOD before Python 3.12
             chain.append(instruction.argval)
         else:
-            chain = None
-    return [chain for chain in chains if len(chain) > 1]
+            chain = None # anything else ends the chain, e.g. a call or an operator
+    return [chain for chain in chains if len(chain) > 1] # a name alone isn't dotted
 
 
 def namespacedName(name: str, namespace: str) -> str:
@@ -109,9 +110,9 @@ class NamespaceSymbols(dict):
 
     def defined(self, symbol: str) -> bool:
         """True if the symbol is defined, also as a name of a .py file in a namespace, e.g. util.double."""
-        namespace, _, name = symbol.rpartition('.')
+        namespace, _, name = symbol.rpartition('.') # e.g. util and double for util.double
         module = self.symbols.get(namespace)
-        return symbol in self.symbols or (type(module) is Namespace and name in vars(module))
+        return symbol in self.symbols or (type(module) is Namespace and name in vars(module)) # vars(): the .py file's names
 
     def value(self, symbol: str):
         """The value of a symbol, also of a name of a .py file in a namespace. Raises KeyError if it isn't defined,
@@ -119,17 +120,18 @@ class NamespaceSymbols(dict):
         if symbol in self.symbols:
             return self.symbols[symbol]
         namespace, _, name = symbol.rpartition('.')
-        return vars(self.symbols[namespace])[name]
+        return vars(self.symbols[namespace])[name] # a KeyError here becomes a NameError in eval() and exec()
 
     def resolve(self, name: str) -> str:
         """The symbol a name is looked up as: the first candidate that is defined, else its own, e.g. spr.draw."""
+        # else its own name, so an undefined name is a NameError, and is never looked up among the program's names
         return next((candidate for candidate in self.candidates(name) if self.defined(candidate)), self.candidates(name)[0])
 
     def referenceNames(self, name: str) -> list[str]:
         """The symbols a use of the name counts as, for ref() and .optional: the one it is looked up as,
         or all the candidates while none is defined, so a block that defines it can be assembled."""
         defined = [candidate for candidate in self.candidates(name) if self.defined(candidate)]
-        return defined[:1] or self.candidates(name)
+        return defined[:1] or self.candidates(name) # [:1]: only the first counts, as only it is looked up
 
     def __getitem__(self, name: str):
         symbol = self.resolve(name)
@@ -147,7 +149,7 @@ class NamespaceSymbols(dict):
         return self.value(symbol) if self.defined(symbol) else default
 
     def __setitem__(self, name: str, value):
-        self.symbols[namespacedName(name, self.namespace)] = value
+        self.symbols[namespacedName(name, self.namespace)] = value # a name Python code defines, e.g. in .python or .for
 
 
 class Context:
@@ -207,8 +209,8 @@ class Context:
         for name in code.co_names:
             self.references.update(noted(name))
         for chain in dottedNames(code): # Python has spr and draw as two names
-            for name in noted(chain[0]):
-                for length in range(2, len(chain) + 1):
+            for name in noted(chain[0]): # the namespace as it is looked up, e.g. spr.util for util in spr
+                for length in range(2, len(chain) + 1): # each part, e.g. spr.util and spr.util.draw, as either can be used
                     self.references.add('.'.join([name] + chain[1:length]))
         for constant in code.co_consts:
             if isinstance(constant, types.CodeType):
@@ -272,7 +274,7 @@ class Context:
     def pushReadPointer(self, readPointer: tuple, namespace: str | None = None):
         """Start assembling another file, on top of the current one, in the same namespace,
         or in the namespace inside it, if given, e.g. spr.util for util in spr."""
-        self.namespaceStack.append(self.namespace() if namespace is None else self.namespacedName(namespace))
+        self.namespaceStack.append(self.namespace() if namespace is None else self.namespacedName(namespace)) # generators, .optional and files without a namespace keep the current one
         self.readPointerStack.append(readPointer)
 
     def popReadPointer(self):
