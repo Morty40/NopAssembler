@@ -195,6 +195,25 @@ class TestMain(unittest.TestCase):
             context = assemble.assembleFile(asmFile)
         self.assertEqual(sortedLabels(context), [(0x1000, 'start'), (0x1002, 'start_loop'), (0x1006, 'wait1_x')])
 
+    def testNamespacedLabels(self):
+        """The labels of a source file imported into a namespace are in the labels and VICE monitor commands
+        by their full names, e.g. spr_draw and spr_draw_loop."""
+        sprites = ('draw: ldx #2\n'
+                   '_loop: dex\n'
+                   'bne _loop\n'
+                   'rts\n')
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile, viceFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.vmc')
+            with open(asmFile, 'w') as f:
+                f.write('.import "sprites.asm", "spr"\n')
+            with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
+                f.write(sprites)
+            self.assertEqual(sortedLabels(assemble.assembleFile(asmFile)), [(0x1000, 'spr_draw'), (0x1002, 'spr_draw_loop')])
+            code, output, errors = self._main([asmFile, '--vice', viceFile])
+            self.assertEqual(code, 0, errors)
+            with open(viceFile) as f:
+                self.assertEqual(f.read(), 'al C:1000 .spr_draw\nal C:1002 .spr_draw_loop\n')
+
     def testViceCommands(self):
         """--vice writes a VICE monitor commands file: the labels, then the .break breakpoints.
         The memory use doesn't list the labels."""
