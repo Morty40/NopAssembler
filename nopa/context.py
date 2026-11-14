@@ -42,12 +42,11 @@ class NamespaceSymbols(dict):
     def __init__(self, symbols: dict, namespaces: tuple[str, ...]):
         super().__init__()
         self.symbols = symbols
-        self.namespaces = namespaces # outermost first, e.g. ('spr', 'util')
+        self.prefixes = ['_'.join(namespaces[:depth]) for depth in range(len(namespaces), 0, -1)] # spr_util, spr for ('spr', 'util')
 
     def candidates(self, name: str) -> list[str]:
         """The symbols a name can be looked up as, in order, e.g. spr_util_draw, spr_draw and draw."""
-        prefixes = ['_'.join(self.namespaces[:depth]) for depth in range(len(self.namespaces), 0, -1)] # innermost first
-        return [namespacedName(name, prefix) for prefix in prefixes] + [name]
+        return [namespacedName(name, prefix) for prefix in self.prefixes] + [name]
 
     def resolve(self, name: str) -> str:
         """The symbol a name is looked up as: the first candidate that is defined, else the name itself."""
@@ -68,7 +67,7 @@ class NamespaceSymbols(dict):
         return self.symbols.get(self.resolve(name), default)
 
     def __setitem__(self, name: str, value):
-        self.symbols[namespacedName(name, '_'.join(self.namespaces))] = value
+        self.symbols[namespacedName(name, self.prefixes[0])] = value
 
 
 class Context:

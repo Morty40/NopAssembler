@@ -3,7 +3,7 @@
 
 import unittest
 
-from ..context import Context
+from ..context import Context, NamespaceSymbols
 from ..cpu import CPU_6502
 
 
@@ -30,6 +30,19 @@ class TestContext(unittest.TestCase):
         self.assertEqual(context.readPointer(), ('b.asm', 7))
         self.assertEqual(context.popReadPointer(), ('b.asm', 7)) # end of b.asm
         self.assertEqual(context.readPointer(), ('a.asm', 1))    # back in a.asm
+
+    def testNamespaceCandidates(self):
+        """A name in a namespace is looked up innermost first, then in the outer namespaces, then as it is.
+        A constant keeps its capitals, and _ is always the current address."""
+        view = NamespaceSymbols({}, ('spr', 'util'))
+        for name, expected in [
+            ('draw',  ['spr_util_draw', 'spr_draw', 'draw']),
+            ('SPEED', ['SPR_UTIL_SPEED', 'SPR_SPEED', 'SPEED']),
+            ('_',     ['_', '_', '_']),
+        ]:
+            with self.subTest(name=name):
+                self.assertEqual(view.candidates(name), expected)
+        self.assertEqual(NamespaceSymbols({}, ('spr',)).candidates('draw'), ['spr_draw', 'draw'])
 
     def testZeroPage(self):
         """zp(size) allocates zero page bytes from $02, and returns the address of the first."""
