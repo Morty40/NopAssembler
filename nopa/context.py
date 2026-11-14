@@ -3,6 +3,7 @@
 
 import builtins
 import dis
+import functools
 import math
 import types
 
@@ -55,12 +56,15 @@ class NamespaceBuiltins(dict):
         return super().__getitem__(name)
 
 
+@functools.lru_cache(maxsize=10000) # the same expression compiles to an equal code object in every pass
 def dottedNames(code) -> list[list[str]]:
     """The dotted names used by compiled Python code, not in the functions in it, as a name and its attributes,
-    e.g. ['spr', 'util', 'draw'] for spr.util.draw."""
+    e.g. ['spr', 'util', 'draw'] for spr.util.draw. Cached, so the lists are shared, and must not be changed."""
     chains: list[list[str]] = []
     chain: list[str] | None = None
     for instruction in dis.get_instructions(code):
+        if instruction.opname == 'EXTENDED_ARG': # before an instruction with an argument over 255, part of it
+            continue
         if instruction.opname in ('LOAD_NAME', 'LOAD_GLOBAL'):
             chain = [instruction.argval]
             chains.append(chain)

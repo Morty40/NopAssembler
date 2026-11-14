@@ -3,7 +3,7 @@
 
 import unittest
 
-from ..context import Context, NamespaceSymbols
+from ..context import Context, NamespaceSymbols, dottedNames
 from ..cpu import CPU_6502
 
 
@@ -30,6 +30,22 @@ class TestContext(unittest.TestCase):
         self.assertEqual(context.readPointer(), ('b.asm', 7))
         self.assertEqual(context.popReadPointer(), ('b.asm', 7)) # end of b.asm
         self.assertEqual(context.readPointer(), ('a.asm', 1))    # back in a.asm
+
+    def testDottedNames(self):
+        """The dotted names in compiled code, as a name and its attributes, also after more than 255 other names."""
+        manyNames = ''.join(f'v{i} = {i}\n' for i in range(300)) # Python then puts EXTENDED_ARG before the instructions
+        for code, expected in [
+            ('spr.util.draw',           [['spr', 'util', 'draw']]),
+            ('spr.twice(4) + lo(x)',    [['spr', 'twice']]),       # a method call, and names without dots
+            (manyNames + 'r = spr.draw', [['spr', 'draw']]),
+        ]:
+            with self.subTest(code=code[-20:]):
+                self.assertEqual(dottedNames(compile(code, 'test', 'exec')), expected)
+
+    def testDottedNamesCached(self):
+        """The dotted names of an expression are found once, as it compiles to an equal code object in every pass."""
+        first = dottedNames(compile('spr.draw', 'test', 'eval'))
+        self.assertIs(dottedNames(compile('spr.draw', 'test', 'eval')), first)
 
     def testNamespaceCandidates(self):
         """A name in a namespace is looked up as its own, e.g. spr.util.draw, and then as it is if it is built in,

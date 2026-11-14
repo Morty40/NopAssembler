@@ -16,7 +16,7 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 - `.repeat`, `.for` and `.if` blocks, conditions with `ref()` and `has()`, and `.optional` code that is only assembled when it is used
 - named sections with `.section`, to store code and data in separate areas of memory
 - data with `.byte`, `.word`, `.text`, `.string`, `.bits`, `.bytefill` and `.wordfill`, with text in PETSCII, screen codes or your own encoding
-- import of source and Python files, also into a namespace, such as `spr_draw` or `util.double()`, of binary files, and of SID music on the C64
+- import of source and Python files, also into a namespace, such as `spr.draw` or `util.double()`, of binary files, and of SID music on the C64
 - targets with `-t` for the C128, C16, C64, Plus/4 and VIC-20, and an experimental one for the Commander X16: hardware registers, KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
 - symbols defined on the command line with `-D`
 - `.assert`, `.print`, `.warning` and `.error`, to check and report while assembling
