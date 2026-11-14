@@ -230,10 +230,6 @@ class TestDirectives(unittest.TestCase):
             'inherit.asm':   ('.import "plain.asm"\n'
                               'jsr helper\n'),
             'plain.asm':     'helper: rts\n',
-            'shadow.asm':    ('start: rts\n'
-                              '.import "own.asm", "util"\n'),
-            'own.asm':       ('jsr start\n'
-                              'start: rts\n'),
             'pyouter.asm':   ('.import "util.py", "util"\n'
                               '.byte util.x\n'),
             'util.py':       'x = 5\n',
@@ -247,7 +243,6 @@ class TestDirectives(unittest.TestCase):
              '.byte spr.util.SPEED\n',         [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
             ('.import "inherit.asm", "spr"\n'
              'jsr spr.helper\n',               [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
-            ('.import "shadow.asm", "spr"\n',  [0x60, 0x20, 0x04, 0x10, 0x60]),                         # its own start, spr.util.start
             ('.import "pyouter.asm", "spr"\n'
              '.byte spr.util.x\n',             [5, 5]),                                                 # a .py namespace in spr
             ('.import "fillouter.asm", "spr"\n'

@@ -97,10 +97,10 @@ class NamespaceSymbols(dict):
     counts[0] += 1 in a function.
     """
 
-    def __init__(self, symbols: dict, namespaces: tuple[str, ...], builtinNames: set[str]):
+    def __init__(self, symbols: dict, namespace: str, builtinNames: set[str]):
         super().__init__()
         self.symbols = symbols
-        self.namespace = '.'.join(namespaces) # e.g. spr.util for ('spr', 'util')
+        self.namespace = namespace # e.g. spr.util
         self.builtinNames = builtinNames
 
     def candidates(self, name: str) -> list[str]:
@@ -158,16 +158,16 @@ class Context:
     The read pointer stack has a (fileName, lineIndex) for each file
     being assembled. The top is the current line, and an imported file
     or generator is pushed on top of the file that uses it. Each also has
-    the namespaces it is in, outermost first, that the names it defines
-    are prefixed with, e.g. spr.util.draw for ('spr', 'util').
+    the namespace it is in, that the names it defines are prefixed with,
+    e.g. spr.util for spr.util.draw.
     """
 
     def __init__(self, symbols: dict):
         """Create the state for a pass. The symbols are shared by all passes."""
         self.readPointerStack: list[tuple[str, int]] = []
-        self.namespaceStack: list[tuple[str, ...]] = [] # the namespaces of each read pointer, () for none
+        self.namespaceStack: list[str] = [] # the namespace of each read pointer, e.g. spr.util, '' for none
         self.builtinNames: set[str] = set() # the symbols defined before the source, which code in a namespace sees
-        self.namespaceViews: dict[tuple[str, ...], NamespaceSymbols] = {} # namespaces: the view of the symbols in them, see namespaceSymbols()
+        self.namespaceViews: dict[str, NamespaceSymbols] = {} # namespace: the view of the symbols in it, see namespaceSymbols()
 
         # math, and ord/chr in the current text encoding, for expressions
         symbols.update(math.__dict__)
@@ -272,10 +272,9 @@ class Context:
             self.readPointerStack[-1] = readPointer
 
     def pushReadPointer(self, readPointer: tuple, namespace: str | None = None):
-        """Start assembling another file, on top of the current one, in the same namespaces,
-        and in the namespace inside them, if given."""
-        namespaces = self.currentNamespaces() if namespace is None else self.currentNamespaces() + (namespace,)
-        self.namespaceStack.append(namespaces)
+        """Start assembling another file, on top of the current one, in the same namespace,
+        or in the namespace inside it, if given, e.g. spr.util for util in spr."""
+        self.namespaceStack.append(self.namespace() if namespace is None else self.namespacedName(namespace))
         self.readPointerStack.append(readPointer)
 
     def popReadPointer(self):
@@ -284,13 +283,9 @@ class Context:
             self.namespaceStack.pop()
         return self.readPointerStack.pop() if self.readPointerStack else None
 
-    def currentNamespaces(self) -> tuple[str, ...]:
-        """The namespaces of the current file, outermost first, () for none."""
-        return self.namespaceStack[-1] if self.namespaceStack else ()
-
     def namespace(self) -> str:
-        """The prefix of the names the current file defines, e.g. spr.util, '' for none."""
-        return '.'.join(self.currentNamespaces())
+        """The namespace of the current file, the prefix of the names it defines, e.g. spr.util, '' for none."""
+        return self.namespaceStack[-1] if self.namespaceStack else ''
 
     def namespacedName(self, name: str) -> str:
         """The name a symbol defined in the current namespace gets, see namespacedName()."""
@@ -299,12 +294,12 @@ class Context:
     def namespaceSymbols(self) -> dict:
         """The symbols as the code in the current namespace sees them, for eval() and exec(): the symbols
         themselves outside a namespace, and else a view of them, made once in a pass for each namespace."""
-        namespaces = self.currentNamespaces()
-        if not namespaces:
+        namespace = self.namespace()
+        if not namespace:
             return self.symbols
-        if namespaces not in self.namespaceViews:
-            self.namespaceViews[namespaces] = NamespaceSymbols(self.symbols, namespaces, self.builtinNames)
-        return self.namespaceViews[namespaces]
+        if namespace not in self.namespaceViews:
+            self.namespaceViews[namespace] = NamespaceSymbols(self.symbols, namespace, self.builtinNames)
+        return self.namespaceViews[namespace]
 
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""

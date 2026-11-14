@@ -50,7 +50,7 @@ class TestContext(unittest.TestCase):
     def testNamespaceCandidates(self):
         """A name in a namespace is looked up as its own, e.g. spr.util.draw, and then as it is if it is built in,
         but not in the namespace it is in. A name keeps its case, and _ is always the current address."""
-        view = NamespaceSymbols({}, ('spr', 'util'), {'lo', '_'})
+        view = NamespaceSymbols({}, 'spr.util', {'lo', '_'})
         for name, expected in [
             ('draw',  ['spr.util.draw']),
             ('SPEED', ['spr.util.SPEED']),
@@ -59,7 +59,7 @@ class TestContext(unittest.TestCase):
         ]:
             with self.subTest(name=name):
                 self.assertEqual(view.candidates(name), expected)
-        self.assertEqual(NamespaceSymbols({}, ('spr',), set()).candidates('draw'), ['spr.draw'])
+        self.assertEqual(NamespaceSymbols({}, 'spr', set()).candidates('draw'), ['spr.draw'])
 
     def testNamespaceSymbols(self):
         """Code outside a namespace sees the symbols, and code in one a view of them, the same one during a pass."""
