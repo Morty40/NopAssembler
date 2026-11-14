@@ -114,11 +114,16 @@ class TestDirectives(unittest.TestCase):
         so the same file can be imported into two namespaces."""
         files = {'sprites.asm': 'draw: rts\n'}
         for source, expected in [
-            ('.import "sprites.asm", "spr"\njsr spr_draw\n',                               [0x60, 0x20, 0x00, 0x10]),
-            ('.import "sprites.asm", "a"\n.import "sprites.asm", "b"\njsr a_draw\njsr b_draw\n',
-             [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]),                                                      # no duplicate label
-            ('.import "sprites.asm", "SID"\njsr SID_draw\n',                               [0x60, 0x20, 0x00, 0x10]), # a namespace in capitals
-            ('jsr spr_draw\n.import "sprites.asm", "spr"\n',                               [0x20, 0x03, 0x10, 0x60]), # used before the import
+            ('.import "sprites.asm", "spr"\n'
+             'jsr spr_draw\n',                 [0x60, 0x20, 0x00, 0x10]),
+            ('.import "sprites.asm", "a"\n'
+             '.import "sprites.asm", "b"\n'
+             'jsr a_draw\n'
+             'jsr b_draw\n',                   [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]), # no duplicate label
+            ('.import "sprites.asm", "SID"\n'
+             'jsr SID_draw\n',                 [0x60, 0x20, 0x00, 0x10]),                         # a namespace in capitals
+            ('jsr spr_draw\n'
+             '.import "sprites.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),                         # used before the import
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -127,37 +132,67 @@ class TestDirectives(unittest.TestCase):
         """The code of a source file in a namespace uses its own names first, and else the global names.
         Names that Python code in it defines, with .python or .for, are in the namespace too."""
         files = {
-            'loop.asm':   'draw: ldx #2\n_loop: dex\nbne _loop\nrts\n',
-            'own.asm':    'jsr draw\ndraw: rts\n',
+            'loop.asm':   ('draw: ldx #2\n'
+                           '_loop: dex\n'
+                           'bne _loop\n'
+                           'rts\n'),
+            'own.asm':    ('jsr draw\n'
+                           'draw: rts\n'),
             'global.asm': 'jsr main\n',
             'lambda.asm': 'table: .bytefill 2, "x: lo(table) + x"\n',
-            'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n.byte twice(3)\n',
-            'for.asm':    '.for i=0, i<3, i+=1\n.byte i\n.end\n',
+            'python.asm': ('.python\n'
+                           'def twice(v):\n'
+                           '    return v * 2\n'
+                           '.end\n'
+                           '.byte twice(3)\n'),
+            'for.asm':    ('.for i=0, i<3, i+=1\n'
+                           '.byte i\n'
+                           '.end\n'),
         }
         for source, expected in [
-            ('.import "loop.asm", "spr"\njsr spr_draw_loop\n',   [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
-            ('draw: nop\n.import "own.asm", "spr"\n',            [0xea, 0x20, 0x04, 0x10, 0x60]),     # spr_draw, not the global draw
-            ('main: rts\n.import "global.asm", "spr"\n',         [0x60, 0x20, 0x00, 0x10]),           # a global label
-            ('.import "lambda.asm", "spr"\n',                    [0x00, 0x01]),                       # table in a lambda
-            ('.import "python.asm", "spr"\n.byte spr_twice(4)\n', [6, 8]),                             # twice is spr_twice
-            ('.import "for.asm", "spr"\n.byte spr_i\n',          [0, 1, 2, 3]),                       # i is spr_i
+            ('.import "loop.asm", "spr"\n'
+             'jsr spr_draw_loop\n',           [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
+            ('draw: nop\n'
+             '.import "own.asm", "spr"\n',    [0xea, 0x20, 0x04, 0x10, 0x60]),                         # spr_draw, not the global draw
+            ('main: rts\n'
+             '.import "global.asm", "spr"\n', [0x60, 0x20, 0x00, 0x10]),                               # a global label
+            ('.import "lambda.asm", "spr"\n', [0x00, 0x01]),                                           # table in a lambda
+            ('.import "python.asm", "spr"\n'
+             '.byte spr_twice(4)\n',          [6, 8]),                                                 # twice is spr_twice
+            ('.import "for.asm", "spr"\n'
+             '.byte spr_i\n',                 [0, 1, 2, 3]),                                           # i is spr_i
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
     def testImportSourceNamespaceAssignments(self):
         """Assignments in a source file in a namespace get it too, a constant with capitals, so it stays a constant."""
-        files = {'vars.asm': 'speed = 3\nSPEED = 4\ncount = zp(1)\n.byte speed, SPEED, count\n'}
+        files = {
+            'vars.asm': ('speed = 3\n'
+                         'SPEED = 4\n'
+                         'count = zp(1)\n'
+                         '.byte speed, SPEED, count\n'),
+        }
         for source, expected in [
-            ('.import "vars.asm", "spr"\n.byte spr_speed, SPR_SPEED, spr_count\n', [3, 4, 2, 3, 4, 2]),
-            ('speed = 9\n.import "vars.asm", "spr"\n.byte speed\n',               [3, 4, 2, 9]),  # spr_speed, not the global speed
+            ('.import "vars.asm", "spr"\n'
+             '.byte spr_speed, SPR_SPEED, spr_count\n', [3, 4, 2, 3, 4, 2]),
+            ('speed = 9\n'
+             '.import "vars.asm", "spr"\n'
+             '.byte speed\n',                           [3, 4, 2, 9]),       # spr_speed, not the global speed
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
     def testImportSourceNamespaceAddress(self):
         """_ is the current address in a namespace too, also when Python code assigns it."""
-        files = {'org.asm': '_ = $1010\n.byte 1\n', 'python.asm': '.python\n_ = 0x1020\n.end\n.byte 2\n'}
+        files = {
+            'org.asm':    ('_ = $1010\n'
+                           '.byte 1\n'),
+            'python.asm': ('.python\n'
+                           '_ = 0x1020\n'
+                           '.end\n'
+                           '.byte 2\n'),
+        }
         for source, expected in [
             ('.import "org.asm", "spr"\n',    {0x1010: 1}),
             ('.import "python.asm", "spr"\n', {0x1020: 2}),
@@ -170,24 +205,36 @@ class TestDirectives(unittest.TestCase):
         in the innermost namespace first, then the outer ones, then the global names. A file imported without
         a namespace is in the namespace of the file that imports it, also a .py file."""
         files = {
-            'outer.asm':     'start: rts\n.import "inner.asm", "util"\n',
-            'inner.asm':     'draw: jsr start\nSPEED = 2\n.byte SPEED\n',
-            'inherit.asm':   '.import "plain.asm"\njsr helper\n',
+            'outer.asm':     ('start: rts\n'
+                              '.import "inner.asm", "util"\n'),
+            'inner.asm':     ('draw: jsr start\n'
+                              'SPEED = 2\n'
+                              '.byte SPEED\n'),
+            'inherit.asm':   ('.import "plain.asm"\n'
+                              'jsr helper\n'),
             'plain.asm':     'helper: rts\n',
-            'shadow.asm':    'start: rts\n.import "own.asm", "util"\n',
-            'own.asm':       'jsr start\nstart: rts\n',
-            'pyouter.asm':   '.import "util.py", "util"\n.byte util.x\n',
+            'shadow.asm':    ('start: rts\n'
+                              '.import "own.asm", "util"\n'),
+            'own.asm':       ('jsr start\n'
+                              'start: rts\n'),
+            'pyouter.asm':   ('.import "util.py", "util"\n'
+                              '.byte util.x\n'),
             'util.py':       'x = 5\n',
             'fillouter.asm': '.import "fill.py"\n',
-            'fill.py':       'def fill(n):\n    return f".byte {n}\\n"\n',
+            'fill.py':       ('def fill(n):\n'
+                              '    return f".byte {n}\\n"\n'),
         }
         for source, expected in [
-            ('.import "outer.asm", "spr"\njsr spr_util_draw\n.byte SPR_UTIL_SPEED\n',
-             [0x60, 0x20, 0x00, 0x10, 0x02, 0x20, 0x01, 0x10, 0x02]),                          # jsr start is jsr spr_start
-            ('.import "inherit.asm", "spr"\njsr spr_helper\n',  [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
-            ('.import "shadow.asm", "spr"\n',                    [0x60, 0x20, 0x04, 0x10, 0x60]), # spr_util_start, not spr_start
-            ('.import "pyouter.asm", "spr"\n.byte spr_util.x\n', [5, 5]),                        # a .py namespace in spr
-            ('.import "fillouter.asm", "spr"\n@spr_fill(7)\n',   [7]),                           # a .py file in spr
+            ('.import "outer.asm", "spr"\n'
+             'jsr spr_util_draw\n'
+             '.byte SPR_UTIL_SPEED\n',         [0x60, 0x20, 0x00, 0x10, 0x02, 0x20, 0x01, 0x10, 0x02]), # jsr start is jsr spr_start
+            ('.import "inherit.asm", "spr"\n'
+             'jsr spr_helper\n',               [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
+            ('.import "shadow.asm", "spr"\n',  [0x60, 0x20, 0x04, 0x10, 0x60]),                         # spr_util_start, not spr_start
+            ('.import "pyouter.asm", "spr"\n'
+             '.byte spr_util.x\n',             [5, 5]),                                                 # a .py namespace in spr
+            ('.import "fillouter.asm", "spr"\n'
+             '@spr_fill(7)\n',                 [7]),                                                    # a .py file in spr
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -196,20 +243,39 @@ class TestDirectives(unittest.TestCase):
         """A use of a name in a namespace counts as a use of the name it resolves to, e.g. spr_draw, for .optional
         and ref(). Labels in code that a generator returns in a namespace get the namespace too."""
         files = {
-            'opt.asm':    '.optional\ndraw: rts\n.end\n',
-            'optuse.asm': 'jsr draw\n.optional\ndraw: rts\n.end\n',
-            'ref.asm':    'draw: rts\n.if ref("draw")\n.byte 1\n.else\n.byte 0\n.end\n',
-            'wait.py':    'def wait():\n    return "_x: dex\\nbne _x\\n"\n',
+            'opt.asm':    ('.optional\n'
+                           'draw: rts\n'
+                           '.end\n'),
+            'optuse.asm': ('jsr draw\n'
+                           '.optional\n'
+                           'draw: rts\n'
+                           '.end\n'),
+            'ref.asm':    ('draw: rts\n'
+                           '.if ref("draw")\n'
+                           '.byte 1\n'
+                           '.else\n'
+                           '.byte 0\n'
+                           '.end\n'),
+            'wait.py':    ('def wait():\n'
+                           '    return "_x: dex\\nbne _x\\n"\n'),
             'gen.asm':    '@wait()\n',
         }
         for source, expected in [
-            ('.import "opt.asm", "spr"\n.byte 0\n',                           [0]),                          # draw isn't used
-            ('.import "opt.asm", "spr"\njsr spr_draw\n',                      [0x60, 0x20, 0x00, 0x10]),
-            ('.import "optuse.asm", "spr"\n',                                 [0x20, 0x03, 0x10, 0x60]),     # used in the namespace
-            ('.import "optuse.asm", "spr"\n.optional\ndraw: nop\n.end\n',     [0x20, 0x03, 0x10, 0x60]),     # not the global draw
-            ('.import "ref.asm", "spr"\n',                                    [0x60, 0]),
-            ('.import "ref.asm", "spr"\njsr spr_draw\n',                      [0x60, 1, 0x20, 0x00, 0x10]),
-            ('.import "wait.py"\n.import "gen.asm", "spr"\njmp spr_wait1_x\n', [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr_wait1_x
+            ('.import "opt.asm", "spr"\n'
+             '.byte 0\n',                     [0]),                                  # draw isn't used
+            ('.import "opt.asm", "spr"\n'
+             'jsr spr_draw\n',                [0x60, 0x20, 0x00, 0x10]),
+            ('.import "optuse.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),             # used in the namespace
+            ('.import "optuse.asm", "spr"\n'
+             '.optional\n'
+             'draw: nop\n'
+             '.end\n',                        [0x20, 0x03, 0x10, 0x60]),             # not the global draw
+            ('.import "ref.asm", "spr"\n',    [0x60, 0]),
+            ('.import "ref.asm", "spr"\n'
+             'jsr spr_draw\n',                [0x60, 1, 0x20, 0x00, 0x10]),
+            ('.import "wait.py"\n'
+             '.import "gen.asm", "spr"\n'
+             'jmp spr_wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr_wait1_x
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -217,15 +283,30 @@ class TestDirectives(unittest.TestCase):
     def testImportSourceNamespaceMessages(self):
         """A label, an assigned name or a Python name in a namespace isn't global, a constant can't change,
         and the label rules apply to a label's name without the namespace."""
-        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n', 'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n',
-                 'vars.asm': 'speed = 3\n', 'const.asm': 'SPEED = 1\nSPEED = 2\n', 'pyouter.asm': '.import "util.py", "util"\n', 'util.py': 'x = 5\n'}
+        files = {
+            'sprites.asm': 'draw: rts\n',
+            'caps.asm':    'DRAW: rts\n',
+            'python.asm':  ('.python\n'
+                            'def twice(v):\n'
+                            '    return v * 2\n'
+                            '.end\n'),
+            'vars.asm':    'speed = 3\n',
+            'const.asm':   ('SPEED = 1\n'
+                            'SPEED = 2\n'),
+            'pyouter.asm': '.import "util.py", "util"\n',
+            'util.py':     'x = 5\n',
+        }
         for source, expected in [
-            ('.import "pyouter.asm", "spr"\n.byte util.x\n',  ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
-            ('.import "sprites.asm", "spr"\n.word draw\n',     ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
-            ('.import "python.asm", "spr"\n.byte twice(3)\n', ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
-            ('.import "vars.asm", "spr"\n.byte speed\n',      ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
-            ('.import "const.asm", "spr"\n',                   ['const.asm:2: error: Constant "SPR_SPEED" cannot be changed from 1 to 2']),
-            ('.import "caps.asm", "spr"\n',                    ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
+            ('.import "pyouter.asm", "spr"\n'
+             '.byte util.x\n',                ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
+            ('.import "sprites.asm", "spr"\n'
+             '.word draw\n',                  ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
+            ('.import "python.asm", "spr"\n'
+             '.byte twice(3)\n',              ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
+            ('.import "vars.asm", "spr"\n'
+             '.byte speed\n',                 ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
+            ('.import "const.asm", "spr"\n',  ['const.asm:2: error: Constant "SPR_SPEED" cannot be changed from 1 to 2']),
+            ('.import "caps.asm", "spr"\n',   ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
