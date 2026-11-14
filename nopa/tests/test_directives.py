@@ -109,6 +109,30 @@ class TestDirectives(unittest.TestCase):
         self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
 
+    def testImportSourceNamespaceLabels(self):
+        """The labels of a source file imported into a namespace are prefixed with it: draw in spr is spr_draw,
+        so the same file can be imported into two namespaces."""
+        files = {'sprites.asm': 'draw: rts\n'}
+        for source, expected in [
+            ('.import "sprites.asm", "spr"\njsr spr_draw\n',                               [0x60, 0x20, 0x00, 0x10]),
+            ('.import "sprites.asm", "a"\n.import "sprites.asm", "b"\njsr a_draw\njsr b_draw\n',
+             [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]),                                                      # no duplicate label
+            ('.import "sprites.asm", "SID"\njsr SID_draw\n',                               [0x60, 0x20, 0x00, 0x10]), # a namespace in capitals
+            ('jsr spr_draw\n.import "sprites.asm", "spr"\n',                               [0x20, 0x03, 0x10, 0x60]), # used before the import
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceLabelMessages(self):
+        """A label in a namespace isn't global, and the label rules apply to its name without the namespace."""
+        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n'}
+        for source, expected in [
+            ('.import "sprites.asm", "spr"\n.word draw\n', ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
+            ('.import "caps.asm", "spr"\n',                ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
     def testImportNamespace(self):
         """A .py file imported into a namespace runs in a module of that name, so its names are used as namespace.name."""
         files = {'util.py': 'x = 5\ndef double(v):\n    return v * 2\n'}

@@ -120,6 +120,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                         context.reportError(f'Capitals are for constants, not labels: "{label}"')
                     elif label.startswith('_'):
                         context.reportError(f'Local label without a global label before it: "{label}"')
+                    label = context.namespacedName(label)
                     if label in context.labels:
                         context.reportError(f'Label was already defined: "{label}"')
                     context.setSymbol(label, context.symbols['_'])

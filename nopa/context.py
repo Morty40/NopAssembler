@@ -21,12 +21,14 @@ class Context:
 
     The read pointer stack has a (fileName, lineIndex) for each file
     being assembled. The top is the current line, and an imported file
-    or generator is pushed on top of the file that uses it.
+    or generator is pushed on top of the file that uses it. Each also has
+    a namespace, '' for none, that the names it defines are prefixed with.
     """
 
     def __init__(self, symbols: dict):
         """Create the state for a pass. The symbols are shared by all passes."""
         self.readPointerStack: list[tuple[str, int]] = []
+        self.namespaceStack: list[str] = [] # the namespace of each read pointer, '' for none
 
         # math, and ord/chr in the current text encoding, for expressions
         symbols.update(math.__dict__)
@@ -115,13 +117,28 @@ class Context:
         if self.readPointerStack:
             self.readPointerStack[-1] = readPointer
 
-    def pushReadPointer(self, readPointer: tuple):
-        """Start assembling another file, on top of the current one."""
+    def pushReadPointer(self, readPointer: tuple, namespace: str | None = None):
+        """Start assembling another file, on top of the current one, in the namespace, or else in the current one."""
+        self.namespaceStack.append(self.namespace() if namespace is None else namespace)
         self.readPointerStack.append(readPointer)
 
     def popReadPointer(self):
         """Finish the current file, and return its read pointer."""
+        if self.namespaceStack:
+            self.namespaceStack.pop()
         return self.readPointerStack.pop() if self.readPointerStack else None
+
+    def namespace(self) -> str:
+        """The namespace of the current file, '' for none."""
+        return self.namespaceStack[-1] if self.namespaceStack else ''
+
+    def namespacedName(self, name: str) -> str:
+        """The name a symbol defined in the current namespace gets, e.g. draw in spr is spr_draw,
+        and a constant keeps its capitals, so SPEED is SPR_SPEED."""
+        namespace = self.namespace()
+        if not namespace:
+            return name
+        return f'{namespace.upper()}_{name}' if name.isupper() else f'{namespace}_{name}'
 
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""

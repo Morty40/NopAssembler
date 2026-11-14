@@ -455,7 +455,7 @@ def importFile(context, fileName: str, namespace: str | None = None):
         context.reportError(f'File not found: "{fileName}"')
     else:
         context.advanceReadPointer()
-        context.pushReadPointer( (path, 0) )
+        context.pushReadPointer( (path, 0), namespace )
         return False # the read pointer was moved
 
 
