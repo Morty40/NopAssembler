@@ -297,6 +297,26 @@ class TestMain(unittest.TestCase):
             for line in ['start:', 'start_loop:', 'bne start_loop']:
                 self.assertIn(line, lines)
 
+    def testNamespacedLabelsDisassemble(self):
+        """The disassembly uses the labels of a namespace by their names in the labels file, e.g. spr_draw,
+        and assembles to the same bytes."""
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile, prgFile, labelsFile, sourceFile = (os.path.join(directory, name)
+                                                        for name in ['test.asm', 'test.prg', 'test.py', 'source.asm'])
+            with open(asmFile, 'w') as f:
+                f.write('start: jsr spr.draw\nrts\n.import "sprites.asm", "spr"\n')
+            with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
+                f.write('draw: ldx #5\n_loop: dex\nbne _loop\nrts\n')
+            code, output, errors = self._main([asmFile, '-o', prgFile, '-l', labelsFile])
+            self.assertEqual(code, 0, errors)
+            code, output, errors = self._main(['-d', prgFile, '-l', labelsFile, '-o', sourceFile])
+            self.assertEqual(code, 0, errors)
+            with open(sourceFile) as f:
+                lines = [line.split(';')[0].strip() for line in f.read().splitlines()] # without the monitor comments
+            for line in ['jsr spr_draw', 'spr_draw:', 'spr_draw_loop:', 'bne spr_draw_loop']:
+                self.assertIn(line, lines)
+            self.assertEqual(assemble.assembleFile(sourceFile).memory, assemble.assembleFile(asmFile).memory)
+
     def testOutputOrder(self):
         """With stderr in the same pipe as stdout (2>&1), .print output comes before the warnings, as on a terminal."""
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
