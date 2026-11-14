@@ -13,7 +13,7 @@ def expression(e: str, context: Context):
     try:
         code = compile(e, '<string>', 'eval')
         context.noteReferences(code)
-        value = builtins.eval(code, context.symbols)
+        value = builtins.eval(code, context.namespaceSymbols())
     except Exception as exception:
         message = str(exception) # capitalize only the first letter, keeping the case of names
         context.reportError(f'{message[:1].upper()}{message[1:]}: "{e}"')

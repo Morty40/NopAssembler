@@ -123,12 +123,35 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
-    def testImportSourceNamespaceLabelMessages(self):
-        """A label in a namespace isn't global, and the label rules apply to its name without the namespace."""
-        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n'}
+    def testImportSourceNamespaceNames(self):
+        """The code of a source file in a namespace uses its own names first, and else the global names.
+        Names that Python code in it defines, with .python or .for, are in the namespace too."""
+        files = {
+            'loop.asm':   'draw: ldx #2\n_loop: dex\nbne _loop\nrts\n',
+            'own.asm':    'jsr draw\ndraw: rts\n',
+            'global.asm': 'jsr main\n',
+            'lambda.asm': 'table: .bytefill 2, "x: lo(table) + x"\n',
+            'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n.byte twice(3)\n',
+            'for.asm':    '.for i=0, i<3, i+=1\n.byte i\n.end\n',
+        }
         for source, expected in [
-            ('.import "sprites.asm", "spr"\n.word draw\n', ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
-            ('.import "caps.asm", "spr"\n',                ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
+            ('.import "loop.asm", "spr"\njsr spr_draw_loop\n',   [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
+            ('draw: nop\n.import "own.asm", "spr"\n',            [0xea, 0x20, 0x04, 0x10, 0x60]),     # spr_draw, not the global draw
+            ('main: rts\n.import "global.asm", "spr"\n',         [0x60, 0x20, 0x00, 0x10]),           # a global label
+            ('.import "lambda.asm", "spr"\n',                    [0x00, 0x01]),                       # table in a lambda
+            ('.import "python.asm", "spr"\n.byte spr_twice(4)\n', [6, 8]),                             # twice is spr_twice
+            ('.import "for.asm", "spr"\n.byte spr_i\n',          [0, 1, 2, 3]),                       # i is spr_i
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceLabelMessages(self):
+        """A label or a Python name in a namespace isn't global, and the label rules apply to its name without the namespace."""
+        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n', 'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n'}
+        for source, expected in [
+            ('.import "sprites.asm", "spr"\n.word draw\n',     ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
+            ('.import "python.asm", "spr"\n.byte twice(3)\n', ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
+            ('.import "caps.asm", "spr"\n',                    ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)

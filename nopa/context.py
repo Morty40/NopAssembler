@@ -16,6 +16,35 @@ class Namespace(types.ModuleType):
     """
 
 
+def namespacedName(name: str, namespace: str) -> str:
+    """The name a symbol defined in a namespace gets, e.g. draw in spr is spr_draw, and a constant
+    keeps its capitals, so SPEED is SPR_SPEED. Without a namespace, '', the name is unchanged."""
+    if not namespace:
+        return name
+    return f'{namespace.upper()}_{name}' if name.isupper() else f'{namespace}_{name}'
+
+
+class NamespaceSymbols(dict):
+    """The symbols as the code in a namespace sees them: its own names first, e.g. draw is spr_draw
+    if that is defined, and else the global ones. A name it defines gets the namespace.
+
+    Used as the globals of eval() and exec(), which then look names up here, also in lambdas and
+    functions. It copies nothing: its own dict only holds the __builtins__ that eval() adds.
+    """
+
+    def __init__(self, symbols: dict, namespace: str):
+        super().__init__()
+        self.symbols = symbols
+        self.namespace = namespace
+
+    def __getitem__(self, name: str):
+        own = namespacedName(name, self.namespace)
+        return self.symbols[own] if own in self.symbols else self.symbols[name]
+
+    def __setitem__(self, name: str, value):
+        self.symbols[namespacedName(name, self.namespace)] = value
+
+
 class Context:
     """The state of one assemble pass.
 
@@ -133,12 +162,12 @@ class Context:
         return self.namespaceStack[-1] if self.namespaceStack else ''
 
     def namespacedName(self, name: str) -> str:
-        """The name a symbol defined in the current namespace gets, e.g. draw in spr is spr_draw,
-        and a constant keeps its capitals, so SPEED is SPR_SPEED."""
-        namespace = self.namespace()
-        if not namespace:
-            return name
-        return f'{namespace.upper()}_{name}' if name.isupper() else f'{namespace}_{name}'
+        """The name a symbol defined in the current namespace gets, see namespacedName()."""
+        return namespacedName(name, self.namespace())
+
+    def namespaceSymbols(self) -> dict:
+        """The symbols as the code in the current namespace sees them, for eval() and exec()."""
+        return NamespaceSymbols(self.symbols, self.namespace()) if self.namespace() else self.symbols
 
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""
