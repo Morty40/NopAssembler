@@ -114,14 +114,12 @@ class NamespaceSymbols(dict):
         return symbol in self.symbols or (type(module) is Namespace and name in vars(module))
 
     def value(self, symbol: str):
-        """The value of a symbol, also of a name of a .py file in a namespace. Raises KeyError if it isn't defined."""
+        """The value of a symbol, also of a name of a .py file in a namespace. Raises KeyError if it isn't defined,
+        as the namespace of a dotted symbol, e.g. util for util.double, is a module, since its .import."""
         if symbol in self.symbols:
             return self.symbols[symbol]
         namespace, _, name = symbol.rpartition('.')
-        module = self.symbols.get(namespace)
-        if type(module) is Namespace and name in vars(module):
-            return vars(module)[name]
-        raise KeyError(symbol)
+        return vars(self.symbols[namespace])[name]
 
     def resolve(self, name: str) -> str:
         """The symbol a name is looked up as: the first candidate that is defined, else its own, e.g. spr.draw."""

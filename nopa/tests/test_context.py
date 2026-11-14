@@ -3,7 +3,7 @@
 
 import unittest
 
-from ..context import Context, NamespaceSymbols, dottedNames
+from ..context import Context, Namespace, NamespaceSymbols, dottedNames
 from ..cpu import CPU_6502
 
 
@@ -60,6 +60,19 @@ class TestContext(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(view.candidates(name), expected)
         self.assertEqual(NamespaceSymbols({}, 'spr', set()).candidates('draw'), ['spr.draw'])
+
+    def testNamespaceValues(self):
+        """A symbol in a namespace is defined as a symbol, e.g. util.table, or as a name of a .py file in it, e.g. util.double."""
+        symbols: dict = {'util.table': 0x1000}
+        symbols['util'] = Namespace('util', symbols, set())
+        vars(symbols['util'])['double'] = 2
+        view = NamespaceSymbols(symbols, 'util', set())
+        for symbol, value in [('util.table', 0x1000), ('util.double', 2)]:
+            with self.subTest(symbol=symbol):
+                self.assertTrue(view.defined(symbol))
+                self.assertEqual(view.value(symbol), value)
+        self.assertFalse(view.defined('util.none'))
+        self.assertRaises(KeyError, view.value, 'util.none')
 
     def testNamespaceSymbols(self):
         """Code outside a namespace sees the symbols, and code in one a view of them, the same one during a pass."""
