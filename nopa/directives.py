@@ -425,9 +425,6 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
     """Run a .py file with the symbols as its variables, or in the module of a namespace."""
     variables = None # the symbols
     if namespace is not None:
-        if not lexer.isValidGlobalSymbolName(namespace):
-            context.reportError(f'Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "{namespace}"')
-            return
         if namespace not in context.namespaces: # the first import into it in this pass
             context.namespaces[namespace] = Namespace(namespace)
         module = context.namespaces[namespace]
@@ -445,15 +442,15 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
 def importFile(context, fileName: str, namespace: str | None = None):
     """Import a file: a .py file is executed, any other file is assembled as source code.
 
-    A .py file can be imported into a namespace, a name that isn't a Python keyword or built-in, and
-    doesn't start with _. It then runs in a module of that name, so its names are used as namespace.name.
+    A file can be imported into a namespace, a name that isn't a Python keyword or built-in, and doesn't
+    start with _. A .py file then runs in a module of that name, so its names are used as namespace.name.
     Files imported into the same namespace share its module.
     """
     path = os.path.join(context.path, fileName)
-    if os.path.splitext(path)[1] == ".py":
+    if namespace is not None and not lexer.isValidGlobalSymbolName(namespace):
+        context.reportError(f'Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "{namespace}"')
+    elif os.path.splitext(path)[1] == ".py":
         _importPyFile(context, path, fileName, namespace)
-    elif namespace is not None:
-        context.reportError(f'Only a .py file can be imported into a namespace: "{fileName}"')
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
     else:

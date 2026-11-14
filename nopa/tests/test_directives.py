@@ -106,6 +106,7 @@ class TestDirectives(unittest.TestCase):
     def testImport(self):
         """.import assembles a source file, or runs a Python file, found beside the main source file."""
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
+        self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
 
     def testImportNamespace(self):
@@ -186,7 +187,7 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(self._errors(source, files), expected)
 
     def testImportNamespaceMessages(self):
-        """Only a .py file can be imported into a namespace, and the namespace is a name that isn't a Python keyword
+        """A .py file or a source file can be imported into a namespace, a name that isn't a Python keyword
         or built-in, and doesn't start with _."""
         files = {'util.py': 'x = 1\n', 'bytes.txt': '.byte 1\n'}
         for source, expected in [
@@ -195,7 +196,10 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py", "my_util"\n', []),
             ('.import "util.py", "Util2"\n',   []),
             ('.import "util.py", "UTIL"\n',    []),
-            ('.import "bytes.txt", "util"\n',  ['test.asm:1: error: Only a .py file can be imported into a namespace: "bytes.txt"']),
+            ('.import "bytes.txt", "util"\n',  []),
+            ('.import "bytes.txt", "_util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "_util"']),
+            ('.import "bytes.txt", "if"\n',    ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "if"']),
+            ('.import "none.asm", "util"\n',   ['test.asm:1: error: File not found: "none.asm"']),
             ('.import "util.py", "my-util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "my-util"']),
             ('.import "util.py", "if"\n',      ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "if"']),
             ('.import "util.py", "_util"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "_util"']),
