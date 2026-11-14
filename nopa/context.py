@@ -52,10 +52,16 @@ class NamespaceSymbols(dict):
         """The symbol a name is looked up as: the first candidate that is defined, else the name itself."""
         return next((candidate for candidate in self.candidates(name) if candidate in self.symbols), name)
 
+    def referenceNames(self, name: str) -> list[str]:
+        """The symbols a use of the name counts as, for ref() and .optional: the one it is looked up as,
+        or all the candidates while none is defined, so a block that defines it can be assembled."""
+        defined = [candidate for candidate in self.candidates(name) if candidate in self.symbols]
+        return defined[:1] or self.candidates(name)
+
     def __getitem__(self, name: str):
         symbol = self.resolve(name)
         if symbol == 'ref': # the built-in ref(), with the label looked up in this namespace, wherever it is called from
-            return lambda label: self.symbols['ref'](self.resolve(label))
+            return lambda label: any(self.symbols['ref'](reference) for reference in self.referenceNames(label))
         return self.symbols[symbol]
 
     def __contains__(self, name) -> bool:
@@ -121,9 +127,7 @@ class Context:
         symbols = self.namespaceSymbols()
         for name in code.co_names:
             if isinstance(symbols, NamespaceSymbols):
-                candidates = symbols.candidates(name)
-                defined = [candidate for candidate in candidates if candidate in self.symbols]
-                self.references.update(defined[:1] or candidates)
+                self.references.update(symbols.referenceNames(name))
             else:
                 self.references.add(name)
         for constant in code.co_consts:

@@ -279,6 +279,9 @@ class TestDirectives(unittest.TestCase):
             'wait.py':    ('def wait():\n'
                            '    return "_x: dex\\nbne _x\\n"\n'),
             'gen.asm':    '@wait()\n',
+            'ifref.asm':  ('.if ref("draw")\n'
+                           'draw: rts\n'
+                           '.end\n'),
             'maybe.asm':  ('.python\n'
                            'def maybe():\n'
                            '    return "nop\\n" if ref("draw") else ""\n'
@@ -298,6 +301,10 @@ class TestDirectives(unittest.TestCase):
             ('.import "ref.asm", "spr"\n',    [0x60, 0]),
             ('.import "ref.asm", "spr"\n'
              'jsr spr_draw\n',                [0x60, 1, 0x20, 0x00, 0x10]),
+            ('.import "ifref.asm", "spr"\n'
+             '.byte 0\n',                     [0]),                                  # draw isn't used
+            ('.import "ifref.asm", "spr"\n'
+             'jsr spr_draw\n',                [0x60, 0x20, 0x00, 0x10]),             # ref() of a label it defines
             ('.import "wait.py"\n'
              '.import "gen.asm", "spr"\n'
              'jmp spr_wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr_wait1_x
