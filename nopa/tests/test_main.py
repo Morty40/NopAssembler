@@ -245,6 +245,44 @@ class TestMain(unittest.TestCase):
                     with open(labelsFile) as f:
                         self.assertEqual(f.read(), 'start = 0x1000\nstart_loop = 0x1002\n')
 
+    def testNamespacedLabelsFile(self):
+        """The labels of a namespace are written with _ for ., e.g. spr_draw for spr.draw, as in the VICE monitor
+        commands, so every line of the labels file is still name = address, for scripts and other tools."""
+        expected = ('start = 0x1000\n'
+                    'spr_draw = 0x1001\n'
+                    'spr_util_plot = 0x1002\n')
+        with tempfile.TemporaryDirectory() as directory:
+            files = {'test.asm':    'start: rts\n.import "sprites.asm", "spr"\n',
+                     'sprites.asm': 'draw: rts\n.import "plot.asm", "util"\n',
+                     'plot.asm':    'plot: rts\n',
+                     'other.asm':   '.import "game.py"\njsr spr_util_plot\n'}
+            for name, text in files.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            labelsFile = os.path.join(directory, 'game.py')
+            code, output, errors = self._main([os.path.join(directory, 'test.asm'), '-l', labelsFile])
+            self.assertEqual(code, 0, errors)
+            with open(labelsFile) as f:
+                self.assertEqual(f.read(), expected)
+            context = assemble.assembleFile(os.path.join(directory, 'other.asm'))
+            self.assertEqual(context.errors, [])
+            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10})
+
+    def testLabelCollision(self):
+        """Two labels that are written with the same name, e.g. spr_draw and spr.draw, are an error,
+        and the labels file and the VICE monitor commands aren't written."""
+        with tempfile.TemporaryDirectory() as directory:
+            files = {'test.asm': 'spr_draw: nop\n.import "sprites.asm", "spr"\n', 'sprites.asm': 'draw: rts\n'}
+            for name, text in files.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            labelsFile, viceFile = os.path.join(directory, 'test.py'), os.path.join(directory, 'test.vmc')
+            code, output, errors = self._main([os.path.join(directory, 'test.asm'), '-l', labelsFile, '--vice', viceFile])
+            self.assertEqual(code, 1)
+            self.assertIn('error: Labels "spr.draw" and "spr_draw" are both written as "spr_draw"', errors)
+            self.assertFalse(os.path.exists(labelsFile))
+            self.assertFalse(os.path.exists(viceFile))
+
     def testLabelsDisassemble(self):
         """With -d, -l reads the labels, and the disassembly uses their names."""
         with tempfile.TemporaryDirectory() as directory:
