@@ -145,12 +145,36 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
-    def testImportSourceNamespaceLabelMessages(self):
-        """A label or a Python name in a namespace isn't global, and the label rules apply to its name without the namespace."""
-        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n', 'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n'}
+    def testImportSourceNamespaceAssignments(self):
+        """Assignments in a source file in a namespace get it too, a constant with capitals, so it stays a constant."""
+        files = {'vars.asm': 'speed = 3\nSPEED = 4\ncount = zp(1)\n.byte speed, SPEED, count\n'}
+        for source, expected in [
+            ('.import "vars.asm", "spr"\n.byte spr_speed, SPR_SPEED, spr_count\n', [3, 4, 2, 3, 4, 2]),
+            ('speed = 9\n.import "vars.asm", "spr"\n.byte speed\n',               [3, 4, 2, 9]),  # spr_speed, not the global speed
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceAddress(self):
+        """_ is the current address in a namespace too, also when Python code assigns it."""
+        files = {'org.asm': '_ = $1010\n.byte 1\n', 'python.asm': '.python\n_ = 0x1020\n.end\n.byte 2\n'}
+        for source, expected in [
+            ('.import "org.asm", "spr"\n',    {0x1010: 1}),
+            ('.import "python.asm", "spr"\n', {0x1020: 2}),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._memory(source, files), expected)
+
+    def testImportSourceNamespaceMessages(self):
+        """A label, an assigned name or a Python name in a namespace isn't global, a constant can't change,
+        and the label rules apply to a label's name without the namespace."""
+        files = {'sprites.asm': 'draw: rts\n', 'caps.asm': 'DRAW: rts\n', 'python.asm': '.python\ndef twice(v):\n    return v * 2\n.end\n',
+                 'vars.asm': 'speed = 3\n', 'const.asm': 'SPEED = 1\nSPEED = 2\n'}
         for source, expected in [
             ('.import "sprites.asm", "spr"\n.word draw\n',     ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
             ('.import "python.asm", "spr"\n.byte twice(3)\n', ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
+            ('.import "vars.asm", "spr"\n.byte speed\n',      ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
+            ('.import "const.asm", "spr"\n',                   ['const.asm:2: error: Constant "SPR_SPEED" cannot be changed from 1 to 2']),
             ('.import "caps.asm", "spr"\n',                    ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
         ]:
             with self.subTest(source=source):

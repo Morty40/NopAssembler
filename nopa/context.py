@@ -18,8 +18,9 @@ class Namespace(types.ModuleType):
 
 def namespacedName(name: str, namespace: str) -> str:
     """The name a symbol defined in a namespace gets, e.g. draw in spr is spr_draw, and a constant
-    keeps its capitals, so SPEED is SPR_SPEED. Without a namespace, '', the name is unchanged."""
-    if not namespace:
+    keeps its capitals, so SPEED is SPR_SPEED. Without a namespace, '', the name is unchanged,
+    and so is _, the current address."""
+    if not namespace or name == '_':
         return name
     return f'{namespace.upper()}_{name}' if name.isupper() else f'{namespace}_{name}'
 

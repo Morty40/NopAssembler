@@ -26,9 +26,10 @@ def _assembleAssignment(tokens: list, context: Context):
     """Assign the value of a Python expression to a symbol: name = expression.
 
     Upper case symbols are constants: once they have a value, they can't
-    be assigned a different value.
+    be assigned a different value. In a namespace, the symbol gets its
+    namespaced name, e.g. speed in spr is spr_speed.
     """
-    symbol = tokens[0].string
+    symbol = context.namespacedName(tokens[0].string)
     expression = lexer.join(tokens[2:])
     value = evaluate.expression(expression, context)
     if value is not None:
