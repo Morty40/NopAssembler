@@ -260,7 +260,8 @@ class TestDirectives(unittest.TestCase):
 
     def testImportSourceNamespaceReferences(self):
         """A use of a name in a namespace counts as a use of the name it resolves to, e.g. spr_draw, for .optional
-        and ref(). Labels in code that a generator returns in a namespace get the namespace too."""
+        and ref(), and ref() in a namespace resolves the label there, also when called from outside it.
+        Labels in code that a generator returns in a namespace get the namespace too."""
         files = {
             'opt.asm':    ('.optional\n'
                            'draw: rts\n'
@@ -278,6 +279,11 @@ class TestDirectives(unittest.TestCase):
             'wait.py':    ('def wait():\n'
                            '    return "_x: dex\\nbne _x\\n"\n'),
             'gen.asm':    '@wait()\n',
+            'maybe.asm':  ('.python\n'
+                           'def maybe():\n'
+                           '    return "nop\\n" if ref("draw") else ""\n'
+                           '.end\n'
+                           'draw: rts\n'),
         }
         for source, expected in [
             ('.import "opt.asm", "spr"\n'
@@ -295,6 +301,11 @@ class TestDirectives(unittest.TestCase):
             ('.import "wait.py"\n'
              '.import "gen.asm", "spr"\n'
              'jmp spr_wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr_wait1_x
+            ('.import "maybe.asm", "spr"\n'
+             '@spr_maybe()\n',               [0x60]),                               # ref() in spr, called from outside
+            ('.import "maybe.asm", "spr"\n'
+             'jsr spr_draw\n'
+             '@spr_maybe()\n',               [0x60, 0x20, 0x00, 0x10, 0xea]),
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)

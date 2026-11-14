@@ -54,7 +54,10 @@ class NamespaceSymbols(dict):
         return next((candidate for candidate in self.candidates(name) if candidate in self.symbols), name)
 
     def __getitem__(self, name: str):
-        return self.symbols[self.resolve(name)]
+        symbol = self.resolve(name)
+        if symbol == 'ref': # the built-in ref(), with the label looked up in this namespace, wherever it is called from
+            return lambda label: self.symbols['ref'](self.resolve(label))
+        return self.symbols[symbol]
 
     def __contains__(self, name) -> bool:
         """True if the name is defined as it is looked up, for name in globals() in Python code."""
@@ -87,7 +90,7 @@ class Context:
         symbols.update(math.__dict__)
         symbols['ord'] = lambda char: text.ord(char, self.encoding)
         symbols['chr'] = lambda value: text.chr(value, self.encoding)
-        symbols['ref'] = lambda label: self.resolvedName(label) in self.lastReferences
+        symbols['ref'] = lambda label: label in self.lastReferences # in a namespace, NamespaceSymbols looks the label up first
         symbols['zp'] = self.zp
         self.symbols = symbols
         self.labels: set[str] = set() # labels defined in this pass, to find duplicates
@@ -206,10 +209,6 @@ class Context:
     def namespacedName(self, name: str) -> str:
         """The name a symbol defined in the current namespace gets, see namespacedName()."""
         return namespacedName(name, self.namespace())
-
-    def resolvedName(self, name: str) -> str:
-        """The symbol a name is looked up as in the current namespace, see NamespaceSymbols.resolve()."""
-        return NamespaceSymbols(self.symbols, self.currentNamespaces()).resolve(name) if self.currentNamespaces() else name
 
     def namespaceSymbols(self) -> dict:
         """The symbols as the code in the current namespace sees them, for eval() and exec()."""
