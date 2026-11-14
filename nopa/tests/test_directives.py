@@ -14,13 +14,14 @@ from ..directives import assemble, byte, bytefill, _matches, org, printValues
 class TestDirectives(unittest.TestCase):
     """Tests of the directive arguments, and what the directives store."""
 
-    def _assemble(self, source: str, files: dict | None = None) -> tuple[dict, list]:
-        """Assemble source, with the files {name: text or bytes} beside it, and return the memory, and the errors without the folder."""
+    def _assemble(self, source: str, files: dict | None = None, defines: dict | None = None) -> tuple[dict, list]:
+        """Assemble source, with the files {name: text or bytes} beside it, and the defines {name: expression}, as with -D.
+        Return the memory, and the errors without the folder."""
         with tempfile.TemporaryDirectory() as directory:
             for name, content in {'test.asm': source, **(files or {})}.items():
                 with open(os.path.join(directory, name), 'wb' if type(content) is bytes else 'w') as f:
                     f.write(content)
-            context = assembleFile(os.path.join(directory, 'test.asm'))
+            context = assembleFile(os.path.join(directory, 'test.asm'), defines=defines)
             return context.memory, [error.replace(directory + os.sep, '') for error in context.errors]
 
     def _memory(self, source: str, files: dict | None = None) -> dict:
@@ -138,7 +139,6 @@ class TestDirectives(unittest.TestCase):
                            'rts\n'),
             'own.asm':    ('jsr draw\n'
                            'draw: rts\n'),
-            'global.asm': 'jsr main\n',
             'lambda.asm': 'table: .bytefill 2, "x: lo(table) + x"\n',
             'python.asm': ('.python\n'
                            'def twice(v):\n'
@@ -154,8 +154,6 @@ class TestDirectives(unittest.TestCase):
              'jsr spr.draw_loop\n',           [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
             ('draw: nop\n'
              '.import "own.asm", "spr"\n',    [0xea, 0x20, 0x04, 0x10, 0x60]),                         # spr.draw, not the global draw
-            ('main: rts\n'
-             '.import "global.asm", "spr"\n', [0x60, 0x20, 0x00, 0x10]),                               # a global label
             ('.import "lambda.asm", "spr"\n', [0x00, 0x01]),                                           # table in a lambda
             ('.import "python.asm", "spr"\n'
              '.byte spr.twice(4)\n',          [6, 8]),                                                 # twice is spr.twice
@@ -166,7 +164,7 @@ class TestDirectives(unittest.TestCase):
                 self._assertBytes(source, expected, files)
 
     def testImportSourceNamespaceGlobals(self):
-        """globals() in Python code in a namespace finds names as they are looked up, its own and the global ones."""
+        """globals() in Python code in a namespace finds names as they are looked up, its own and the built-in ones."""
         files = {
             'debug.asm': ('.python\n'
                           'if "DEBUG" not in globals():\n'
@@ -176,13 +174,14 @@ class TestDirectives(unittest.TestCase):
                           '.end\n'
                           '.byte DEBUG, level, own\n'),
         }
-        for source, expected in [
-            ('DEBUG = 1\n'
-             '.import "debug.asm", "spr"\n', [1, 1, 1]), # the global DEBUG
-            ('.import "debug.asm", "spr"\n', [0, 0, 1]), # its own DEBUG, spr.DEBUG
+        for defines, expected in [
+            ({'DEBUG': '1'}, [1, 1, 1]), # -D DEBUG=1, a built-in symbol
+            (None,           [0, 0, 1]), # its own DEBUG, spr.DEBUG
         ]:
-            with self.subTest(source=source):
-                self._assertBytes(source, expected, files)
+            with self.subTest(defines=defines):
+                memory, errors = self._assemble('.import "debug.asm", "spr"\n', files, defines)
+                self.assertEqual(errors, [])
+                self.assertEqual([memory[0x1000 + i] for i in range(3)], expected)
 
     def testImportSourceNamespaceAssignments(self):
         """Assignments in a source file in a namespace get it too, and a constant stays a constant: SPEED is spr.SPEED."""
@@ -220,13 +219,12 @@ class TestDirectives(unittest.TestCase):
                 self.assertEqual(self._memory(source, files), expected)
 
     def testImportSourceNamespaceNested(self):
-        """A namespace in a namespace stacks the prefixes: draw in util in spr is spr.util.draw. A name is looked up
-        in the innermost namespace first, then the outer ones, then the global names. A file imported without
+        """A namespace in a namespace stacks the prefixes: draw in util in spr is spr.util.draw. A file imported without
         a namespace is in the namespace of the file that imports it, also a .py file."""
         files = {
             'outer.asm':     ('start: rts\n'
                               '.import "inner.asm", "util"\n'),
-            'inner.asm':     ('draw: jsr start\n'
+            'inner.asm':     ('draw: rts\n'
                               'SPEED = 2\n'
                               '.byte SPEED\n'),
             'inherit.asm':   ('.import "plain.asm"\n'
@@ -246,10 +244,10 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "outer.asm", "spr"\n'
              'jsr spr.util.draw\n'
-             '.byte spr.util.SPEED\n',         [0x60, 0x20, 0x00, 0x10, 0x02, 0x20, 0x01, 0x10, 0x02]), # jsr start is jsr spr.start
+             '.byte spr.util.SPEED\n',         [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
             ('.import "inherit.asm", "spr"\n'
              'jsr spr.helper\n',               [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
-            ('.import "shadow.asm", "spr"\n',  [0x60, 0x20, 0x04, 0x10, 0x60]),                         # spr.util.start, not spr.start
+            ('.import "shadow.asm", "spr"\n',  [0x60, 0x20, 0x04, 0x10, 0x60]),                         # its own start, spr.util.start
             ('.import "pyouter.asm", "spr"\n'
              '.byte spr.util.x\n',             [5, 5]),                                                 # a .py namespace in spr
             ('.import "fillouter.asm", "spr"\n'
@@ -278,7 +276,8 @@ class TestDirectives(unittest.TestCase):
                            '.end\n'),
             'wait.py':    ('def wait():\n'
                            '    return "_x: dex\\nbne _x\\n"\n'),
-            'gen.asm':    '@wait()\n',
+            'gen.asm':    ('.import "wait.py"\n'
+                           '@wait()\n'),
             'ifref.asm':  ('.if ref("draw")\n'
                            'draw: rts\n'
                            '.end\n'),
@@ -305,8 +304,7 @@ class TestDirectives(unittest.TestCase):
              '.byte 0\n',                     [0]),                                  # draw isn't used
             ('.import "ifref.asm", "spr"\n'
              'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]),             # ref() of a label it defines
-            ('.import "wait.py"\n'
-             '.import "gen.asm", "spr"\n'
+            ('.import "gen.asm", "spr"\n'
              'jmp spr.wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr.wait1_x
             ('.import "maybe.asm", "spr"\n'
              '@spr.maybe()\n',               [0x60]),                               # ref() in spr, called from outside
@@ -337,9 +335,20 @@ class TestDirectives(unittest.TestCase):
                 self._assertBytes(source + '.byte util.double(4)\n.word util.table, util.tableAddress()\n',
                                   [6, 8, 0x00, 0x10, 0x00, 0x10], files)
 
+    def testImportSourceNamespaceIsolated(self):
+        """Code in a namespace sees its own names and the built-in symbols, those defined before the source,
+        such as lo(), zp(), the math names and -D defines, but not the names of the program."""
+        files = {
+            'builtins.asm': '.byte lo($1234), hi($1234), floor(pi), zp(1), LEVEL\n',
+        }
+        memory, errors = self._assemble('.import "builtins.asm", "spr"\n', files, {'LEVEL': '5'})
+        self.assertEqual(errors, [])
+        self.assertEqual([memory[0x1000 + i] for i in range(5)], [0x34, 0x12, 3, 2, 5])
+
     def testImportSourceNamespaceMessages(self):
-        """A label, an assigned name or a Python name in a namespace isn't global, not even as spr_draw, a constant
-        can't change, the namespace can't be another symbol, and the label rules apply to a label's name without it."""
+        """A namespace doesn't see the names of the program, or of the namespace it is in. A label, an assigned name or
+        a Python name in a namespace isn't global, not even as spr_draw, a constant can't change, the namespace can't be
+        another symbol, and the label rules apply to a label's name without it."""
         files = {
             'sprites.asm': 'draw: rts\n',
             'caps.asm':    'DRAW: rts\n',
@@ -352,8 +361,26 @@ class TestDirectives(unittest.TestCase):
                             'SPEED = 2\n'),
             'pyouter.asm': '.import "util.py", "util"\n',
             'util.py':     'x = 5\n',
+            'main.asm':    'jsr main\n',
+            'speed.asm':   '.byte speed\n',
+            'helper.asm':  '.byte helper()\n',
+            'outer.asm':   ('start: rts\n'
+                            '.import "inner.asm", "util"\n'),
+            'inner.asm':   'jsr start\n',
         }
         for source, expected in [
+            ('main: rts\n'
+             '.import "main.asm", "spr"\n',   ['main.asm:1: error: Name \'main\' is not defined: "main"',
+                                              'main.asm:1: error: Expected an int value instead of: "main"']),
+            ('speed = 3\n'
+             '.import "speed.asm", "spr"\n',  ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
+            ('.python\n'
+             'def helper():\n'
+             '    return 1\n'
+             '.end\n'
+             '.import "helper.asm", "spr"\n', ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
+            ('.import "outer.asm", "spr"\n',  ['inner.asm:1: error: Name \'start\' is not defined: "start"',
+                                              'inner.asm:1: error: Expected an int value instead of: "start"']),
             ('.import "pyouter.asm", "spr"\n'
              '.byte util.x\n',                ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
             ('.import "sprites.asm", "spr"\n'
@@ -414,14 +441,16 @@ class TestDirectives(unittest.TestCase):
         self.assertEqual(self._errors(source, {'util.py': 'x = 5\n'}), ['test.asm:5: error: Name \'util\' is not defined: "util.x"'])
 
     def testImportNamespaceIsolated(self):
-        """The names of a file in a namespace are not global, and the file doesn't see the global names."""
-        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(1)\n',       # lo() is a global symbol, not a Python built-in
+        """The names of a file in a namespace are not global, and the file sees the built-in symbols, such as lo(),
+        but not the names of the program."""
+        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(0x1234)\n', 'see.py': 'def f():\n    return start\n',
                  'peek.py': 'found = int(any("symbols" in name for name in globals()))\n'}
         for source, expected in [
             ('.import "util.py", "util"\n.byte x\n', ['test.asm:2: error: Name \'x\' is not defined: "x"']),
             ('.import "peek.py", "peek"\n.assert peek.found == 0\n', []),      # nor the symbols, through its module
-            ('.import "low.py", "low"\n',            ['test.asm:1: error: Failed to execute python code: "low.py" '
-                                                      "(NameError: name 'lo' is not defined)"]),
+            ('.import "low.py", "low"\n.byte low.y\n', []),
+            ('start: rts\n.import "see.py", "see"\n.word see.f()\n',
+                                                     ['test.asm:3: error: Name \'start\' is not defined: "see.f()"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)

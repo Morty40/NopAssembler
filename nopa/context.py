@@ -23,10 +23,10 @@ class Namespace(types.ModuleType):
 
     __slots__ = ('_symbols',) # not in the module's __dict__, the globals of a .py file in it, so the file can't see them
 
-    def __init__(self, name: str, symbols: dict):
+    def __init__(self, name: str, symbols: dict, builtinNames: set[str]):
         super().__init__(name)
         self._symbols = symbols
-        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols)
+        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols, builtinNames)
 
     def __getattr__(self, name: str):
         symbol = f'{self.__name__}.{name}'
@@ -37,16 +37,22 @@ class Namespace(types.ModuleType):
 
 class NamespaceBuiltins(dict):
     """The built-ins of a .py file in a namespace: the names of the source files in the namespace first,
-    e.g. table for util.table, and then Python's built-ins, which it holds, as Python reads some directly."""
+    e.g. table for util.table, then the built-in symbols, such as lo(), and then Python's built-ins,
+    which it holds, as Python reads some directly."""
 
-    def __init__(self, namespace: str, symbols: dict):
+    def __init__(self, namespace: str, symbols: dict, builtinNames: set[str]):
         super().__init__(builtins.__dict__)
         self.namespace = namespace
         self.symbols = symbols
+        self.builtinNames = builtinNames
 
     def __getitem__(self, name: str):
         symbol = f'{self.namespace}.{name}'
-        return self.symbols[symbol] if symbol in self.symbols else super().__getitem__(name)
+        if symbol in self.symbols:
+            return self.symbols[symbol]
+        if name in self.builtinNames:
+            return self.symbols[name]
+        return super().__getitem__(name)
 
 
 def dottedNames(code) -> list[list[str]]:
@@ -74,9 +80,9 @@ def namespacedName(name: str, namespace: str) -> str:
 
 
 class NamespaceSymbols(dict):
-    """The symbols as the code in a namespace sees them: its own names first, e.g. draw is spr.draw
-    if that is defined, then those of the outer namespaces, e.g. spr.util.draw before spr.draw,
-    and else the global ones. A name it defines gets the innermost namespace.
+    """The symbols as the code in a namespace sees them: its own names, e.g. draw is spr.draw, or spr.util.draw
+    in a namespace inside it, and the built-in symbols, those defined before the source, such as lo() and the
+    -D defines, but not the names of the program, or of the namespace it is in. A name it defines gets the namespace.
 
     Used as the globals of eval() and exec(), which then look names up here, also in lambdas and
     functions. It copies nothing: its own dict only holds the __builtins__ that eval() adds.
@@ -87,14 +93,15 @@ class NamespaceSymbols(dict):
     counts[0] += 1 in a function.
     """
 
-    def __init__(self, symbols: dict, namespaces: tuple[str, ...]):
+    def __init__(self, symbols: dict, namespaces: tuple[str, ...], builtinNames: set[str]):
         super().__init__()
         self.symbols = symbols
-        self.prefixes = ['.'.join(namespaces[:depth]) for depth in range(len(namespaces), 0, -1)] # spr.util, spr for ('spr', 'util')
+        self.namespace = '.'.join(namespaces) # e.g. spr.util for ('spr', 'util')
+        self.builtinNames = builtinNames
 
     def candidates(self, name: str) -> list[str]:
-        """The symbols a name can be looked up as, in order, e.g. spr.util.draw, spr.draw and draw."""
-        return [namespacedName(name, prefix) for prefix in self.prefixes] + [name]
+        """The symbols a name can be looked up as, in order: its own, e.g. spr.util.draw, and the name itself if it is built in."""
+        return [namespacedName(name, self.namespace)] + ([name] if name in self.builtinNames else [])
 
     def defined(self, symbol: str) -> bool:
         """True if the symbol is defined, also as a name of a .py file in a namespace, e.g. util.double."""
@@ -113,8 +120,8 @@ class NamespaceSymbols(dict):
         raise KeyError(symbol)
 
     def resolve(self, name: str) -> str:
-        """The symbol a name is looked up as: the first candidate that is defined, else the name itself."""
-        return next((candidate for candidate in self.candidates(name) if self.defined(candidate)), name)
+        """The symbol a name is looked up as: the first candidate that is defined, else its own, e.g. spr.draw."""
+        return next((candidate for candidate in self.candidates(name) if self.defined(candidate)), self.candidates(name)[0])
 
     def referenceNames(self, name: str) -> list[str]:
         """The symbols a use of the name counts as, for ref() and .optional: the one it is looked up as,
@@ -138,7 +145,7 @@ class NamespaceSymbols(dict):
         return self.value(symbol) if self.defined(symbol) else default
 
     def __setitem__(self, name: str, value):
-        self.symbols[namespacedName(name, self.prefixes[0])] = value
+        self.symbols[namespacedName(name, self.namespace)] = value
 
 
 class Context:
@@ -155,6 +162,7 @@ class Context:
         """Create the state for a pass. The symbols are shared by all passes."""
         self.readPointerStack: list[tuple[str, int]] = []
         self.namespaceStack: list[tuple[str, ...]] = [] # the namespaces of each read pointer, () for none
+        self.builtinNames: set[str] = set() # the symbols defined before the source, which code in a namespace sees
         self.namespaceViews: dict[tuple[str, ...], NamespaceSymbols] = {} # namespaces: the view of the symbols in them, see namespaceSymbols()
 
         # math, and ord/chr in the current text encoding, for expressions
@@ -291,7 +299,7 @@ class Context:
         if not namespaces:
             return self.symbols
         if namespaces not in self.namespaceViews:
-            self.namespaceViews[namespaces] = NamespaceSymbols(self.symbols, namespaces)
+            self.namespaceViews[namespaces] = NamespaceSymbols(self.symbols, namespaces, self.builtinNames)
         return self.namespaceViews[namespaces]
 
     def advanceReadPointer(self):

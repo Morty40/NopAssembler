@@ -430,7 +430,7 @@ def _namespaceModule(context, namespace: str) -> Namespace | None:
     name = context.namespacedName(namespace)
     module = context.symbols.get(name)
     if type(module) is not Namespace:
-        module = Namespace(name, context.symbols)
+        module = Namespace(name, context.symbols, context.builtinNames)
     return module if context.setSymbol(name, module) else None
 
 

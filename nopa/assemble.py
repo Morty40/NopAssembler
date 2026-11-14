@@ -78,6 +78,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
 
     lastMemory: dict[int, int] = {}
     lastReferences: set[str] = set()
+    builtinNames: set[str] = set() # the symbols before the source, which code in a namespace sees, set in the first pass
     chunks = {} # the tokenized files and generated code, by name: tokenized once, for all passes
 
     for _ in range(MAX_PASSES):
@@ -95,6 +96,9 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
             _assembleAssignment(lexer.tokenize(f'{name} = {value}')[:-1], context)
             context.popReadPointer()
 
+        if not builtinNames:
+            builtinNames = set(symbols)
+        context.builtinNames = builtinNames
         context.pushReadPointer( (inFile, 0) )
 
         # assemble line by line, from the file on top of the read pointer stack

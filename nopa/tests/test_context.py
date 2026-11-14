@@ -32,17 +32,18 @@ class TestContext(unittest.TestCase):
         self.assertEqual(context.readPointer(), ('a.asm', 1))    # back in a.asm
 
     def testNamespaceCandidates(self):
-        """A name in a namespace is looked up innermost first, then in the outer namespaces, then as it is.
-        A name keeps its case, and _ is always the current address."""
-        view = NamespaceSymbols({}, ('spr', 'util'))
+        """A name in a namespace is looked up as its own, e.g. spr.util.draw, and then as it is if it is built in,
+        but not in the namespace it is in. A name keeps its case, and _ is always the current address."""
+        view = NamespaceSymbols({}, ('spr', 'util'), {'lo', '_'})
         for name, expected in [
-            ('draw',  ['spr.util.draw', 'spr.draw', 'draw']),
-            ('SPEED', ['spr.util.SPEED', 'spr.SPEED', 'SPEED']),
-            ('_',     ['_', '_', '_']),
+            ('draw',  ['spr.util.draw']),
+            ('SPEED', ['spr.util.SPEED']),
+            ('lo',    ['spr.util.lo', 'lo']),
+            ('_',     ['_', '_']),
         ]:
             with self.subTest(name=name):
                 self.assertEqual(view.candidates(name), expected)
-        self.assertEqual(NamespaceSymbols({}, ('spr',)).candidates('draw'), ['spr.draw', 'draw'])
+        self.assertEqual(NamespaceSymbols({}, ('spr',), set()).candidates('draw'), ['spr.draw'])
 
     def testNamespaceSymbols(self):
         """Code outside a namespace sees the symbols, and code in one a view of them, the same one during a pass."""
@@ -51,7 +52,7 @@ class TestContext(unittest.TestCase):
         context.pushReadPointer(('a.asm', 0), 'spr')
         view = context.namespaceSymbols()
         self.assertIsInstance(view, NamespaceSymbols)
-        self.assertEqual(view.candidates('draw'), ['spr.draw', 'draw'])
+        self.assertEqual(view.candidates('draw'), ['spr.draw'])
         self.assertIs(context.namespaceSymbols(), view)
 
     def testZeroPage(self):
