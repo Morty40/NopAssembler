@@ -426,10 +426,11 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
     """Run a .py file with the symbols as its variables, or in the module of a namespace."""
     variables = None # the symbols
     if namespace is not None:
-        if namespace not in context.namespaces: # the first import into it in this pass
-            context.namespaces[namespace] = Namespace(namespace)
-        module = context.namespaces[namespace]
-        if not context.setSymbol(namespace, module):
+        name = context.namespacedName(namespace) # in a source file's namespace, e.g. spr_util
+        if name not in context.namespaces: # the first import into it in this pass
+            context.namespaces[name] = Namespace(name)
+        module = context.namespaces[name]
+        if not context.setSymbol(name, module):
             return # the name is another type of symbol, so the file isn't run
         variables = module.__dict__
     try:
