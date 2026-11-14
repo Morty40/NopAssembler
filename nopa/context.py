@@ -84,6 +84,7 @@ class Context:
         """Create the state for a pass. The symbols are shared by all passes."""
         self.readPointerStack: list[tuple[str, int]] = []
         self.namespaceStack: list[tuple[str, ...]] = [] # the namespaces of each read pointer, () for none
+        self.namespaceViews: dict[tuple[str, ...], NamespaceSymbols] = {} # namespaces: the view of the symbols in them, see namespaceSymbols()
 
         # math, and ord/chr in the current text encoding, for expressions
         symbols.update(math.__dict__)
@@ -117,10 +118,10 @@ class Context:
         A name that isn't defined yet is noted as all the symbols it could be, so an optional block
         that defines it is assembled, and the next pass notes just the one it is.
         """
-        view = NamespaceSymbols(self.symbols, self.currentNamespaces()) if self.currentNamespaces() else None
+        symbols = self.namespaceSymbols()
         for name in code.co_names:
-            if view is not None:
-                candidates = view.candidates(name)
+            if isinstance(symbols, NamespaceSymbols):
+                candidates = symbols.candidates(name)
                 defined = [candidate for candidate in candidates if candidate in self.symbols]
                 self.references.update(defined[:1] or candidates)
             else:
@@ -210,8 +211,14 @@ class Context:
         return namespacedName(name, self.namespace())
 
     def namespaceSymbols(self) -> dict:
-        """The symbols as the code in the current namespace sees them, for eval() and exec()."""
-        return NamespaceSymbols(self.symbols, self.currentNamespaces()) if self.currentNamespaces() else self.symbols
+        """The symbols as the code in the current namespace sees them, for eval() and exec(): the symbols
+        themselves outside a namespace, and else a view of them, made once in a pass for each namespace."""
+        namespaces = self.currentNamespaces()
+        if not namespaces:
+            return self.symbols
+        if namespaces not in self.namespaceViews:
+            self.namespaceViews[namespaces] = NamespaceSymbols(self.symbols, namespaces)
+        return self.namespaceViews[namespaces]
 
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""

@@ -44,6 +44,16 @@ class TestContext(unittest.TestCase):
                 self.assertEqual(view.candidates(name), expected)
         self.assertEqual(NamespaceSymbols({}, ('spr',)).candidates('draw'), ['spr_draw', 'draw'])
 
+    def testNamespaceSymbols(self):
+        """Code outside a namespace sees the symbols, and code in one a view of them, the same one during a pass."""
+        context = Context({})
+        self.assertIs(context.namespaceSymbols(), context.symbols)
+        context.pushReadPointer(('a.asm', 0), 'spr')
+        view = context.namespaceSymbols()
+        self.assertIsInstance(view, NamespaceSymbols)
+        self.assertEqual(view.candidates('draw'), ['spr_draw', 'draw'])
+        self.assertIs(context.namespaceSymbols(), view)
+
     def testZeroPage(self):
         """zp(size) allocates zero page bytes from $02, and returns the address of the first."""
         context = Context({})
