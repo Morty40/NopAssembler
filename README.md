@@ -13,7 +13,7 @@ Nop Assembler is a multi-pass 6502 assembler for Commodore computers: the C64, C
 - `.repeat`, `.for` and `.if` blocks, and `.optional` code that is only assembled when it is used
 - named sections, to store code and data in separate areas of memory
 - PETSCII and screen code text encodings, and your own encoding tables
-- import of source files, binary files, Python files, also into a namespace such as `util.double()`, and SID music on the C64
+- import of source and Python files, also into a namespace, such as `spr_draw` or `util.double()`, of binary files, and of SID music on the C64
 - built-in symbols for each machine with `-t`, such as its hardware registers and KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
 - `.assert`, `.print`, `.warning` and `.error`, to check and report while assembling
 - a labels file, and VICE monitor commands with labels and breakpoints
@@ -134,7 +134,7 @@ al C:0841 .irq
 break C:0841 if RL > $40
 ```
 
-The labels are sorted by address. A local label is named after its global label, e.g. `_loop` after `start:` is `start_loop`. A local label in generated code is named after the generator and how many times it was called, e.g. `_loop` in the second `@wait()` is `wait2_loop`. Other symbols, such as `VALUE = 5` and zero page variables, are not included. Run the file when starting VICE, or in the monitor with `pb "game.vmc"`:
+The labels are sorted by address. A local label is named after its global label, e.g. `_loop` after `start:` is `start_loop`, and a label in a [namespace](https://github.com/Morty40/NopAssembler#import) by its full name, e.g. `spr_draw`. A local label in generated code is named after the generator and how many times it was called, e.g. `_loop` in the second `@wait()` is `wait2_loop`. Other symbols, such as `VALUE = 5` and zero page variables, are not included. Run the file when starting VICE, or in the monitor with `pb "game.vmc"`:
 
 ```
 x64sc -moncommands game.vmc game.prg
@@ -487,7 +487,7 @@ These can't be used:
 | A local label before any global label | `_x:` first in a file | It has no global label to belong to. Each file needs its own, as the scope doesn't carry over from the importing file |
 | The same name twice | `a:` and `a:` again, or `clear_loop:` after `clear:` and `_loop:` | A label has one address, and a local label's full name counts too |
 | A local label in a loop that runs more than once | `.repeat 2` around `_x:` | Each round defines the same name again. Put the code in a [generator](https://github.com/Morty40/NopAssembler#generators) and call it in the loop, as each call has its own scope |
-| A built-in function or math name, or a namespace | `lo:`, `ldax:`, `sin:`, `pi:`, or `util:` with `.import "util.py", "util"` | These are symbols too, and a symbol can't change type |
+| A built-in function or math name, or a `.py` namespace | `lo:`, `ldax:`, `sin:`, `pi:`, or `util:` with `.import "util.py", "util"` | These are symbols too, and a symbol can't change type |
 | Other characters | `a.b:`, `a-b:` | `.` and `-` are operators in expressions |
 | Two labels on one line | `a: b: nop` | A line has at most one label. Put them on separate lines to give an address two names |
 | A Python keyword, or a digit first | `if:`, `class:`, `1a:` | Expressions are Python, so using the name is an error |
@@ -865,7 +865,32 @@ _loop:  dex
 
 The names in the file aren't global, so files in namespaces of their own can use the same names, and can't replace a label or a built-in symbol by mistake. The file doesn't see your symbols either: not your labels, the target's constants, or built-in symbols such as `lo()`, `zp()` and `SOURCE_FOLDER`. It gets what it needs as arguments, e.g. `@util.delay(DELAY)`. The code a generator returns is assembled like the rest of the source, so it can use any symbol. The names the file uses don't count as references for `ref()` and `.optional`. A namespace keeps names apart, but it isn't a sandbox: the file is still ordinary Python, with the same access to files, network and system, see [Security](https://github.com/Morty40/NopAssembler#security).
 
-Files imported into the same namespace share it, so a later file sees the names of an earlier one. Only a `.py` file can be imported into a namespace. The namespace is a name that isn't a Python keyword or built-in, such as `len`, doesn't start with `_`, and isn't already another symbol, such as a label. All capitals are fine: `.import "sid.py", "SID"`.
+Files imported into the same namespace share it, so a later file sees the names of an earlier one.
+
+A source file can be imported into a namespace too. The names it defines, its labels, local labels and assignments, then get the namespace as a prefix: `draw:` imported into `spr` is `spr_draw`, its local label `_loop` is `spr_draw_loop`, and a constant `SPEED` is `SPR_SPEED`, so it is still a constant. The same file can be imported into two namespaces, as each gets labels of its own:
+
+```
+; sprites.asm
+SPEED = 2
+draw:       ldx #SPEED
+_loop:      dex
+            bne _loop
+            rts
+```
+
+```
+            .import "sprites.asm", "spr"
+            jsr spr_draw
+            lda #SPR_SPEED
+```
+
+Inside the file, the code uses its names without the prefix, as in `ldx #SPEED`. A name is looked up in the file's namespace first, so its own `draw` comes before a global `draw`, and then globally, so the file can use the main program's labels, the target's constants and built-in symbols such as `zp()`. Unlike in a `.py` namespace, the names aren't hidden: they are global labels and symbols with longer names, used by their full name from anywhere, and they are in the labels file and the VICE monitor commands. Python code in the file, in `.python` and `.for`, and in a `.py` file it imports without a namespace, defines its names in the namespace too. `ref()` and `.optional` work with the names as the file writes them, and `_` is still the current address.
+
+A file in a namespace can import another one into a namespace of its own, and the prefixes stack: `draw` in `util` in `spr` is `spr_util_draw`. The inner file looks a name up in its own namespace, then in the outer ones, then globally. A file imported without a namespace is in the namespace of the file that imports it, and a `.py` file imported into `util` from a file in `spr` is used as `spr_util.name`.
+
+Python's `global` statement doesn't work in a source namespace, as Python stores such a name where the namespace can't see it. Keep the state in a container instead, e.g. `counts = [0]`, and `counts[0] += 1` in a function.
+
+The namespace is a name that isn't a Python keyword or built-in, such as `len`, and doesn't start with `_`. A `.py` file's namespace can't be another symbol, such as a label. All capitals are fine: `.import "sid.py", "SID"` gives `SID.play()`, and `.import "sid.asm", "SID"` gives `SID_play`.
 
 #### .binary
 ```
