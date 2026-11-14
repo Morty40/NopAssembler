@@ -425,11 +425,12 @@ def python(context, code: str):
 
 def _namespaceModule(context, namespace: str) -> Namespace | None:
     """The module of a namespace, as a symbol, e.g. spr, or spr.util in a source file's namespace spr.
-    None, after reporting an error, if the name is another type of symbol."""
+    Files imported into it share it, also in later passes, as other symbols. None, after reporting
+    an error, if the name is another type of symbol."""
     name = context.namespacedName(namespace)
-    if name not in context.namespaces: # the first import into it in this pass
-        context.namespaces[name] = Namespace(name, context.symbols)
-    module = context.namespaces[name]
+    module = context.symbols.get(name)
+    if type(module) is not Namespace:
+        module = Namespace(name, context.symbols)
     return module if context.setSymbol(name, module) else None
 
 

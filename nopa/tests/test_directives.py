@@ -317,6 +317,26 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
+    def testImportSourceNamespaceShared(self):
+        """A .py file and a source file imported into the same namespace share it, in either order: the source uses
+        the functions of the .py file, the .py file the labels of the source, and both are used as util.name."""
+        files = {
+            'util.py':  ('def double(x):\n'
+                         '    return x * 2\n'
+                         'def tableAddress():\n'
+                         '    return table\n'),
+            'util.asm': 'table: .byte double(3)\n',
+        }
+        for source in [
+            ('.import "util.py", "util"\n'
+             '.import "util.asm", "util"\n'),
+            ('.import "util.asm", "util"\n'
+             '.import "util.py", "util"\n'),
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source + '.byte util.double(4)\n.word util.table, util.tableAddress()\n',
+                                  [6, 8, 0x00, 0x10, 0x00, 0x10], files)
+
     def testImportSourceNamespaceMessages(self):
         """A label, an assigned name or a Python name in a namespace isn't global, not even as spr_draw, a constant
         can't change, the namespace can't be another symbol, and the label rules apply to a label's name without it."""

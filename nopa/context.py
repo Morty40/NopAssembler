@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 """The assembler state: symbols, memory, messages and the current line."""
 
+import builtins
 import dis
 import math
 import types
@@ -25,12 +26,27 @@ class Namespace(types.ModuleType):
     def __init__(self, name: str, symbols: dict):
         super().__init__(name)
         self._symbols = symbols
+        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols)
 
     def __getattr__(self, name: str):
         symbol = f'{self.__name__}.{name}'
         if symbol in self._symbols:
             return self._symbols[symbol]
         raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+
+class NamespaceBuiltins(dict):
+    """The built-ins of a .py file in a namespace: the names of the source files in the namespace first,
+    e.g. table for util.table, and then Python's built-ins, which it holds, as Python reads some directly."""
+
+    def __init__(self, namespace: str, symbols: dict):
+        super().__init__(builtins.__dict__)
+        self.namespace = namespace
+        self.symbols = symbols
+
+    def __getitem__(self, name: str):
+        symbol = f'{self.namespace}.{name}'
+        return self.symbols[symbol] if symbol in self.symbols else super().__getitem__(name)
 
 
 def dottedNames(code) -> list[list[str]]:
@@ -80,29 +96,46 @@ class NamespaceSymbols(dict):
         """The symbols a name can be looked up as, in order, e.g. spr.util.draw, spr.draw and draw."""
         return [namespacedName(name, prefix) for prefix in self.prefixes] + [name]
 
+    def defined(self, symbol: str) -> bool:
+        """True if the symbol is defined, also as a name of a .py file in a namespace, e.g. util.double."""
+        namespace, _, name = symbol.rpartition('.')
+        module = self.symbols.get(namespace)
+        return symbol in self.symbols or (type(module) is Namespace and name in vars(module))
+
+    def value(self, symbol: str):
+        """The value of a symbol, also of a name of a .py file in a namespace. Raises KeyError if it isn't defined."""
+        if symbol in self.symbols:
+            return self.symbols[symbol]
+        namespace, _, name = symbol.rpartition('.')
+        module = self.symbols.get(namespace)
+        if type(module) is Namespace and name in vars(module):
+            return vars(module)[name]
+        raise KeyError(symbol)
+
     def resolve(self, name: str) -> str:
         """The symbol a name is looked up as: the first candidate that is defined, else the name itself."""
-        return next((candidate for candidate in self.candidates(name) if candidate in self.symbols), name)
+        return next((candidate for candidate in self.candidates(name) if self.defined(candidate)), name)
 
     def referenceNames(self, name: str) -> list[str]:
         """The symbols a use of the name counts as, for ref() and .optional: the one it is looked up as,
         or all the candidates while none is defined, so a block that defines it can be assembled."""
-        defined = [candidate for candidate in self.candidates(name) if candidate in self.symbols]
+        defined = [candidate for candidate in self.candidates(name) if self.defined(candidate)]
         return defined[:1] or self.candidates(name)
 
     def __getitem__(self, name: str):
         symbol = self.resolve(name)
         if symbol == 'ref': # the built-in ref(), with the label looked up in this namespace, wherever it is called from
             return lambda label: any(self.symbols['ref'](reference) for reference in self.referenceNames(label))
-        return self.symbols[symbol]
+        return self.value(symbol)
 
     def __contains__(self, name) -> bool:
         """True if the name is defined as it is looked up, for name in globals() in Python code."""
-        return self.resolve(name) in self.symbols
+        return self.defined(self.resolve(name))
 
     def get(self, name, default=None):
         """The value of the name as it is looked up, or the default, for globals().get() in Python code."""
-        return self.symbols.get(self.resolve(name), default)
+        symbol = self.resolve(name)
+        return self.value(symbol) if self.defined(symbol) else default
 
     def __setitem__(self, name: str, value):
         self.symbols[namespacedName(name, self.prefixes[0])] = value
@@ -141,7 +174,6 @@ class Context:
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
-        self.namespaces: dict[str, Namespace] = {} # namespace, e.g. util or spr.util: its module, shared by the files imported into it in this pass
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break
         self.path = '' # folder of the main source file, for .import and .binary
         self.encoding: dict[str, int] = text.ENCODING_SCREEN_UPPER
