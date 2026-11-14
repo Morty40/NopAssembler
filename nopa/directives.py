@@ -423,15 +423,22 @@ def python(context, code: str):
     _execute(context, code)
 
 
+def _namespaceModule(context, namespace: str) -> Namespace | None:
+    """The module of a namespace, as a symbol, e.g. spr, or spr.util in a source file's namespace spr.
+    None, after reporting an error, if the name is another type of symbol."""
+    name = context.namespacedName(namespace)
+    if name not in context.namespaces: # the first import into it in this pass
+        context.namespaces[name] = Namespace(name, context.symbols)
+    module = context.namespaces[name]
+    return module if context.setSymbol(name, module) else None
+
+
 def _importPyFile(context, path: str, fileName: str, namespace: str | None):
     """Run a .py file with the symbols as its variables, or in the module of a namespace."""
     variables = None # the symbols
     if namespace is not None:
-        name = context.namespacedName(namespace) # in a source file's namespace, e.g. spr_util
-        if name not in context.namespaces: # the first import into it in this pass
-            context.namespaces[name] = Namespace(name)
-        module = context.namespaces[name]
-        if not context.setSymbol(name, module):
+        module = _namespaceModule(context, namespace)
+        if module is None:
             return # the name is another type of symbol, so the file isn't run
         variables = module.__dict__
     try:
@@ -456,7 +463,7 @@ def importFile(context, fileName: str, namespace: str | None = None):
         _importPyFile(context, path, fileName, namespace)
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
-    else:
+    elif namespace is None or _namespaceModule(context, namespace) is not None: # else the name is another type of symbol
         context.advanceReadPointer()
         context.pushReadPointer( (path, 0), namespace )
         return False # the read pointer was moved

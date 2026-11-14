@@ -196,8 +196,8 @@ class TestMain(unittest.TestCase):
         self.assertEqual(sortedLabels(context), [(0x1000, 'start'), (0x1002, 'start_loop'), (0x1006, 'wait1_x')])
 
     def testNamespacedLabels(self):
-        """The labels of a source file imported into a namespace are in the labels and VICE monitor commands
-        by their full names, e.g. spr_draw and spr_draw_loop."""
+        """The labels of a source file imported into a namespace have their full names, e.g. spr.draw and spr.draw_loop,
+        written with _ in the VICE monitor commands, spr_draw, as VICE labels are a single word."""
         sprites = ('draw: ldx #2\n'
                    '_loop: dex\n'
                    'bne _loop\n'
@@ -208,7 +208,7 @@ class TestMain(unittest.TestCase):
                 f.write('.import "sprites.asm", "spr"\n')
             with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
                 f.write(sprites)
-            self.assertEqual(sortedLabels(assemble.assembleFile(asmFile)), [(0x1000, 'spr_draw'), (0x1002, 'spr_draw_loop')])
+            self.assertEqual(sortedLabels(assemble.assembleFile(asmFile)), [(0x1000, 'spr.draw'), (0x1002, 'spr.draw_loop')])
             code, output, errors = self._main([asmFile, '--vice', viceFile])
             self.assertEqual(code, 0, errors)
             with open(viceFile) as f:

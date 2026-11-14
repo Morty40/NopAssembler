@@ -60,7 +60,7 @@ def pythonLabels(context: Context) -> str:
 
 def viceMonitorCommands(context: Context) -> str:
     """Return the VICE monitor commands: the labels, sorted by address, then the breakpoints."""
-    commands = [f'al C:{address:04x} .{label}' for address, label in sortedLabels(context)]
+    commands = [f'al C:{address:04x} .{label.replace(".", "_")}' for address, label in sortedLabels(context)] # spr_draw for spr.draw, as a VICE label is one word
     commands += [f'break C:{address:04x}' + (f' if {condition}' if condition else '') for address, condition in context.breakpoints]
     return ''.join(f'{command}\n' for command in commands)
 

@@ -27,13 +27,13 @@ def _assembleAssignment(tokens: list, context: Context):
 
     Upper case symbols are constants: once they have a value, they can't
     be assigned a different value. In a namespace, the symbol gets its
-    namespaced name, e.g. speed in spr is spr_speed.
+    namespaced name, e.g. speed in spr is spr.speed.
     """
     symbol = context.namespacedName(tokens[0].string)
     expression = lexer.join(tokens[2:])
     value = evaluate.expression(expression, context)
     if value is not None:
-        if symbol.isupper():
+        if symbol.rsplit('.', 1)[-1].isupper(): # the name, without a namespace, e.g. SPEED in spr.SPEED
             if symbol in context.symbols and context.symbols[symbol] != value:
                 context.reportError(f'Constant "{symbol}" cannot be changed from {context.symbols[symbol]} to {value}')
                 return # the constant keeps its value

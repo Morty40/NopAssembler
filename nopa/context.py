@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 """The assembler state: symbols, memory, messages and the current line."""
 
+import dis
 import math
 import types
 
@@ -9,25 +10,56 @@ from . import text
 
 
 class Namespace(types.ModuleType):
-    """The module that .py files are imported into with .import "file.py", "namespace".
+    """A namespace, the symbol of .import "file", "namespace": names in it are used as namespace.name.
+
+    For a .py file, it is the module the file runs in. The names a source file in it defines are symbols
+    with the dotted name, e.g. spr.draw, so an attribute the module doesn't have is looked up there,
+    also a namespace inside it, e.g. spr.util.
 
     A type of its own, so a symbol can't change between a namespace and another module,
     e.g. one imported by Python code.
     """
 
+    __slots__ = ('_symbols',) # not in the module's __dict__, the globals of a .py file in it, so the file can't see them
+
+    def __init__(self, name: str, symbols: dict):
+        super().__init__(name)
+        self._symbols = symbols
+
+    def __getattr__(self, name: str):
+        symbol = f'{self.__name__}.{name}'
+        if symbol in self._symbols:
+            return self._symbols[symbol]
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+
+def dottedNames(code) -> list[list[str]]:
+    """The dotted names used by compiled Python code, not in the functions in it, as a name and its attributes,
+    e.g. ['spr', 'util', 'draw'] for spr.util.draw."""
+    chains: list[list[str]] = []
+    chain: list[str] | None = None
+    for instruction in dis.get_instructions(code):
+        if instruction.opname in ('LOAD_NAME', 'LOAD_GLOBAL'):
+            chain = [instruction.argval]
+            chains.append(chain)
+        elif instruction.opname in ('LOAD_ATTR', 'LOAD_METHOD') and chain is not None: # LOAD_METHOD before Python 3.12
+            chain.append(instruction.argval)
+        else:
+            chain = None
+    return [chain for chain in chains if len(chain) > 1]
+
 
 def namespacedName(name: str, namespace: str) -> str:
-    """The name a symbol defined in a namespace gets, e.g. draw in spr is spr_draw, and a constant
-    keeps its capitals, so SPEED is SPR_SPEED. Without a namespace, '', the name is unchanged,
-    and so is _, the current address."""
+    """The name a symbol defined in a namespace gets, e.g. draw in spr is spr.draw, and a constant
+    SPEED is spr.SPEED. Without a namespace, '', the name is unchanged, and so is _, the current address."""
     if not namespace or name == '_':
         return name
-    return f'{namespace.upper()}_{name}' if name.isupper() else f'{namespace}_{name}'
+    return f'{namespace}.{name}'
 
 
 class NamespaceSymbols(dict):
-    """The symbols as the code in a namespace sees them: its own names first, e.g. draw is spr_draw
-    if that is defined, then those of the outer namespaces, e.g. spr_util_draw before spr_draw,
+    """The symbols as the code in a namespace sees them: its own names first, e.g. draw is spr.draw
+    if that is defined, then those of the outer namespaces, e.g. spr.util.draw before spr.draw,
     and else the global ones. A name it defines gets the innermost namespace.
 
     Used as the globals of eval() and exec(), which then look names up here, also in lambdas and
@@ -42,10 +74,10 @@ class NamespaceSymbols(dict):
     def __init__(self, symbols: dict, namespaces: tuple[str, ...]):
         super().__init__()
         self.symbols = symbols
-        self.prefixes = ['_'.join(namespaces[:depth]) for depth in range(len(namespaces), 0, -1)] # spr_util, spr for ('spr', 'util')
+        self.prefixes = ['.'.join(namespaces[:depth]) for depth in range(len(namespaces), 0, -1)] # spr.util, spr for ('spr', 'util')
 
     def candidates(self, name: str) -> list[str]:
-        """The symbols a name can be looked up as, in order, e.g. spr_util_draw, spr_draw and draw."""
+        """The symbols a name can be looked up as, in order, e.g. spr.util.draw, spr.draw and draw."""
         return [namespacedName(name, prefix) for prefix in self.prefixes] + [name]
 
     def resolve(self, name: str) -> str:
@@ -83,7 +115,7 @@ class Context:
     being assembled. The top is the current line, and an imported file
     or generator is pushed on top of the file that uses it. Each also has
     the namespaces it is in, outermost first, that the names it defines
-    are prefixed with, e.g. spr_util_draw for ('spr', 'util').
+    are prefixed with, e.g. spr.util.draw for ('spr', 'util').
     """
 
     def __init__(self, symbols: dict):
@@ -109,7 +141,7 @@ class Context:
         self.sections: dict[str, int] = {} # section name: the address where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
-        self.namespaces: dict[str, Namespace] = {} # namespace, e.g. util or spr_util: its module, shared by the .py files imported into it in this pass
+        self.namespaces: dict[str, Namespace] = {} # namespace, e.g. util or spr.util: its module, shared by the files imported into it in this pass
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break
         self.path = '' # folder of the main source file, for .import and .binary
         self.encoding: dict[str, int] = text.ENCODING_SCREEN_UPPER
@@ -119,17 +151,23 @@ class Context:
 
     def noteReferences(self, code):
         """Note the names used by compiled Python code, including the functions in it,
-        as the symbols they are looked up as in the current namespace, e.g. spr_draw for draw.
+        as the symbols they are looked up as in the current namespace, e.g. spr.draw for draw,
+        and the dotted names it uses, e.g. spr.draw for spr.draw.
 
         A name that isn't defined yet is noted as all the symbols it could be, so an optional block
         that defines it is assembled, and the next pass notes just the one it is.
         """
         symbols = self.namespaceSymbols()
+
+        def noted(name: str) -> list[str]:
+            return symbols.referenceNames(name) if isinstance(symbols, NamespaceSymbols) else [name]
+
         for name in code.co_names:
-            if isinstance(symbols, NamespaceSymbols):
-                self.references.update(symbols.referenceNames(name))
-            else:
-                self.references.add(name)
+            self.references.update(noted(name))
+        for chain in dottedNames(code): # Python has spr and draw as two names
+            for name in noted(chain[0]):
+                for length in range(2, len(chain) + 1):
+                    self.references.add('.'.join([name] + chain[1:length]))
         for constant in code.co_consts:
             if isinstance(constant, types.CodeType):
                 self.noteReferences(constant)
@@ -207,8 +245,8 @@ class Context:
         return self.namespaceStack[-1] if self.namespaceStack else ()
 
     def namespace(self) -> str:
-        """The prefix of the names the current file defines, e.g. spr_util, '' for none."""
-        return '_'.join(self.currentNamespaces())
+        """The prefix of the names the current file defines, e.g. spr.util, '' for none."""
+        return '.'.join(self.currentNamespaces())
 
     def namespacedName(self, name: str) -> str:
         """The name a symbol defined in the current namespace gets, see namespacedName()."""
