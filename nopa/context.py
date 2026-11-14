@@ -56,6 +56,14 @@ class NamespaceSymbols(dict):
     def __getitem__(self, name: str):
         return self.symbols[self.resolve(name)]
 
+    def __contains__(self, name) -> bool:
+        """True if the name is defined as it is looked up, for name in globals() in Python code."""
+        return self.resolve(name) in self.symbols
+
+    def get(self, name, default=None):
+        """The value of the name as it is looked up, or the default, for globals().get() in Python code."""
+        return self.symbols.get(self.resolve(name), default)
+
     def __setitem__(self, name: str, value):
         self.symbols[namespacedName(name, '_'.join(self.namespaces))] = value
 

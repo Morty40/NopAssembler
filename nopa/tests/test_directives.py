@@ -165,6 +165,25 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
+    def testImportSourceNamespaceGlobals(self):
+        """globals() in Python code in a namespace finds names as they are looked up, its own and the global ones."""
+        files = {
+            'debug.asm': ('.python\n'
+                          'if "DEBUG" not in globals():\n'
+                          '    DEBUG = 0\n'
+                          'level = globals().get("DEBUG", 9)\n'
+                          'own = int("level" in globals())\n'
+                          '.end\n'
+                          '.byte DEBUG, level, own\n'),
+        }
+        for source, expected in [
+            ('DEBUG = 1\n'
+             '.import "debug.asm", "spr"\n', [1, 1, 1]), # the global DEBUG
+            ('.import "debug.asm", "spr"\n', [0, 0, 1]), # its own DEBUG, SPR_DEBUG
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
     def testImportSourceNamespaceAssignments(self):
         """Assignments in a source file in a namespace get it too, a constant with capitals, so it stays a constant."""
         files = {
