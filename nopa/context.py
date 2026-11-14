@@ -39,12 +39,17 @@ class NamespaceSymbols(dict):
         self.symbols = symbols
         self.namespaces = namespaces # outermost first, e.g. ('spr', 'util')
 
+    def candidates(self, name: str) -> list[str]:
+        """The symbols a name can be looked up as, in order, e.g. spr_util_draw, spr_draw and draw."""
+        prefixes = ['_'.join(self.namespaces[:depth]) for depth in range(len(self.namespaces), 0, -1)] # innermost first
+        return [namespacedName(name, prefix) for prefix in prefixes] + [name]
+
+    def resolve(self, name: str) -> str:
+        """The symbol a name is looked up as: the first candidate that is defined, else the name itself."""
+        return next((candidate for candidate in self.candidates(name) if candidate in self.symbols), name)
+
     def __getitem__(self, name: str):
-        for depth in range(len(self.namespaces), 0, -1):
-            own = namespacedName(name, '_'.join(self.namespaces[:depth]))
-            if own in self.symbols:
-                return self.symbols[own]
-        return self.symbols[name]
+        return self.symbols[self.resolve(name)]
 
     def __setitem__(self, name: str, value):
         self.symbols[namespacedName(name, '_'.join(self.namespaces))] = value
@@ -69,7 +74,7 @@ class Context:
         symbols.update(math.__dict__)
         symbols['ord'] = lambda char: text.ord(char, self.encoding)
         symbols['chr'] = lambda value: text.chr(value, self.encoding)
-        symbols['ref'] = lambda label: label in self.lastReferences
+        symbols['ref'] = lambda label: self.resolvedName(label) in self.lastReferences
         symbols['zp'] = self.zp
         self.symbols = symbols
         self.labels: set[str] = set() # labels defined in this pass, to find duplicates
@@ -91,8 +96,20 @@ class Context:
         self.lastReferences: set[str] = set() # the same from the last pass, for ref() and .optional
 
     def noteReferences(self, code):
-        """Note the names used by compiled Python code, including the functions in it."""
-        self.references.update(code.co_names)
+        """Note the names used by compiled Python code, including the functions in it,
+        as the symbols they are looked up as in the current namespace, e.g. spr_draw for draw.
+
+        A name that isn't defined yet is noted as all the symbols it could be, so an optional block
+        that defines it is assembled, and the next pass notes just the one it is.
+        """
+        view = NamespaceSymbols(self.symbols, self.currentNamespaces()) if self.currentNamespaces() else None
+        for name in code.co_names:
+            if view is not None:
+                candidates = view.candidates(name)
+                defined = [candidate for candidate in candidates if candidate in self.symbols]
+                self.references.update(defined[:1] or candidates)
+            else:
+                self.references.add(name)
         for constant in code.co_consts:
             if isinstance(constant, types.CodeType):
                 self.noteReferences(constant)
@@ -176,6 +193,10 @@ class Context:
     def namespacedName(self, name: str) -> str:
         """The name a symbol defined in the current namespace gets, see namespacedName()."""
         return namespacedName(name, self.namespace())
+
+    def resolvedName(self, name: str) -> str:
+        """The symbol a name is looked up as in the current namespace, see NamespaceSymbols.resolve()."""
+        return NamespaceSymbols(self.symbols, self.currentNamespaces()).resolve(name) if self.currentNamespaces() else name
 
     def namespaceSymbols(self) -> dict:
         """The symbols as the code in the current namespace sees them, for eval() and exec()."""

@@ -192,6 +192,28 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
 
+    def testImportSourceNamespaceReferences(self):
+        """A use of a name in a namespace counts as a use of the name it resolves to, e.g. spr_draw, for .optional
+        and ref(). Labels in code that a generator returns in a namespace get the namespace too."""
+        files = {
+            'opt.asm':    '.optional\ndraw: rts\n.end\n',
+            'optuse.asm': 'jsr draw\n.optional\ndraw: rts\n.end\n',
+            'ref.asm':    'draw: rts\n.if ref("draw")\n.byte 1\n.else\n.byte 0\n.end\n',
+            'wait.py':    'def wait():\n    return "_x: dex\\nbne _x\\n"\n',
+            'gen.asm':    '@wait()\n',
+        }
+        for source, expected in [
+            ('.import "opt.asm", "spr"\n.byte 0\n',                           [0]),                          # draw isn't used
+            ('.import "opt.asm", "spr"\njsr spr_draw\n',                      [0x60, 0x20, 0x00, 0x10]),
+            ('.import "optuse.asm", "spr"\n',                                 [0x20, 0x03, 0x10, 0x60]),     # used in the namespace
+            ('.import "optuse.asm", "spr"\n.optional\ndraw: nop\n.end\n',     [0x20, 0x03, 0x10, 0x60]),     # not the global draw
+            ('.import "ref.asm", "spr"\n',                                    [0x60, 0]),
+            ('.import "ref.asm", "spr"\njsr spr_draw\n',                      [0x60, 1, 0x20, 0x00, 0x10]),
+            ('.import "wait.py"\n.import "gen.asm", "spr"\njmp spr_wait1_x\n', [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr_wait1_x
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
     def testImportSourceNamespaceMessages(self):
         """A label, an assigned name or a Python name in a namespace isn't global, a constant can't change,
         and the label rules apply to a label's name without the namespace."""

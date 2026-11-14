@@ -375,7 +375,8 @@ def optional(context, tokens: list, chunks: dict):
     if _skipBlock(context, chunks, 'optional') is None:
         return
     fileName, end = context.readPointer()
-    if _globalLabels(chunks[fileName][start[1] + 1:end]) & context.lastReferences:
+    labels = {context.namespacedName(label) for label in _globalLabels(chunks[fileName][start[1] + 1:end])}
+    if labels & context.lastReferences:
         context.jumpReadPointer(start)
         context.blockStack.append( ('optional', start) )
 
