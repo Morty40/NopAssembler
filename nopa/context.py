@@ -32,6 +32,11 @@ class NamespaceSymbols(dict):
 
     Used as the globals of eval() and exec(), which then look names up here, also in lambdas and
     functions. It copies nothing: its own dict only holds the __builtins__ that eval() adds.
+
+    The global statement isn't supported in a namespace: Python stores a name declared global
+    straight into this dict, without __setitem__, so the symbols never get it, and reading it
+    back fails. Code in a namespace keeps state in a container instead, e.g. counts = [0] and
+    counts[0] += 1 in a function.
     """
 
     def __init__(self, symbols: dict, namespaces: tuple[str, ...]):
