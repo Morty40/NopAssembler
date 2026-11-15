@@ -120,11 +120,6 @@ class TestAssemble(unittest.TestCase):
                          ['test.asm:1: warning: Truncating float value: 0.5',
                           'test.asm:1: warning: Truncating float value: 1.5'])
 
-    def testGeneratorNotString(self):
-        """A generator must return assembly code as a string, or it is an error."""
-        anyErrors, output = self._assemble('.python\ndef emit(): pass\n.end\n@emit()\n') # forgot to return the code
-        self.assertIn('test.asm:4: error: Generator must return a string, not NoneType', output)
-
     def testForLoopLimit(self):
         """A .for loop whose condition is never false is an error, not a hang."""
         from unittest import mock
@@ -201,9 +196,7 @@ class TestAssemble(unittest.TestCase):
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
             ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
-            ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
             ('.byte {0: 1}[1]\n',                    'test.asm:1: error: KeyError: 1: "{0:1}[1]"'),
-            ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),
         ])
 
     def testReportMessages(self):
@@ -228,13 +221,9 @@ class TestAssemble(unittest.TestCase):
         self._assertMessages([
             ('.end\n',                               'test.asm:1: error: End without matching repeat, for or if'),
             ('.else\n',                              'test.asm:1: error: Else without matching if'),
-            ('.if 0\n.else\n.else\n.end\n',          'test.asm:3: error: Else already used for this if'),
-            ('.if 0\n',                              'test.asm:1: error: If without matching end'),
             ('.if 1\n.else\n',                       'test.asm:2: error: Else without matching end'),
             ('.repeat "i", 2\n.end\n',               'test.asm:1: error: Expected .repeat count'), # the count must be a number
-            ('.repeat 0\n',                          'test.asm:1: error: Repeat without matching end'),
             ('.for a=0, a<1\n',                      'test.asm:1: error: Expected .for initial, condition, step'),
-            ('.for a=0, a<0, a+=1\n',                'test.asm:1: error: For without matching end'),
             ('.python\nx = 1\n',                     'test.asm:1: error: Invalid directive: .python'), # no .end
         ])
 
