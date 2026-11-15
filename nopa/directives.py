@@ -154,6 +154,9 @@ def _fill(context, n: int, function: types.FunctionType | None, store, checkValu
     """Store n values, using the store function, each checked by checkValue. If the function fails, with
     the index in the error, or gives a wrong value, the error is reported once, and the rest are zeros,
     so the size stays the same."""
+    if n < 0:
+        context.reportError(f'Count must not be negative: {n}')
+        n = 0 # nothing stored
     f = function if function is not None else lambda x: 0
     for x in range(0, n):
         errors = len(context.errors)

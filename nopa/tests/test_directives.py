@@ -73,6 +73,7 @@ class TestDirectives(unittest.TestCase):
             ('.bits "     #  "\n',                       [4]), # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',       [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n.string "ABC", "DEF"\n', [1, 2, 3, 0, 4, 5, 6, 0]),
+            ('.bytefill 0\n',                            []),        # nothing, but not an error
             ('.bytefill 3\n',                            [0, 0, 0]),
             ('.bytefill 3, lambda x: x+N\nN = 1\n',      [1, 2, 3]), # x is the index, and N is assigned later
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),

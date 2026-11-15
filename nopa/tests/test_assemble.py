@@ -182,6 +182,8 @@ class TestAssemble(unittest.TestCase):
             ('.string "A", 65\n',                     'test.asm:1: error: Invalid directive: .string f"A",65'),
             ('.text ["A"]\n',                        'test.asm:1: error: Invalid directive: .text [f"A"]'),
             ('.align 0\n',                           'test.asm:1: error: Alignment must be positive: 0'),
+            ('.bytefill -2\n',                       'test.asm:1: error: Count must not be negative: -2'),
+            ('.wordfill -1, lambda x: x\n',          'test.asm:1: error: Count must not be negative: -1'),
             ('.org undefinedSymbol\n',               'test.asm:1: error: Invalid directive: .org undefinedSymbol'),
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
