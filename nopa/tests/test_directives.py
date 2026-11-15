@@ -64,12 +64,30 @@ class TestDirectives(unittest.TestCase):
         assemble(lexer.tokenize('.bits 3')[:-1], context)
         self.assertEqual(context.errors, ['error: Invalid directive: .bits 3'])
 
+    def testBitsMessages(self):
+        """A bit pattern has either 0 and 1, or space and #, and 8 bits or a multiple of 8, or it is one error,
+        and nothing is stored."""
+        for source, expected in [
+            ('.bits ""\n',          'test.asm:1: error: Bit pattern must not be empty'),
+            ('.bits "101"\n',       'test.asm:1: error: Bit pattern must have a multiple of 8 bits, not 3: "101"'),
+            ('.bits "000000001"\n', 'test.asm:1: error: Bit pattern must have a multiple of 8 bits, not 9: "000000001"'),
+            ('.bits "  xx  ##"\n',  'test.asm:1: error: Bit pattern can only have 0, 1, space and #: "  xx  ##"'),
+            ('.bits "1      1"\n',  'test.asm:1: error: Bit pattern must have either 0 and 1, or space and #, not both: "1      1"'),
+            ('.bits "0000###0"\n',  'test.asm:1: error: Bit pattern must have either 0 and 1, or space and #, not both: "0000###0"'),
+        ]:
+            with self.subTest(source=source):
+                memory, errors = self._assemble(source)
+                self.assertEqual(errors, [expected])
+                self.assertEqual(memory, {})
+
     def testStoredBytes(self):
         """The directives that store bytes, including values given after they are used."""
         for source, expected in [
             ('.byte -128, 0, 127, 255',                 [0x80, 0x00, 0x7f, 0xff]), # no newline at the end
             ('.word -32768, 0, 32767, 65535',           [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]), # two's complement, the low byte first
             ('.bits "00000000"\n',                      [0]),
+            ('.bits "        "\n',                      [0]),                      # only 0 bits, with spaces
+            ('.bits "########"\n',                      [0xff]),                   # only 1 bits, with #
             ('.bits "000000010000001000000011"\n',      [1, 2, 3]),
             ('.bits "     #  "\n',                      [4]),                      # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',      [5, 6, 7]),

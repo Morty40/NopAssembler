@@ -751,7 +751,7 @@ Like `.text`, but each string is followed by a zero byte.
 ```
 .bits "pattern"
 ```
-Stores a bit pattern, 8 bits per byte. `0` and space are 0 bits, `1` and `#` are 1 bits, which makes it easy to draw characters and sprites:
+Stores a bit pattern, 8 bits per byte. A pattern is written with `0` and `1`, or with space and `#` for the 0 and 1 bits, which makes it easy to draw characters and sprites. The two styles can't be mixed in one pattern, and a pattern has 8 bits or a multiple of 8, such as 24 for a sprite row:
 
 ```
             .bits "  ####  "            ; 3c
