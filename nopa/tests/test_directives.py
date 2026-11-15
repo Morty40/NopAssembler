@@ -116,6 +116,8 @@ class TestDirectives(unittest.TestCase):
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
+        self._assertBytes('.import "util.py"\n'
+                          '.bytefill 3, double\n', [0, 2, 4], {'util.py': 'def double(v):\n    return v * 2\n'}) # a function to fill with
 
     def testImportSourceNamespaceLabels(self):
         """The labels of a source file imported into a namespace are in it: draw in spr is spr.draw,
@@ -412,6 +414,8 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "util.py", "util"\n.byte util.x\n',         [5]),
             ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
+            ('.import "util.py", "util"\n'
+             '.bytefill 3, util.double\n',                        [0, 2, 4]), # a function to fill with
             ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
             ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import, with util from the last pass
             ('.import "lib.py", "lib"\n.byte lib.value\n',        [6]),  # import and class in a namespace
