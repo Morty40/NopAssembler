@@ -151,14 +151,16 @@ def wordfill(context, n: int, function: types.FunctionType | None = None):
 
 
 def _fill(context, n: int, function: types.FunctionType | None, store, checkValue):
-    """Store n values, using the store function, each checked by checkValue."""
+    """Store n values, using the store function, each checked by checkValue. If the function fails,
+    the error is reported once, with the index, and the rest are zeros, so the size stays the same."""
     f = function if function is not None else lambda x: 0
     for x in range(0, n):
         try:
             value = f(x)
         except Exception as exception:
             message = str(exception) # capitalize only the first letter, keeping the case of names
-            context.reportError(f'{message[:1].upper()}{message[1:]}')
+            context.reportError(f'{message[:1].upper()}{message[1:]}, at index {x}')
+            f = lambda x: 0
             value = 0
         store(checkValue(value, repr(value), context))
 

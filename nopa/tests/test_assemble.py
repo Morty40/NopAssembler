@@ -78,6 +78,17 @@ class TestAssemble(unittest.TestCase):
                 self.assertEqual(len(output.splitlines()), 1)
                 self.assertIn('test.asm:1: error: Expected an int value instead of: "<built-in function print>"', output)
 
+    def testFillFunctionError(self):
+        """A fill function that fails is one error, with the index it fails for, and not one for each value."""
+        for source, message in [
+            ('.bytefill 4, lambda x: nothing\n',      'test.asm:1: error: Name \'nothing\' is not defined, at index 0'),
+            ('.wordfill 4, lambda x: [5, 6][x]\n',    'test.asm:1: error: List index out of range, at index 2'),
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertEqual(len(output.splitlines()), 1)
+                self.assertIn(message, output)
+
     def testGeneratorNotString(self):
         """A generator must return assembly code as a string, or it is an error."""
         anyErrors, output = self._assemble('.python\ndef emit(): pass\n.end\n@emit()\n') # forgot to return the code
@@ -156,7 +167,7 @@ class TestAssemble(unittest.TestCase):
             ('.org undefinedSymbol\n',               'test.asm:1: error: Invalid directive: .org undefinedSymbol'),
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
-            ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined\n'),
+            ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
             ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
             ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
             ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),
