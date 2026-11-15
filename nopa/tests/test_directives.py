@@ -67,47 +67,47 @@ class TestDirectives(unittest.TestCase):
     def testStoredBytes(self):
         """The directives that store bytes, including values given after they are used."""
         for source, expected in [
-            ('.byte -128, 0, 127, 255',                  [0x80, 0x00, 0x7f, 0xff]), # no newline at the end
-            ('.word -32768, 0, 32767, 65535',            [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]),
-            ('.bits "00000000"\n',                       [0]),
-            ('.bits "000000010000001000000011"\n',       [1, 2, 3]),
-            ('.bits "     #  "\n',                       [4]), # # is a 1 bit, and a space a 0 bit
-            ('.bits "     # #     ##      ###"\n',       [5, 6, 7]),
+            ('.byte -128, 0, 127, 255',                 [0x80, 0x00, 0x7f, 0xff]), # no newline at the end
+            ('.word -32768, 0, 32767, 65535',           [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]),
+            ('.bits "00000000"\n',                      [0]),
+            ('.bits "000000010000001000000011"\n',      [1, 2, 3]),
+            ('.bits "     #  "\n',                      [4]),                      # # is a 1 bit, and a space a 0 bit
+            ('.bits "     # #     ##      ###"\n',      [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n'
-             '.string "ABC", "DEF"\n',                   [1, 2, 3, 0, 4, 5, 6, 0]),
-            ('.bytefill 0\n',                            []),        # nothing, but not an error
-            ('.bytefill 3\n',                            [0, 0, 0]),
+             '.string "ABC", "DEF"\n',                  [1, 2, 3, 0, 4, 5, 6, 0]),
+            ('.bytefill 0\n',                           []),                       # nothing, but not an error
+            ('.bytefill 3\n',                           [0, 0, 0]),
             ('.bytefill 3, lambda x: x+N\n'
-             'N = 1\n',                                  [1, 2, 3]), # x is the index, and N is assigned later
-            ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
+             'N = 1\n',                                 [1, 2, 3]),                # x is the index, and N is assigned later
+            ('.wordfill 3\n',                           [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, lambda x: x+N\n'
-             'N = 1\n',                                  [1, 0, 2, 0, 3, 0]),
-            ('.bytefill 2, lambda x: int(cos(x*pi))\n',  [1, 0xff]), # with the math functions
-            ('.bytefill 4, lambda x: x / 2\n',            [0, 0, 1, 1]), # floats are truncated
+             'N = 1\n',                                 [1, 0, 2, 0, 3, 0]),
+            ('.bytefill 2, lambda x: int(cos(x*pi))\n', [1, 0xff]),                # with the math functions
+            ('.bytefill 4, lambda x: x / 2\n',          [0, 0, 1, 1]),             # floats are truncated
             ('.python\n'
              'def double(x):\n'
              '    return x * 2\n'
              '.end\n'
-             '.bytefill 3, double\n',                    [0, 2, 4]), # a function defined in Python code
-            ('.bytefill 3, abs\n',                       [0, 1, 2]), # a built-in function
+             '.bytefill 3, double\n',                   [0, 2, 4]),                # a function defined in Python code
+            ('.bytefill 3, abs\n',                      [0, 1, 2]),                # a built-in function
             ('.python\n'
              'class Table:\n'
              '    def get(self, x):\n'
              '        return x * 3\n'
              'table = Table()\n'
              '.end\n'
-             '.bytefill 3, table.get\n',                 [0, 3, 6]), # a method
+             '.bytefill 3, table.get\n',                [0, 3, 6]),                # a method
             ('lda aa\n'
              'lda bb\n'
              'aa = zp(1)\n'
-             'bb = zp(1)\n',                             [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
+             'bb = zp(1)\n',                            [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
             ('lda aa\n'
              'lda bb\n'
              'aa = zp(2)\n'
-             'bb = zp(2)\n',                             [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
+             'bb = zp(2)\n',                            [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
             ('buffer = zp(8)\n'
              'next = zp(1)\n'
-             'lda next\n',                               [0xa5, 0x0a]), # buffer is $02 to $09
+             'lda next\n',                              [0xa5, 0x0a]),             # buffer is $02 to $09
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
@@ -119,11 +119,11 @@ class TestDirectives(unittest.TestCase):
              '.align 16\n'
              '.byte 1\n'
              '.align 16\n'
-             '.byte 2\n',                                            {0x1000: 1, 0x1010: 2}), # $1000 is already aligned
+             '.byte 2\n', {0x1000: 1, 0x1010: 2}), # $1000 is already aligned
             ('.org $2000\n'
              '.byte 1\n'
              '_ = $2010\n'
-             '.byte 2\n',                                            {0x2000: 1, 0x2010: 2}),
+             '.byte 2\n', {0x2000: 1, 0x2010: 2}),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
@@ -131,21 +131,21 @@ class TestDirectives(unittest.TestCase):
     def testCPU(self):
         """.cpu chooses the instructions from the next line on, the 6502 by default."""
         for source, expected in [
-            ('lax $10\n',                                       [0xa7, 0x10]),                    # the 6502 by default
+            ('lax $10\n',        [0xa7, 0x10]),                   # the 6502 by default
             ('.cpu CPU_65C02\n'
              'stz $d020\n'
-             'lda ($12)\n',                                     [0x9c, 0x20, 0xd0, 0xb2, 0x12]),
+             'lda ($12)\n',      [0x9c, 0x20, 0xd0, 0xb2, 0x12]),
             ('.cpu CPU_65C02\n'
              'bra later\n'
              '.cpu CPU_6502\n'
-             'later: lax $10\n',                                [0x80, 0x00, 0xa7, 0x10]),        # switching, bra to the next line is offset 0
+             'later: lax $10\n', [0x80, 0x00, 0xa7, 0x10]),       # switching, bra to the next line is offset 0
             ('.cpu CPU_R65C02\n'
              'loop: rmb3 $12\n'
-             'bbr3 $12,loop\n',                                   [0x37, 0x12, 0x3f, 0x12, 0xfb]), # back to loop is offset -5
+             'bbr3 $12,loop\n',  [0x37, 0x12, 0x3f, 0x12, 0xfb]), # back to loop is offset -5
             ('.cpu CPU_W65C02\n'
              'wai\n'
              'stp\n'
-             'smb0 $12\n',                                        [0xcb, 0xdb, 0x87, 0x12]),
+             'smb0 $12\n',       [0xcb, 0xdb, 0x87, 0x12]),
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
@@ -167,15 +167,15 @@ class TestDirectives(unittest.TestCase):
         files = {'sprites.asm': 'draw: rts\n'}
         for source, expected in [
             ('.import "sprites.asm", "spr"\n'
-             'jsr spr.draw\n',                 [0x60, 0x20, 0x00, 0x10]),
+             'jsr spr.draw\n', [0x60, 0x20, 0x00, 0x10]),
             ('.import "sprites.asm", "a"\n'
              '.import "sprites.asm", "b"\n'
              'jsr a.draw\n'
-             'jsr b.draw\n',                   [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]), # no duplicate label
+             'jsr b.draw\n',   [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]), # no duplicate label
             ('.import "sprites.asm", "SID"\n'
-             'jsr SID.draw\n',                 [0x60, 0x20, 0x00, 0x10]),                         # a namespace in capitals
+             'jsr SID.draw\n', [0x60, 0x20, 0x00, 0x10]),                         # a namespace in capitals
             ('jsr spr.draw\n'
-             '.import "sprites.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),                         # used before the import
+             '.import "sprites.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),         # used before the import
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -204,12 +204,12 @@ class TestDirectives(unittest.TestCase):
             ('.import "loop.asm", "spr"\n'
              'jsr spr.draw_loop\n',           [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
             ('draw: nop\n'
-             '.import "own.asm", "spr"\n',    [0xea, 0x20, 0x04, 0x10, 0x60]),                         # spr.draw, not the global draw
-            ('.import "lambda.asm", "spr"\n', [0x00, 0x01]),                                           # table in a lambda
+             '.import "own.asm", "spr"\n',    [0xea, 0x20, 0x04, 0x10, 0x60]), # spr.draw, not the global draw
+            ('.import "lambda.asm", "spr"\n', [0x00, 0x01]), # table in a lambda
             ('.import "python.asm", "spr"\n'
-             '.byte spr.twice(4)\n',          [6, 8]),                                                 # twice is spr.twice
+             '.byte spr.twice(4)\n',          [6, 8]),       # twice is spr.twice
             ('.import "for.asm", "spr"\n'
-             '.byte spr.i\n',                 [0, 1, 2, 3]),                                           # i is spr.i
+             '.byte spr.i\n',                 [0, 1, 2, 3]), # i is spr.i
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -291,13 +291,13 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "outer.asm", "spr"\n'
              'jsr spr.util.draw\n'
-             '.byte spr.util.SPEED\n',         [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
+             '.byte spr.util.SPEED\n', [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
             ('.import "inherit.asm", "spr"\n'
-             'jsr spr.helper\n',               [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
+             'jsr spr.helper\n',       [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
             ('.import "pyouter.asm", "spr"\n'
-             '.byte spr.util.x\n',             [5, 5]),                                                 # a .py namespace in spr
+             '.byte spr.util.x\n',     [5, 5]), # a .py namespace in spr
             ('.import "fillouter.asm", "spr"\n'
-             '@spr.fill(7)\n',                 [7]),                                                    # a .py file in spr
+             '@spr.fill(7)\n',         [7]),    # a .py file in spr
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -335,28 +335,28 @@ class TestDirectives(unittest.TestCase):
         }
         for source, expected in [
             ('.import "opt.asm", "spr"\n'
-             '.byte 0\n',                     [0]),                                  # draw isn't used
+             '.byte 0\n',                     [0]),                      # draw isn't used
             ('.import "opt.asm", "spr"\n'
              'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]),
-            ('.import "optuse.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),             # used in the namespace
+            ('.import "optuse.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]), # used in the namespace
             ('.import "optuse.asm", "spr"\n'
              '.optional\n'
              'draw: nop\n'
-             '.end\n',                        [0x20, 0x03, 0x10, 0x60]),             # not the global draw
+             '.end\n',                        [0x20, 0x03, 0x10, 0x60]), # not the global draw
             ('.import "ref.asm", "spr"\n',    [0x60, 0]),
             ('.import "ref.asm", "spr"\n'
              'jsr spr.draw\n',                [0x60, 1, 0x20, 0x00, 0x10]),
             ('.import "ifref.asm", "spr"\n'
-             '.byte 0\n',                     [0]),                                  # draw isn't used
+             '.byte 0\n',                     [0]),                      # draw isn't used
             ('.import "ifref.asm", "spr"\n'
-             'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]),             # ref() of a label it defines
+             'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]), # ref() of a label it defines
             ('.import "gen.asm", "spr"\n'
              'jmp spr.wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr.wait1_x
             ('.import "maybe.asm", "spr"\n'
-             '@spr.maybe()\n',               [0x60]),                               # ref() in spr, called from outside
+             '@spr.maybe()\n',                [0x60]),                   # ref() in spr, called from outside
             ('.import "maybe.asm", "spr"\n'
              'jsr spr.draw\n'
-             '@spr.maybe()\n',               [0x60, 0x20, 0x00, 0x10, 0xea]),
+             '@spr.maybe()\n',                [0x60, 0x20, 0x00, 0x10, 0xea]),
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -417,31 +417,31 @@ class TestDirectives(unittest.TestCase):
         }
         for source, expected in [
             ('main: rts\n'
-             '.import "main.asm", "spr"\n',   ['main.asm:1: error: Name \'main\' is not defined: "main"',
+             '.import "main.asm", "spr"\n',    ['main.asm:1: error: Name \'main\' is not defined: "main"',
                                               'main.asm:1: error: Expected an int value instead of: "main"']),
             ('speed = 3\n'
-             '.import "speed.asm", "spr"\n',  ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
+             '.import "speed.asm", "spr"\n',   ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
             ('.python\n'
              'def helper():\n'
              '    return 1\n'
              '.end\n'
-             '.import "helper.asm", "spr"\n', ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
-            ('.import "outer.asm", "spr"\n',  ['inner.asm:1: error: Name \'start\' is not defined: "start"',
+             '.import "helper.asm", "spr"\n',  ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
+            ('.import "outer.asm", "spr"\n',   ['inner.asm:1: error: Name \'start\' is not defined: "start"',
                                               'inner.asm:1: error: Expected an int value instead of: "start"']),
             ('.import "pyouter.asm", "spr"\n'
-             '.byte util.x\n',                ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
+             '.byte util.x\n',                 ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
             ('.import "sprites.asm", "spr"\n'
-             '.word draw\n',                  ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
+             '.word draw\n',                   ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
             ('.import "sprites.asm", "spr"\n'
-             '.word spr_draw\n',              ['test.asm:2: error: Name \'spr_draw\' is not defined: "spr_draw"']),
+             '.word spr_draw\n',               ['test.asm:2: error: Name \'spr_draw\' is not defined: "spr_draw"']),
             ('spr: nop\n'
              '.import "sprites.asm", "spr"\n', ['test.asm:2: error: Symbol "spr" cannot change type from int to Namespace']),
             ('.import "python.asm", "spr"\n'
-             '.byte twice(3)\n',              ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
+             '.byte twice(3)\n',               ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
             ('.import "vars.asm", "spr"\n'
-             '.byte speed\n',                 ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
-            ('.import "const.asm", "spr"\n',  ['const.asm:2: error: Constant "spr.SPEED" cannot be changed from 1 to 2']),
-            ('.import "caps.asm", "spr"\n',   ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
+             '.byte speed\n',                  ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
+            ('.import "const.asm", "spr"\n',   ['const.asm:2: error: Constant "spr.SPEED" cannot be changed from 1 to 2']),
+            ('.import "caps.asm", "spr"\n',    ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
@@ -458,17 +458,17 @@ class TestDirectives(unittest.TestCase):
                              'value = int(math.sqrt(16)) + Colors.RED\n')}
         for source, expected in [
             ('.import "util.py", "util"\n'
-             '.byte util.x\n',                                    [5]),
+             '.byte util.x\n',              [5]),
             ('.import "util.py", "util"\n'
-             '.byte util.double(3)\n',                            [6]),
+             '.byte util.double(3)\n',      [6]),
             ('.import "util.py", "util"\n'
-             '.bytefill 3, util.double\n',                        [0, 2, 4]), # a function to fill with
+             '.bytefill 3, util.double\n',  [0, 2, 4]), # a function to fill with
             ('.import "util.py", "UTIL"\n'
-             '.byte UTIL.x\n',                                    [5]),
+             '.byte UTIL.x\n',              [5]),
             ('.byte util.x\n'
-             '.import "util.py", "util"\n',                       [5]),  # used before the import, with util from the last pass
+             '.import "util.py", "util"\n', [5]),       # used before the import, with util from the last pass
             ('.import "lib.py", "lib"\n'
-             '.byte lib.value\n',                                 [6]),  # import and class in a namespace
+             '.byte lib.value\n',           [6]),       # import and class in a namespace
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -486,17 +486,17 @@ class TestDirectives(unittest.TestCase):
                             '    return "jmp end\\n"\n'}
         for source, expected in [
             ('.import "a.py", "a"\n'
-             '@a.wait()\n',                                                          [0xca, 0xd0, 0xfd]),       # dex, bne -3 to wait1_x
+             '@a.wait()\n',     [0xca, 0xd0, 0xfd]),       # dex, bne -3 to wait1_x
             ('.import "a.py", "a"\n'
              '.import "b.py", "b"\n'
              '@a.wait()\n'
-             '@b.wait()\n',                                                          [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]), # wait1_x and wait2_x
+             '@b.wait()\n',     [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]), # wait1_x and wait2_x
             ('.import "util.py", "util"\n'
              'v = 7\n'
-             '@util.fill(v)\n',                                                      [7, 7]),                   # COUNT from its module
+             '@util.fill(v)\n', [7, 7]),                   # COUNT from its module
             ('.import "util.py", "util"\n'
              '@util.jump()\n'
-             'end: rts\n',                                                           [0x4c, 0x03, 0x10, 0x60]), # jmp to the global label end, at $1003
+             'end: rts\n',      [0x4c, 0x03, 0x10, 0x60]), # jmp to the global label end, at $1003
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -531,14 +531,14 @@ class TestDirectives(unittest.TestCase):
                  'peek.py': 'found = int(any("symbols" in name for name in globals()))\n'}
         for source, expected in [
             ('.import "util.py", "util"\n'
-             '.byte x\n',                  ['test.asm:2: error: Name \'x\' is not defined: "x"']),
+             '.byte x\n',                 ['test.asm:2: error: Name \'x\' is not defined: "x"']),
             ('.import "peek.py", "peek"\n'
-             '.assert peek.found == 0\n',  []), # nor the symbols, through its module
+             '.assert peek.found == 0\n', []), # nor the symbols, through its module
             ('.import "low.py", "low"\n'
-             '.byte low.y\n',              []),
+             '.byte low.y\n',             []),
             ('start: rts\n'
              '.import "see.py", "see"\n'
-             '.word see.f()\n',            ['test.asm:3: error: Name \'start\' is not defined: "see.f()"']),
+             '.word see.f()\n',           ['test.asm:3: error: Name \'start\' is not defined: "see.f()"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
@@ -549,13 +549,13 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "a.py", "util"\n'
              '.import "b.py", "util"\n'
-             '.byte util.x, util.y\n',                                                 [1, 2]),
+             '.byte util.x, util.y\n',   [1, 2]),
             ('.import "a.py", "util"\n'
              '.import "a.py", "util"\n'
-             '.byte util.x\n',                                                         [1]),     # the same file twice
+             '.byte util.x\n',           [1]), # the same file twice
             ('.byte util.y\n'
              '.import "a.py", "util"\n'
-             '.import "b.py", "util"\n',                                               [2]),     # used before the imports, from the last pass
+             '.import "b.py", "util"\n', [2]), # used before the imports, from the last pass
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -565,15 +565,15 @@ class TestDirectives(unittest.TestCase):
         or of a Python built-in, and the file isn't run then."""
         files = {'bad.py': '1/0\n'} # fails if it runs, so a second error would show that it ran
         for source, expected in [
-            ('.import "bad.py", "sin"\n',                           ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
+            ('.import "bad.py", "sin"\n',   ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
             ('util: nop\n'
-             '.import "bad.py", "util"\n',                          ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
+             '.import "bad.py", "util"\n',  ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
             ('.python\n'
              'import os\n'
              '.end\n'
-             '.import "bad.py", "os"\n',                            ['test.asm:4: error: Symbol "os" cannot change type from module to Namespace']),
-            ('.import "bad.py", "len"\n',                           ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "len"']),
-            ('.import "bad.py", "print"\n',                         ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "print"']),
+             '.import "bad.py", "os"\n',    ['test.asm:4: error: Symbol "os" cannot change type from module to Namespace']),
+            ('.import "bad.py", "len"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "len"']),
+            ('.import "bad.py", "print"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "print"']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._errors(source, files), expected)
@@ -620,12 +620,12 @@ class TestDirectives(unittest.TestCase):
              '.optional\n'
              'init: rts\n'
              '.end\n'
-             '.byte 0\n',                                                          [0]),                      # init isn't used
+             '.byte 0\n', [0]),                      # init isn't used
             ('.import "lib.py", "lib"\n'
              '@lib.call()\n'
              '.optional\n'
              'init: rts\n'
-             '.end\n',                                                             [0x20, 0x03, 0x10, 0x60]), # jsr init, at $1003, so the block is assembled
+             '.end\n',    [0x20, 0x03, 0x10, 0x60]), # jsr init, at $1003, so the block is assembled
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -646,27 +646,27 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.if a>5\n'
              '.byte 1\n'
-             '.end\n',                                         [1]),   # true
+             '.end\n', [1]),    # true
             ('.if a<5\n'
              '.byte $ee\n'
-             '.end\n',                                         []),    # false, so the lines are skipped
+             '.end\n', []),     # false, so the lines are skipped
             ('.if a>5\n'
              '.byte 2\n'
              '.else\n'
              '.byte $ee\n'
-             '.end\n',                                         [2]),   # true, with else
+             '.end\n', [2]),    # true, with else
             ('.if a<5\n'
              '.byte $ee\n'
              '.else\n'
              '.byte 3\n'
-             '.end\n',                                         [3]),   # false, with else
+             '.end\n', [3]),    # false, with else
             ('.if a>5\n'
              '.if a<5\n'
              '.byte $ee\n'
              '.else\n'
              '.byte 4\n'
              '.end\n'
-             '.end\n',                                         [4]),   # nested
+             '.end\n', [4]),    # nested
             ('.if a<5\n'
              'inner: .if a>5\n'
              '.byte $ee\n'
@@ -678,20 +678,20 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.else\n'
              '.byte 5\n'
-             '.end\n',                                         [5]),
+             '.end\n', [5]),
             ('.if a>5\n'
              'both: .byte 6\n'
              '.else\n'
              'both: .byte $ee\n'
-             '.end\n',                                         [6]),   # the same label in both branches, as only one is assembled
+             '.end\n', [6]),    # the same label in both branches, as only one is assembled
             ('.if a>5 and not a>10\n'
              '.byte 7\n'
-             '.end\n',                                         [7]),   # Python keywords in the condition
+             '.end\n', [7]),    # Python keywords in the condition
             ('.for i=0, i<4, i+=1\n'
              '.if i % 2 == 0\n'
              '.byte i\n'
              '.end\n'
-             '.end\n',                                         [0, 2]), # inside a loop
+             '.end\n', [0, 2]), # inside a loop
         ]:
             with self.subTest(source=source):
                 self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
@@ -701,30 +701,30 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.for a=0, a<4, a+=1\n'
              '.byte a\n'
-             '.end\n',                                         [0, 1, 2, 3]),
+             '.end\n', [0, 1, 2, 3]),
             ('.for a=10, a<10, a+=1\n'
              '.byte $ee\n'
-             '.end\n',                                         []),    # false at the start, so the loop is skipped
+             '.end\n', []),                         # false at the start, so the loop is skipped
             ('.for a=0, a<0, a+=1\n'
              'skipped: .for b=0, b<2, b+=1\n'
              '.byte $ee\n'
              '.end\n'
-             '.end\n',                                         []),    # with a label and a nested loop
+             '.end\n', []),                         # with a label and a nested loop
             ('.for a=3, a>0, a-=1\n'
              '.byte a\n'
-             '.end\n',                                         [3, 2, 1]), # counting down
+             '.end\n', [3, 2, 1]),                  # counting down
             ('.for row=0, row<2, row+=1\n'
              '.for column=0, column<3, column+=1\n'
              '.byte row*16 + column\n'
              '.end\n'
              '.end\n',
-             [0x00, 0x01, 0x02, 0x10, 0x11, 0x12]),                    # nested loops
+             [0x00, 0x01, 0x02, 0x10, 0x11, 0x12]), # nested loops
             ('.for a=1, a<100, a*=2\n'
              '.byte a\n'
-             '.end\n',                                         [1, 2, 4, 8, 16, 32, 64]), # any Python statement as the step
+             '.end\n', [1, 2, 4, 8, 16, 32, 64]),   # any Python statement as the step
             ('.for i=0, i<len([5, 6]), i+=1\n'
              '.byte i\n'
-             '.end\n',                                         [0, 1]), # commas inside brackets
+             '.end\n', [0, 1]),                     # commas inside brackets
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
@@ -734,34 +734,34 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.repeat 3\n'
              '.byte $ee\n'
-             '.end\n',                                         [0xee, 0xee, 0xee]),
+             '.end\n', [0xee, 0xee, 0xee]),
             ('.repeat 0\n'
              '.byte $ff\n'
-             '.end\n',                                         []),    # zero times, so the block is skipped
+             '.end\n', []),                 # zero times, so the block is skipped
             ('.repeat 0\n'
              'skipped: .repeat 2\n'
              '.byte $ff\n'
              '.end\n'
-             '.end\n',                                         []),    # with a label and a nested block
+             '.end\n', []),                 # with a label and a nested block
             ('.repeat 2\n'
              '.byte 1\n'
              '.repeat 2\n'
              '.byte 2\n'
              '.end\n'
-             '.end\n',                                         [1, 2, 2, 1, 2, 2]), # nested blocks
+             '.end\n', [1, 2, 2, 1, 2, 2]), # nested blocks
             ('.repeat 4 // 2\n'
              '.byte 3\n'
-             '.end\n',                                         [3, 3]), # the count is an expression
+             '.end\n', [3, 3]),             # the count is an expression
             ('.repeat 2\n'
              '.for a=0, a<2, a+=1\n'
              '.byte a\n'
              '.end\n'
-             '.end\n',                                         [0, 1, 0, 1]), # a for loop inside
+             '.end\n', [0, 1, 0, 1]),       # a for loop inside
             ('.repeat 0\n'
              '.for a=0, a<2, a+=1\n'
              '.byte $ff\n'
              '.end\n'
-             '.end\n',                                         []),    # skipped, with a for loop inside
+             '.end\n', []),                 # skipped, with a for loop inside
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)

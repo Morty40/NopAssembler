@@ -219,12 +219,12 @@ class TestDisassemble(unittest.TestCase):
     def testData(self):
         """Bytes that aren't code are data, in rows of up to 16 bytes, and 16 or more of the same byte are a .bytefill."""
         for data, expected in [
-            ([0x60, *range(1, 19)],                 ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']),
-            ([0xea, 0x02, 0xea],                    ['.byte $ea, $02, $ea']),                 # runs into an unknown opcode, and the end
-            ([0x4c, 0x04, 0x10, 0x60, 0x02],        ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']), # jumps to an unknown opcode
-            ([0xea, 0x00, 0x60],                    ['.byte $ea, $00', '', 'rts']),           # runs into brk
-            ([0x60, *[0]*16, *[0xff]*35],           ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']),
-            ([0x60, *[0]*15],                       ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),
+            ([0x60, *range(1, 19)],          ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']),
+            ([0xea, 0x02, 0xea],             ['.byte $ea, $02, $ea']),                                   # runs into an unknown opcode, and the end
+            ([0x4c, 0x04, 0x10, 0x60, 0x02], ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']),       # jumps to an unknown opcode
+            ([0xea, 0x00, 0x60],             ['.byte $ea, $00', '', 'rts']),                             # runs into brk
+            ([0x60, *[0]*16, *[0xff]*35],    ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']),
+            ([0x60, *[0]*15],                ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),
             ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']), # absolute below $100 would assemble as zero page, but lda has no zero page,y
         ]:
             with self.subTest(data=data[:6]):
@@ -243,7 +243,7 @@ class TestDisassemble(unittest.TestCase):
         returned, and nothing is saved."""
         with tempfile.TemporaryDirectory() as directory:
             for fileName, data, org in [('a.prg', [0x00, 0xc0, 0x60], '.org $c000'),
-                                        ('a.bin', [0x60], '.org $1000')]:
+                                        ('a.bin', [0x60],             '.org $1000')]:
                 with open(os.path.join(directory, fileName), 'wb') as f:
                     f.write(bytes(data))
                 source = disassembleFile(os.path.join(directory, fileName))

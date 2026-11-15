@@ -35,8 +35,8 @@ class TestContext(unittest.TestCase):
         """The dotted names in compiled code, as a name and its attributes, also after more than 255 other names."""
         manyNames = ''.join(f'v{i} = {i}\n' for i in range(300)) # Python then puts EXTENDED_ARG before the instructions
         for code, expected in [
-            ('spr.util.draw',           [['spr', 'util', 'draw']]),
-            ('spr.twice(4) + lo(x)',    [['spr', 'twice']]),       # a method call, and names without dots
+            ('spr.util.draw',            [['spr', 'util', 'draw']]),
+            ('spr.twice(4) + lo(x)',     [['spr', 'twice']]),       # a method call, and names without dots
             (manyNames + 'r = spr.draw', [['spr', 'draw']]),
         ]:
             with self.subTest(code=code[-20:]):

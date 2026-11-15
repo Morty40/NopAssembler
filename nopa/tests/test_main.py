@@ -44,7 +44,7 @@ class TestMain(unittest.TestCase):
 
     def testInterrupted(self):
         """Ctrl-C prints a message, without a traceback, and exits with 130."""
-        for module, function, arguments in [(assemble, 'assembleFile', ['x.asm']),
+        for module, function, arguments in [(assemble,    'assembleFile',    ['x.asm']),
                                             (disassemble, 'disassembleFile', ['-d', 'x.prg'])]:
             with self.subTest(function=function), mock.patch.object(module, function, side_effect=KeyboardInterrupt):
                 code, output, errors = self._main(arguments)
@@ -384,9 +384,9 @@ class TestMain(unittest.TestCase):
     def testMemoryUseOutput(self):
         """The whole output: the range, the page counts, and a map of 16 lines with 16 pages each."""
         for memory, used, pages, changed in [
-            ([],                               'None',                    '0 full, 0 partial', {}),
-            ([0x0000],                         '$0000-$0000 (1 bytes)',   '0 full, 1 partial', {0: '+...............'}),
-            ([0xffff],                         '$ffff-$ffff (1 bytes)',   '0 full, 1 partial', {15: '...............+'}),
+            ([],       'None',                  '0 full, 0 partial', {}),
+            ([0x0000], '$0000-$0000 (1 bytes)', '0 full, 1 partial', {0: '+...............'}),
+            ([0xffff], '$ffff-$ffff (1 bytes)', '0 full, 1 partial', {15: '...............+'}),
             ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}),
         ]:
             with self.subTest(used=used):

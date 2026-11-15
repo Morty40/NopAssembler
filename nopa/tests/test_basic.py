@@ -24,22 +24,22 @@ class TestBasic(unittest.TestCase):
             """The bytes of the values: a token, or text."""
             return [b for value in values for b in ([value] if type(value) is int else value.encode('ascii'))]
         for text, expected in [
-            ('SYS 2061',              code(0x9e, ' 2061')),
-            ('POKE 53280,0:SYS 2061', code(0x97, ' 53280,0:', 0x9e, ' 2061')),
-            ('poke 1,2',              code(0x97, ' 1,2')),
-            ('GOTO 10',               code(0x89, ' 10')),              # not GO and TO
-            ('INPUT#1,A',             code(0x84, '1,A')),              # not INPUT and #
-            ('PRINT#1',               code(0x98, '1')),
-            ('A=1+2',                 code('A', 0xb2, '1', 0xaa, '2')),
-            ('FOR I=1 TO 3',          code(0x81, ' I', 0xb2, '1 ', 0xa4, ' 3')),
-            ('PRINT CHR$(147)',       code(0x99, ' ', 0xc7, '(147)')),
-            ('PRINT "POKE":SYS 1',    code(0x99, ' "POKE":', 0x9e, ' 1')),
-            ('REM POKE:SYS "X',       code(0x8f, ' POKE:SYS "X')),
-            ('DATA POKE,"A:B":SYS 1', code(0x83, ' POKE,"A:B":', 0x9e, ' 1')),
-            ('?"HI":?A',              code(0x99, '"HI":', 0x99, 'A')), # ? is short for PRINT
-            ('?"?":DATA ?:REM ?',     code(0x99, '"?":', 0x83, ' ?:', 0x8f, ' ?')), # but not in strings, DATA and REM
+            ('SYS 2061',                code(0x9e, ' 2061')),
+            ('POKE 53280,0:SYS 2061',   code(0x97, ' 53280,0:', 0x9e, ' 2061')),
+            ('poke 1,2',                code(0x97, ' 1,2')),
+            ('GOTO 10',                 code(0x89, ' 10')), # not GO and TO
+            ('INPUT#1,A',               code(0x84, '1,A')), # not INPUT and #
+            ('PRINT#1',                 code(0x98, '1')),
+            ('A=1+2',                   code('A', 0xb2, '1', 0xaa, '2')),
+            ('FOR I=1 TO 3',            code(0x81, ' I', 0xb2, '1 ', 0xa4, ' 3')),
+            ('PRINT CHR$(147)',         code(0x99, ' ', 0xc7, '(147)')),
+            ('PRINT "POKE":SYS 1',      code(0x99, ' "POKE":', 0x9e, ' 1')),
+            ('REM POKE:SYS "X',         code(0x8f, ' POKE:SYS "X')),
+            ('DATA POKE,"A:B":SYS 1',   code(0x83, ' POKE,"A:B":', 0x9e, ' 1')),
+            ('?"HI":?A',                code(0x99, '"HI":', 0x99, 'A')), # ? is short for PRINT
+            ('?"?":DATA ?:REM ?',       code(0x99, '"?":', 0x83, ' ?:', 0x8f, ' ?')), # but not in strings, DATA and REM
             ('PRINT π:PRINT "π":REM π', code(0x99, ' ', 0xff, ':', 0x99, ' "', 0xff, '":', 0x8f, ' ', 0xff)), # pi, anywhere
-            ('',                      []),
+            ('',                        []),
         ]:
             with self.subTest(text=text):
                 self.assertEqual(BASIC_2.encode(text), expected)
@@ -87,13 +87,13 @@ class TestBasic(unittest.TestCase):
         self.assertNotIn('BASIC_TOKEN_RLUM', tokens)                   # $ce is a prefix
         self.assertEqual((tokens['BASIC_TOKEN_JOY'], tokens['BASIC_TOKEN_WHILE']), (0xcf, 0xfd))
         for text, expected in [
-            ('BANK 15',          [0xfe, 0x02, *b' 15']),
-            ('SWAP:FAST:SLOW',   [0xfe, 0x23, ord(':'), 0xfe, 0x25, ord(':'), 0xfe, 0x26]), # after the unused tokens
-            ('DOPEN#1,"X"',      [0xfe, 0x0d, *b'#1,"X"']),            # not DO and PEN
-            ('PRINT POT(1)',     [0x99, ord(' '), 0xce, 0x02, *b'(1)']),
-            ('A=1 XOR 2',        [ord('A'), 0xb2, *b'1 ', 0xce, 0x08, *b' 2']),
-            ('GRAPHIC 1',        [0xde, *b' 1']),
-            ('RLUM',             list(b'RLUM')),
+            ('BANK 15',        [0xfe, 0x02, *b' 15']),
+            ('SWAP:FAST:SLOW', [0xfe, 0x23, ord(':'), 0xfe, 0x25, ord(':'), 0xfe, 0x26]), # after the unused tokens
+            ('DOPEN#1,"X"',    [0xfe, 0x0d, *b'#1,"X"']),                                 # not DO and PEN
+            ('PRINT POT(1)',   [0x99, ord(' '), 0xce, 0x02, *b'(1)']),
+            ('A=1 XOR 2',      [ord('A'), 0xb2, *b'1 ', 0xce, 0x08, *b' 2']),
+            ('GRAPHIC 1',      [0xde, *b' 1']),
+            ('RLUM',           list(b'RLUM')),
         ]:
             with self.subTest(text=text):
                 self.assertEqual(BASIC_7.encode(text), expected)

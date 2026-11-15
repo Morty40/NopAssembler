@@ -76,39 +76,39 @@ class TestLexer(unittest.TestCase):
     def testScanner(self):
         """Each token is the longest match, whichever characters are next to it."""
         for line, expected in [
-            ('t-$10',         ['t', '-', '0x10']),
-            ('-$10',          ['-', '0x10']),
-            ('2*%11',         ['2', '*', '0b11']),
-            ('$20/$10',       ['0x20', '/', '0x10']),
-            ('~$10',          ['~', '0x10']),
-            ('2**$4',         ['2', '**', '0x4']),
-            ('16//$4',        ['16', '//', '0x4']),
-            ('7%$10',         ['7', '%', '0x10']),
-            ('%101%2',        ['0b101', '%', '2']),
-            ('a<<2',          ['a', '<<', '2']),
-            ('a<=2',          ['a', '<=', '2']),
-            ('a==-1',         ['a', '==', '-', '1']),
-            ('a!=b',          ['a', '!=', 'b']),
-            ('x=.5',          ['x', '=', '.', '5']),
-            ('a<.5',          ['a', '<', '.', '5']),
-            ('1.5',           ['1.5']),
-            ('1e3',           ['1e3']),
-            ('1.5e-3',        ['1.5e-3']),
-            ('1e-_x',         ['1e', '-', '_x']),
-            ('a-1',           ['a', '-', '1']),
-            ('.byte 1 ; c',   ['.', 'byte', '1']),
-            ('; c',           []),             # a line with only a comment
+            ('t-$10',           ['t', '-', '0x10']),
+            ('-$10',            ['-', '0x10']),
+            ('2*%11',           ['2', '*', '0b11']),
+            ('$20/$10',         ['0x20', '/', '0x10']),
+            ('~$10',            ['~', '0x10']),
+            ('2**$4',           ['2', '**', '0x4']),
+            ('16//$4',          ['16', '//', '0x4']),
+            ('7%$10',           ['7', '%', '0x10']),
+            ('%101%2',          ['0b101', '%', '2']),
+            ('a<<2',            ['a', '<<', '2']),
+            ('a<=2',            ['a', '<=', '2']),
+            ('a==-1',           ['a', '==', '-', '1']),
+            ('a!=b',            ['a', '!=', 'b']),
+            ('x=.5',            ['x', '=', '.', '5']),
+            ('a<.5',            ['a', '<', '.', '5']),
+            ('1.5',             ['1.5']),
+            ('1e3',             ['1e3']),
+            ('1.5e-3',          ['1.5e-3']),
+            ('1e-_x',           ['1e', '-', '_x']),
+            ('a-1',             ['a', '-', '1']),
+            ('.byte 1 ; c',     ['.', 'byte', '1']),
+            ('; c',             []),           # a line with only a comment
             ('.byte %10, 0b10', ['.', 'byte', '0b10', ',', '0b10']),
             ('.byte $10, 0x10', ['.', 'byte', '0x10', ',', '0x10']),
-            ('.byte 10',      ['.', 'byte', '10']),
-            ('l:nop',         ['l', ':', 'nop']),
-            ('"a;b" ; c',     ['f"a;b"']),
-            ('"a\\"b"',       ['f"a\\"b"']),
-            ("'a;b'",         ["'a;b'"]),
-            ('r"a"',          ['r"a"']),
-            ('f"a"',          ['f"a"']),
-            ('x = "abc',      ['x = "abc']),   # no closing quote: one token, reported as invalid syntax
-            ("x = 'abc",      ["x = 'abc"]),
+            ('.byte 10',        ['.', 'byte', '10']),
+            ('l:nop',           ['l', ':', 'nop']),
+            ('"a;b" ; c',       ['f"a;b"']),
+            ('"a\\"b"',         ['f"a\\"b"']),
+            ("'a;b'",           ["'a;b'"]),
+            ('r"a"',            ['r"a"']),
+            ('f"a"',            ['f"a"']),
+            ('x = "abc',        ['x = "abc']), # no closing quote: one token, reported as invalid syntax
+            ("x = 'abc",        ["x = 'abc"]),
         ]:
             with self.subTest(line=line):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(line))[:-1] if t.string != '\n'], expected)
@@ -139,13 +139,13 @@ class TestLexer(unittest.TestCase):
         """A local label is named global_local, after the last global label. Before any global label, or in all capitals, it isn't changed."""
         for source, expected in [
             ('a: nop\n'
-             '_b: bne _b',          ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
+             '_b: bne _b', ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
             ('a:\n'
              'c:\n'
-             '_b: nop',             ['a', ':', 'c', ':', 'c_b', ':', 'nop']),
-            ('_b: nop',             ['_b', ':', 'nop']),
+             '_b: nop',    ['a', ':', 'c', ':', 'c_b', ':', 'nop']),
+            ('_b: nop',    ['_b', ':', 'nop']),
             ('g: nop\n'
-             '_B: bne _B',          ['g', ':', 'nop', '_B', ':', 'bne', '_B']),
+             '_B: bne _B', ['g', ':', 'nop', '_B', ':', 'bne', '_B']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(source))[:-1] if t.string != '\n'], expected)
