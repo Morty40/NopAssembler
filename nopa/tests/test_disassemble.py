@@ -48,6 +48,7 @@ class TestDisassemble(unittest.TestCase):
                 '',                                                   # nothing stored
                 '.byte 1, 2, 3\n',                                    # only data
                 '.word $1234, 0\n.text "ABC"\n.string "DEF"\n',       # data from other directives
+                '.bytefill 16\n.bytefill 20, lambda x: $ff\n',        # fills
                 '.org $2000\n.byte 1\n.org $2010\n.byte 2\n',         # a gap in the memory
                 '.align 16\n.byte 1\n.align 16\nrts\n',               # code after a gap
                 'lda $02\nlda $1234\nlda #$12\nlda $02,x\nldx $02,y\nlda ($02,x)\nlda ($02),y\nrts\n', # operands
@@ -189,7 +190,7 @@ class TestDisassemble(unittest.TestCase):
             ([0xea, 0x02, 0xea],                    ['.byte $ea, $02, $ea']),                 # runs into an unknown opcode, and the end
             ([0x4c, 0x04, 0x10, 0x60, 0x02],        ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']), # jumps to an unknown opcode
             ([0xea, 0x00, 0x60],                    ['.byte $ea, $00', '', 'rts']),           # runs into brk
-            ([0x60, *[0]*16, *[0xff]*35],           ['rts', '', '.bytefill 16', '.bytefill 35, "x: 0xff"']),
+            ([0x60, *[0]*16, *[0xff]*35],           ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']),
             ([0x60, *[0]*15],                       ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),
             ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']), # absolute below $100 would assemble as zero page, but lda has no zero page,y
         ]:
