@@ -761,19 +761,19 @@ Stores a bit pattern, 8 bits per byte. `0` and space are 0 bits, `1` and `#` are
 
 #### .bytefill
 ```
-.bytefill n[, "lambda"]
+.bytefill n[, function]
 ```
-Stores `n` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the lambda, written as a string without the `lambda` keyword:
+Stores `n` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the function for `x`, a lambda or a function from a `.python` block:
 
 ```
             .bytefill 4                 ; 00 00 00 00
-            .bytefill 4, "x: x * 2"     ; 00 02 04 06
-sine:       .bytefill 256, "x: int(128 + 127 * sin(x / 128 * pi))"
+            .bytefill 4, lambda x: x*2  ; 00 02 04 06
+sine:       .bytefill 256, lambda x: int(128 + 127 * sin(x / 128 * pi))
 ```
 
 #### .wordfill
 ```
-.wordfill n[, "lambda"]
+.wordfill n[, function]
 ```
 Like `.bytefill`, but stores 16-bit words.
 
