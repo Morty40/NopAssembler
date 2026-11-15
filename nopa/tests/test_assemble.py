@@ -96,6 +96,21 @@ class TestAssemble(unittest.TestCase):
                 self.assertEqual(len(output.splitlines()), 1)
                 self.assertIn(message, output)
 
+    def testFillErrorSize(self):
+        """A fill that fails keeps its size, with zeros for the rest, so the addresses after it stay the same."""
+        for source, size in [
+            ('.bytefill 4, lambda x: nothing\n'
+             '.print _ - $1000\n',                '4'), # fails at the first value
+            ('.bytefill 4, lambda x: [1][x]\n'
+             '.print _ - $1000\n',                '4'), # fails at the second value
+            ('.wordfill 3, lambda x: 70000\n'
+             '.print _ - $1000\n',                '6'), # a value out of range
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertTrue(anyErrors)
+                self.assertIn(size, output.splitlines())
+
     def testFillValueError(self):
         """A fill value that is out of range or not an int is one error, and not one for each value."""
         for source, message in [
