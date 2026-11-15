@@ -3,12 +3,11 @@
 
 A directive's parameters declare the arguments it accepts, and their type
 annotations the types, e.g. def org(context, address: int). Parameters
-without an annotation accept any type.
+without an annotation accept any type, and Callable accepts any function.
 """
 
 import inspect
 import os
-import types
 import typing
 from collections.abc import Callable
 
@@ -48,9 +47,14 @@ def _matches(function, arguments: list) -> bool:
         expected = parameters[name].annotation
         values = value if parameters[name].kind == inspect.Parameter.VAR_POSITIONAL else [value]
         allowed = typing.get_args(expected) or (expected,) # the types of a union, e.g. str | None
-        if expected is not inspect.Parameter.empty and any(type(v) not in allowed for v in values):
+        if expected is not inspect.Parameter.empty and not all(_fits(v, allowed) for v in values):
             return False
     return True
+
+
+def _fits(value, allowed: tuple) -> bool:
+    """A value is of one of the allowed types: exactly, so a bool is not an int, or any callable for Callable."""
+    return type(value) in allowed or (Callable in allowed and callable(value))
 
 
 def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool:
@@ -139,18 +143,18 @@ def bits(context, pattern: str):
 
 
 @directive('bytefill')
-def bytefill(context, n: int, function: types.FunctionType | None = None):
+def bytefill(context, n: int, function: Callable | None = None):
     """Store n bytes: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
     _fill(context, n, function, context.store, evaluate.byteValue)
 
 
 @directive('wordfill')
-def wordfill(context, n: int, function: types.FunctionType | None = None):
+def wordfill(context, n: int, function: Callable | None = None):
     """Store n words: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
     _fill(context, n, function, context.storeWord, evaluate.wordValue)
 
 
-def _fill(context, n: int, function: types.FunctionType | None, store, checkValue):
+def _fill(context, n: int, function: Callable | None, store, checkValue):
     """Store n values, using the store function, each checked by checkValue. If the function fails, with
     the index in the error, or gives a wrong value, the error is reported once, and the rest are zeros,
     so the size stays the same. A warning, e.g. for a truncated float, is reported once too."""

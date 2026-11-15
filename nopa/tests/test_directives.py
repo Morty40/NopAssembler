@@ -50,6 +50,7 @@ class TestDirectives(unittest.TestCase):
         self.assertFalse(_matches(org, [True]))              # a bool is not an int
         self.assertTrue(_matches(bytefill, [3]))             # optional argument
         self.assertTrue(_matches(bytefill, [3, lambda x: x]))
+        self.assertTrue(_matches(bytefill, [3, abs]))        # any callable for Callable, also a built-in function
         self.assertFalse(_matches(bytefill, [3, 'x: x']))    # a string is not a function
         self.assertTrue(_matches(bytefill, [3, None]))       # one of the types in an optional argument
         self.assertFalse(_matches(bytefill, [3, 5]))         # none of them
@@ -85,6 +86,14 @@ class TestDirectives(unittest.TestCase):
              '    return x * 2\n'
              '.end\n'
              '.bytefill 3, double\n',                    [0, 2, 4]), # a function defined in Python code
+            ('.bytefill 3, abs\n',                       [0, 1, 2]), # a built-in function
+            ('.python\n'
+             'class Table:\n'
+             '    def get(self, x):\n'
+             '        return x * 3\n'
+             'table = Table()\n'
+             '.end\n'
+             '.bytefill 3, table.get\n',                 [0, 3, 6]), # a method
             ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
             ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
             ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),             # buffer is $02 to $09
