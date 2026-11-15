@@ -160,8 +160,7 @@ def _fill(context, n: int, function: types.FunctionType | None, store, checkValu
         try:
             value = f(x)
         except Exception as exception:
-            message = str(exception) # capitalize only the first letter, keeping the case of names
-            context.reportError(f'{message[:1].upper()}{message[1:]}, at index {x}')
+            context.reportError(f'{evaluate.exceptionMessage(exception)}, at index {x}')
             value = 0
         store(checkValue(value, context))
         if len(context.errors) > errors: # an error for this value, so the rest are zeros, without more errors

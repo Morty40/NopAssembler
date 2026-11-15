@@ -7,6 +7,18 @@ import math
 from .context import Context
 
 
+def exceptionMessage(exception: Exception) -> str:
+    """The text of an exception for an error, with only the first letter capitalized, keeping the case of names.
+    The type goes first when the text alone doesn't say what failed: when there is none, e.g. a failed assert,
+    or it is only the key, e.g. KeyError: 1."""
+    message = str(exception)
+    if not message:
+        message = type(exception).__name__
+    elif isinstance(exception, KeyError):
+        message = f'{type(exception).__name__}: {message}'
+    return f'{message[:1].upper()}{message[1:]}'
+
+
 def expression(e: str, context: Context):
     """Evaluate a Python expression, or report an error and return None."""
     value = None
@@ -15,8 +27,7 @@ def expression(e: str, context: Context):
         context.noteReferences(code)
         value = builtins.eval(code, context.namespaceSymbols())
     except Exception as exception:
-        message = str(exception) # capitalize only the first letter, keeping the case of names
-        context.reportError(f'{message[:1].upper()}{message[1:]}: "{e}"')
+        context.reportError(f'{exceptionMessage(exception)}: "{e}"')
     return value
 
 

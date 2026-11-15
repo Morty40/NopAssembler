@@ -83,6 +83,13 @@ class TestAssemble(unittest.TestCase):
         for source, message in [
             ('.bytefill 4, lambda x: nothing\n',      'test.asm:1: error: Name \'nothing\' is not defined, at index 0'),
             ('.wordfill 4, lambda x: [5, 6][x]\n',    'test.asm:1: error: List index out of range, at index 2'),
+            ('.bytefill 2, lambda x: {0: 1}[x]\n',    'test.asm:1: error: KeyError: 1, at index 1'),         # the type, as the text is only the key
+            ('.python\n'
+             'def check(x):\n'
+             '    assert x < 2\n'
+             '    return x\n'
+             '.end\n'
+             '.bytefill 4, check\n',                  'test.asm:6: error: AssertionError, at index 2'),      # the type, as there is no text
         ]:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)
@@ -181,6 +188,7 @@ class TestAssemble(unittest.TestCase):
             ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
             ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
             ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
+            ('.byte {0: 1}[1]\n',                    'test.asm:1: error: KeyError: 1: "{0:1}[1]"'),
             ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),
         ])
 
