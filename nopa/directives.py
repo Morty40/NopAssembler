@@ -135,11 +135,20 @@ def setCPU(context, cpu: CPU):
 
 @directive('bits')
 def bits(context, pattern: str):
-    """Store a bit pattern, 8 bits per byte. 0 and space are 0 bits, 1 and # are 1 bits."""
-    # todo: check length
-    pattern = pattern.replace(' ', '0').replace('#', '1')
-    for binString in [pattern[i:i+8] for i in range(0, len(pattern), 8)]:
-        context.store(evaluate.byteExpression('0b'+binString, context))
+    """Store a bit pattern, 8 bits per byte, written with 0 and 1, or with space and # for 0 and 1."""
+    characters = set(pattern)
+    if not pattern:
+        context.reportError('Bit pattern must not be empty')
+    elif characters - set('01 #'):
+        context.reportError(f'Bit pattern can only have 0, 1, space and #: "{pattern}"')
+    elif characters & set('01') and characters & set(' #'):
+        context.reportError(f'Bit pattern must have either 0 and 1, or space and #, not both: "{pattern}"')
+    elif len(pattern) % 8 != 0:
+        context.reportError(f'Bit pattern must have a multiple of 8 bits, not {len(pattern)}: "{pattern}"')
+    else:
+        pattern = pattern.replace(' ', '0').replace('#', '1')
+        for i in range(0, len(pattern), 8):
+            context.store(int(pattern[i:i + 8], 2))
 
 
 @directive('bytefill')
