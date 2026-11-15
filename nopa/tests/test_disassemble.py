@@ -47,13 +47,41 @@ class TestDisassemble(unittest.TestCase):
             for source in [
                 '',                                                   # nothing stored
                 '.byte 1, 2, 3\n',                                    # only data
-                '.word $1234, 0\n.text "ABC"\n.string "DEF"\n',       # data from other directives
-                '.bytefill 16\n.bytefill 20, lambda x: $ff\n',        # fills
-                '.org $2000\n.byte 1\n.org $2010\n.byte 2\n',         # a gap in the memory
-                '.align 16\n.byte 1\n.align 16\nrts\n',               # code after a gap
-                'lda $02\nlda $1234\nlda #$12\nlda $02,x\nldx $02,y\nlda ($02,x)\nlda ($02),y\nrts\n', # operands
-                'start: ldx #3\n_loop: dex\nbne _loop\njsr sub\njmp start\n.byte 1, 2\nsub: rts\n', # labels, code and data
-                '.python\n    def delay(n):\n        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n.end\n@delay(3)\n@delay(5)\nrts\n', # a generator
+                '.word $1234, 0\n'
+                '.text "ABC"\n'
+                '.string "DEF"\n',                                    # data from other directives
+                '.bytefill 16\n'
+                '.bytefill 20, lambda x: $ff\n',                      # fills
+                '.org $2000\n'
+                '.byte 1\n'
+                '.org $2010\n'
+                '.byte 2\n',                                          # a gap in the memory
+                '.align 16\n'
+                '.byte 1\n'
+                '.align 16\n'
+                'rts\n',                                              # code after a gap
+                'lda $02\n'
+                'lda $1234\n'
+                'lda #$12\n'
+                'lda $02,x\n'
+                'ldx $02,y\n'
+                'lda ($02,x)\n'
+                'lda ($02),y\n'
+                'rts\n',                                              # operands
+                'start: ldx #3\n'
+                '_loop: dex\n'
+                'bne _loop\n'
+                'jsr sub\n'
+                'jmp start\n'
+                '.byte 1, 2\n'
+                'sub: rts\n',                                         # labels, code and data
+                '.python\n'
+                '    def delay(n):\n'
+                '        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n'
+                '.end\n'
+                '@delay(3)\n'
+                '@delay(5)\n'
+                'rts\n',                                              # a generator
             ]:
                 with self.subTest(source=source):
                     with open(name + '.asm', 'w') as f:
@@ -78,7 +106,9 @@ class TestDisassemble(unittest.TestCase):
                     instruction, mode = found
                     operands = (['_'] if mode is AddressMode.RELATIVE else ['$12', '_'] if mode is AddressMode.ZERO_PAGE_RELATIVE
                                 else ['$1234'] if mode.size == 3 else ['$12'])
-                    source = f'.cpu CPU_{theCpu.name}\n{instruction.mnemonic} {mode.syntax(*operands)}\nrts\n'
+                    source = (f'.cpu CPU_{theCpu.name}\n'
+                              f'{instruction.mnemonic} {mode.syntax(*operands)}\n'
+                              'rts\n')
                     with self.subTest(source=source):
                         with open(asmFile, 'w') as f:
                             f.write(source)
@@ -168,7 +198,10 @@ class TestDisassemble(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             labelsFile = os.path.join(directory, 'labels.py')
             with open(labelsFile, 'w') as f:
-                f.write('start = 0x1000\nstart_loop = 0x1000\nirq = 0x1040\nNAME = "text"\n')
+                f.write('start = 0x1000\n'
+                        'start_loop = 0x1000\n'
+                        'irq = 0x1040\n'
+                        'NAME = "text"\n')
             self.assertEqual(readLabels(labelsFile), {0x1000: 'start', 0x1040: 'irq'})
 
     def testFindCode(self):

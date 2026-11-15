@@ -29,13 +29,17 @@ class TestAssemble(unittest.TestCase):
 
     def testDuplicateLabel(self):
         """A label can only be defined once."""
-        anyErrors, output = self._assemble('a: nop\na: nop\n')
+        anyErrors, output = self._assemble('a: nop\n'
+                                           'a: nop\n')
         self.assertTrue(anyErrors)
         self.assertIn('test.asm:2: error: Label was already defined: "a"', output)
 
     def testConstants(self):
         """Only all upper case symbols are constants, including the built-in ones."""
-        anyErrors, output = self._assemble('myValue = 1\nmyValue = 2\nMyValue = 1\nMyValue = 2\n')
+        anyErrors, output = self._assemble('myValue = 1\n'
+                                           'myValue = 2\n'
+                                           'MyValue = 1\n'
+                                           'MyValue = 2\n')
         self.assertFalse(anyErrors, output)
 
         # built-in constants, from the imports folder
@@ -46,14 +50,23 @@ class TestAssemble(unittest.TestCase):
 
     def testSymbolTypes(self):
         """A symbol keeps its type, e.g. an int can't become a str."""
-        anyErrors, output = self._assemble('x = 1\nx = 2\nname = "a"\nname = "b"\nf = lambda v: v\nf = lambda v: v + 1\n')
+        anyErrors, output = self._assemble('x = 1\n'
+                                           'x = 2\n'
+                                           'name = "a"\n'
+                                           'name = "b"\n'
+                                           'f = lambda v: v\n'
+                                           'f = lambda v: v + 1\n')
         self.assertFalse(anyErrors, output)
 
         for source, message in [
-            ('x = 1\nx = "a"\n',          'test.asm:2: error: Symbol "x" cannot change type from int to str'),
-            ('f = lambda v: v\nf = 1\n',  'test.asm:2: error: Symbol "f" cannot change type from function to int'),
-            ('x = "a"\nx: nop\n',         'test.asm:2: error: Symbol "x" cannot change type from str to int'),
-            ('x = zp(1)\nx = "a"\n',      'test.asm:2: error: Symbol "x" cannot change type from int to str'),
+            ('x = 1\n'
+             'x = "a"\n',                 'test.asm:2: error: Symbol "x" cannot change type from int to str'),
+            ('f = lambda v: v\n'
+             'f = 1\n',                   'test.asm:2: error: Symbol "f" cannot change type from function to int'),
+            ('x = "a"\n'
+             'x: nop\n',                  'test.asm:2: error: Symbol "x" cannot change type from str to int'),
+            ('x = zp(1)\n'
+             'x = "a"\n',                 'test.asm:2: error: Symbol "x" cannot change type from int to str'),
             # the math module is protected
             ('pi = 3\n',                  'test.asm:1: error: Symbol "pi" cannot change type from float to int'),
             ('e: nop\n',                  'test.asm:1: error: Symbol "e" cannot change type from float to int'),
@@ -124,7 +137,8 @@ class TestAssemble(unittest.TestCase):
         """A .for loop whose condition is never false is an error, not a hang."""
         from unittest import mock
         with mock.patch.object(directives, 'MAX_ITERATIONS', 100): # the real limit takes seconds
-            anyErrors, output = self._assemble('.for a=0, a>=0, a+=1\n.end\n')
+            anyErrors, output = self._assemble('.for a=0, a>=0, a+=1\n'
+                                               '.end\n')
         self.assertIn('test.asm:2: error: For loop did not end after 100 iterations', output)
 
     def testFilePaths(self):
@@ -136,7 +150,9 @@ class TestAssemble(unittest.TestCase):
                     f.write(data)
             asmFile = os.path.join(directory, 'paths.asm')
             with open(asmFile, 'w') as f:
-                f.write('.binary "paths.bin"\n.org M_LOAD\n@importMusic("paths.sid", "M")\n')
+                f.write('.binary "paths.bin"\n'
+                        '.org M_LOAD\n'
+                        '@importMusic("paths.sid", "M")\n')
             context = assembleFile(asmFile, target='c64')
             self.assertEqual(context.errors, [])
             self.assertEqual((context.memory[0x1000], context.memory[0x1001], context.memory[0x2000]), (0x01, 0x02, 0x60))
@@ -167,8 +183,12 @@ class TestAssemble(unittest.TestCase):
     def testMemoryMessages(self):
         """Storing outside memory, or over bytes already stored."""
         self._assertMessages([
-            ('.org $1000\n.byte 1\n.org $1000\n.byte 2\n', 'test.asm:4: warning: $1000 is overwritten ($01 to $02)'),
-            ('.org $ffff\n.byte 1, 2\n',                   'test.asm:2: error: Destination memory address out of range: $10000'),
+            ('.org $1000\n'
+             '.byte 1\n'
+             '.org $1000\n'
+             '.byte 2\n',                                  'test.asm:4: warning: $1000 is overwritten ($01 to $02)'),
+            ('.org $ffff\n'
+             '.byte 1, 2\n',                               'test.asm:2: error: Destination memory address out of range: $10000'),
         ])
 
     def testCPUMessages(self):
@@ -176,8 +196,10 @@ class TestAssemble(unittest.TestCase):
         self._assertMessages([
             ('.cpu 7\n',                          'test.asm:1: error: Invalid directive: .cpu 7'),
             ('.cpu "65C02"\n',                    'test.asm:1: error: Invalid directive: .cpu f"65C02"'),
-            ('stz $10\n.cpu CPU_65C02\n',          'test.asm:1: error: Not an instruction of the 6502: "stz", see .cpu and --cpu'), # not from the last pass
-            ('.cpu CPU_65C02\nlax $10\n',          'test.asm:2: error: Not an instruction of the 65C02: "lax", see .cpu and --cpu'),
+            ('stz $10\n'
+             '.cpu CPU_65C02\n',                   'test.asm:1: error: Not an instruction of the 6502: "stz", see .cpu and --cpu'), # not from the last pass
+            ('.cpu CPU_65C02\n'
+             'lax $10\n',                          'test.asm:2: error: Not an instruction of the 65C02: "lax", see .cpu and --cpu'),
             ('wai\n',                             'test.asm:1: error: Not an instruction of the 6502: "wai", see .cpu and --cpu'),
             ('CPU_6502 = 1\n',                    'test.asm:1: error: Constant "CPU_6502" cannot be changed from CPU(\'6502\') to 1'),
         ])
@@ -221,24 +243,35 @@ class TestAssemble(unittest.TestCase):
         self._assertMessages([
             ('.end\n',                               'test.asm:1: error: End without matching repeat, for or if'),
             ('.else\n',                              'test.asm:1: error: Else without matching if'),
-            ('.if 1\n.else\n',                       'test.asm:2: error: Else without matching end'),
-            ('.repeat "i", 2\n.end\n',               'test.asm:1: error: Expected .repeat count'), # the count must be a number
+            ('.if 1\n'
+             '.else\n',                              'test.asm:2: error: Else without matching end'),
+            ('.repeat "i", 2\n'
+             '.end\n',                               'test.asm:1: error: Expected .repeat count'), # the count must be a number
             ('.for a=0, a<1\n',                      'test.asm:1: error: Expected .for initial, condition, step'),
-            ('.python\nx = 1\n',                     'test.asm:1: error: Invalid directive: .python'), # no .end
+            ('.python\n'
+             'x = 1\n',                              'test.asm:1: error: Invalid directive: .python'), # no .end
         ])
 
     def testElseUsedTwice(self):
         """A second .else is one error, and its .if is still open, so the .end matches it."""
-        errors = self._assembleForTarget('.if 0\n.else\n.else\n.end\n.byte 1\n').errors
+        errors = self._assembleForTarget('.if 0\n'
+                                         '.else\n'
+                                         '.else\n'
+                                         '.end\n'
+                                         '.byte 1\n').errors
         self.assertEqual(len(errors), 1, errors)
         self.assertIn('test.asm:3: error: Else already used for this if', errors[0])
 
     def testPythonMessages(self):
         """Python code that fails, in .for, .python and .import."""
         self._assertMessages([
-            ('.for a=, a<1, a+=1\n.end\n',           'test.asm:1: error: Failed to execute python code: "a="'),
-            ('.for a=0, a<1, b+=1\n.end\n',          'test.asm:2: error: Failed to execute python code: "b+=1"'),
-            ('.python\n1/0\n.end\n',                 'test.asm:1: error: Failed to execute python code: "1/0" (ZeroDivisionError: division by zero)'),
+            ('.for a=, a<1, a+=1\n'
+             '.end\n',                               'test.asm:1: error: Failed to execute python code: "a="'),
+            ('.for a=0, a<1, b+=1\n'
+             '.end\n',                               'test.asm:2: error: Failed to execute python code: "b+=1"'),
+            ('.python\n'
+             '1/0\n'
+             '.end\n',                               'test.asm:1: error: Failed to execute python code: "1/0" (ZeroDivisionError: division by zero)'),
             ('.python "1/0"\n',                      'test.asm:1: error: Invalid syntax'), # only python blocks
             ('.import "nothere.py"\n',               'test.asm:1: error: Failed to execute python code: "nothere.py" (FileNotFoundError: '),
         ])
@@ -253,11 +286,19 @@ class TestAssemble(unittest.TestCase):
     def testUnclosedBlockMessages(self):
         """A block without .end gives an error at the line that started it."""
         self._assertMessages([
-            ('.repeat 2\nnop\n',               'test.asm:1: error: Repeat without matching end'),
-            ('.for a=0, a<2, a+=1\nnop\n',      'test.asm:1: error: For without matching end'),
-            ('.if 1\nnop\n',                   'test.asm:1: error: If without matching end'),
-            ('.if 0\n.else\nnop\n',            'test.asm:2: error: If without matching end'), # at the .else
-            ('nop\n.repeat 2\n.if 1\n.end\n',  'test.asm:2: error: Repeat without matching end'), # the outer block
+            ('.repeat 2\n'
+             'nop\n',                          'test.asm:1: error: Repeat without matching end'),
+            ('.for a=0, a<2, a+=1\n'
+             'nop\n',                           'test.asm:1: error: For without matching end'),
+            ('.if 1\n'
+             'nop\n',                          'test.asm:1: error: If without matching end'),
+            ('.if 0\n'
+             '.else\n'
+             'nop\n',                          'test.asm:2: error: If without matching end'), # at the .else
+            ('nop\n'
+             '.repeat 2\n'
+             '.if 1\n'
+             '.end\n',                         'test.asm:2: error: Repeat without matching end'), # the outer block
         ])
 
     def _memory(self, source: str, target: str | None = None) -> list:
@@ -272,10 +313,14 @@ class TestAssemble(unittest.TestCase):
 
     def testEncoding(self):
         """.encoding chooses the text encoding, for .text, ord() and chr()."""
-        self.assertEqual(self._memory('.encoding ENCODING_SCREEN_UPPER\n.text "A"\n'
-                                      '.encoding ENCODING_SCREEN_MIXED\n.text "A"\n'
-                                      '.encoding ENCODING_PETSCII_UPPER\n.text "A"\n'
-                                      '.encoding ENCODING_PETSCII_MIXED\n.text "A"\n'), [0x01, 0x41, 0x41, 0x61])
+        self.assertEqual(self._memory('.encoding ENCODING_SCREEN_UPPER\n'
+                                      '.text "A"\n'
+                                      '.encoding ENCODING_SCREEN_MIXED\n'
+                                      '.text "A"\n'
+                                      '.encoding ENCODING_PETSCII_UPPER\n'
+                                      '.text "A"\n'
+                                      '.encoding ENCODING_PETSCII_MIXED\n'
+                                      '.text "A"\n'), [0x01, 0x41, 0x41, 0x61])
 
     def testEncodingEachPass(self):
         """Every pass starts with the default encoding, whichever encoding the previous pass ended with."""
@@ -298,34 +343,50 @@ class TestAssemble(unittest.TestCase):
 
     def testCustomEncoding(self):
         """An encoding is a table of characters and values, so .encoding also takes your own, for .text, ord() and chr()."""
-        self.assertEqual(self._memory('MY_FONT = {"A": 0, "B": 1}\n.encoding MY_FONT\n.text "BA"\n'
-                                      '.byte ord("B")\n.byte int(chr(0) == "A")\n'), [1, 0, 1, 1])
-        self.assertEqual(self._memory('.encoding {"A": -1}\n.string "A"\n'), [0xff, 0])
+        self.assertEqual(self._memory('MY_FONT = {"A": 0, "B": 1}\n'
+                                      '.encoding MY_FONT\n'
+                                      '.text "BA"\n'
+                                      '.byte ord("B")\n'
+                                      '.byte int(chr(0) == "A")\n'), [1, 0, 1, 1])
+        self.assertEqual(self._memory('.encoding {"A": -1}\n'
+                                      '.string "A"\n'), [0xff, 0])
 
     def testEncodingMessages(self):
         """.encoding needs an encoding, and its values must fit in a byte."""
         self._assertMessages([
             ('.encoding 7\n',                        'test.asm:1: error: Invalid directive: .encoding 7'),
             ('.encoding "A"\n',                      'test.asm:1: error: Invalid directive: .encoding f"A"'),
-            ('.encoding {"A": 1}\n.text "B"\n',       'test.asm:2: error: Unknown character "B" in text "B"'),
-            ('.encoding {"A": 300}\n.text "A"\n',     'test.asm:2: error: Byte value out of range: 300'),
-            ('.encoding {"A": "x"}\n.text "A"\n',     'test.asm:2: error: Expected an int value instead of: "\'x\'"'),
+            ('.encoding {"A": 1}\n'
+             '.text "B"\n',                           'test.asm:2: error: Unknown character "B" in text "B"'),
+            ('.encoding {"A": 300}\n'
+             '.text "A"\n',                           'test.asm:2: error: Byte value out of range: 300'),
+            ('.encoding {"A": "x"}\n'
+             '.text "A"\n',                           'test.asm:2: error: Expected an int value instead of: "\'x\'"'),
         ])
 
     def testLocalLabels(self):
         """A local label belongs to the global label before it, so a name can be used again after the next one."""
-        self.assertEqual(self._memory('aa: nop\n_0: jmp _1\nnop\n_1: jmp _0\nbb: nop\n_0: jmp _0\n'),
+        self.assertEqual(self._memory('aa: nop\n'
+                                      '_0: jmp _1\n'
+                                      'nop\n'
+                                      '_1: jmp _0\n'
+                                      'bb: nop\n'
+                                      '_0: jmp _0\n'),
                          [0xea, 0x4c, 0x05, 0x10, 0xea, 0x4c, 0x01, 0x10, 0xea, 0x4c, 0x09, 0x10])
 
     def testLocalLabelFromOutside(self):
         """A local label can be used by its full name, global_local, from anywhere."""
-        self.assertEqual(self._memory('aa: nop\n_x: nop\nbb: jmp aa_x\n'), [0xea, 0xea, 0x4c, 0x01, 0x10])
+        self.assertEqual(self._memory('aa: nop\n'
+                                      '_x: nop\n'
+                                      'bb: jmp aa_x\n'), [0xea, 0xea, 0x4c, 0x01, 0x10])
 
     def testLocalLabelWithoutGlobal(self):
         """A local label needs a global label before it."""
         self._assertMessages([
             ('_x: nop\n',               'test.asm:1: error: Local label without a global label before it: "_x"'),
-            ('nop\n_x: nop\ng: nop\n',  'test.asm:2: error: Local label without a global label before it: "_x"'),
+            ('nop\n'
+             '_x: nop\n'
+             'g: nop\n',                'test.asm:2: error: Local label without a global label before it: "_x"'),
         ])
 
     def testLabelInCapitals(self):
@@ -335,18 +396,29 @@ class TestAssemble(unittest.TestCase):
             ('VIC_BORDER_COLOR: nop\n',                                  'test.asm:1: error: Capitals are for constants, not labels: "VIC_BORDER_COLOR"'),
             ('A: nop\n',                                                 'test.asm:1: error: Capitals are for constants, not labels: "A"'),
             ('TABLE2: nop\n',                                            'test.asm:1: error: Capitals are for constants, not labels: "TABLE2"'),
-            ('g:\n_LOOP: nop\n',                                         'test.asm:2: error: Capitals are for constants, not labels: "_LOOP"'),
-            ('.python\ndef f():\n    return "_X: nop\\n"\n.end\n@f()\n', 'test.asm:5 @f():1: error: Capitals are for constants, not labels: "_X"'),
+            ('g:\n'
+             '_LOOP: nop\n',                                             'test.asm:2: error: Capitals are for constants, not labels: "_LOOP"'),
+            ('.python\n'
+             'def f():\n'
+             '    return "_X: nop\\n"\n'
+             '.end\n'
+             '@f()\n',                                                   'test.asm:5 @f():1: error: Capitals are for constants, not labels: "_X"'),
             ('_X: nop\n',                                                'test.asm:1: error: Capitals are for constants, not labels: "_X"'),
         ])
         for source in [
             'Level: nop\n',
             'level2: nop\n',
             'playerX: nop\n',
-            'g:\n_Loop: nop\n',
-            'g:\n_0: nop\n',
-            'VICe:\n_BORDER2x: nop\n',
-            '.python\n_MAX = 5\n.end\ng: lda #_MAX\n',
+            'g:\n'
+            '_Loop: nop\n',
+            'g:\n'
+            '_0: nop\n',
+            'VICe:\n'
+            '_BORDER2x: nop\n',
+            '.python\n'
+            '_MAX = 5\n'
+            '.end\n'
+            'g: lda #_MAX\n',
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._assembleForTarget(source).errors, [])
@@ -360,19 +432,27 @@ class TestAssemble(unittest.TestCase):
             ('.byte 7 if 3 in [1, 2, 3] else 8\n',        [7]),
             ('.word $1234 if flag is not None else 0\n',  [0x34, 0x12]),
             ('lda #9 if flag else 10\n',                  [0xa9, 9]),
-            ('squares = [x * x for x in range(4)]\n.byte squares[3]\n', [9]),
-            ('.python\n    def fill(x, n):\n        return f".byte {x}\\n" * n\n.end\n@fill(11, 2) if flag else ""\n', [11, 11]),
+            ('squares = [x * x for x in range(4)]\n'
+             '.byte squares[3]\n',                        [9]),
+            ('.python\n'
+             '    def fill(x, n):\n'
+             '        return f".byte {x}\\n" * n\n'
+             '.end\n'
+             '@fill(11, 2) if flag else ""\n',            [11, 11]),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(f'flag = 1\n{source}'), expected)
 
     def testFormattedStrings(self):
         """A double-quoted string can use symbols, as in a Python f-string."""
-        self.assertEqual(self._memory('a = "ABC"\n\tb = 123\n.text "{a} {b}"\n'), [1, 2, 3, 0x20, 0x31, 0x32, 0x33])
+        self.assertEqual(self._memory('a = "ABC"\n'
+                                      '\tb = 123\n'
+                                      '.text "{a} {b}"\n'), [1, 2, 3, 0x20, 0x31, 0x32, 0x33])
 
     def testLoHi(self):
         """lo() and hi() are the low and the high byte of a value."""
-        self.assertEqual(self._memory('.byte lo($1234)\n.byte hi($1234)\n'), [0x34, 0x12])
+        self.assertEqual(self._memory('.byte lo($1234)\n'
+                                      '.byte hi($1234)\n'), [0x34, 0x12])
 
     def testModulo(self):
         """% is both the binary prefix and the Python modulo operator."""
@@ -394,28 +474,67 @@ class TestAssemble(unittest.TestCase):
 
     def testRef(self):
         """ref(label) is true if the label was referenced in the last pass, wherever and however."""
-        block = '.if ref("t")\nt: .byte 8\n.end\n'
-        chain = ''.join(f'.if ref("f{i}")\nf{i}: .word f{i + 1}\n.end\n' for i in range(20)) + '.if ref("f20")\nf20: .byte 9\n.end\n'
+        block = ('.if ref("t")\n'
+                 't: .byte 8\n'
+                 '.end\n')
+        chain = ''.join(f'.if ref("f{i}")\n'
+                        f'f{i}: .word f{i + 1}\n'
+                        '.end\n' for i in range(20)) + ('.if ref("f20")\n'
+                                                         'f20: .byte 9\n'
+                                                         '.end\n')
         for source, expected in [
             ('.byte 0\n' + block,                         [0]),                                # not referenced
             ('.word t\n' + block,                         [0x02, 0x10, 8]),
             (block + '.word t\n',                         [8, 0x00, 0x10]),                    # referenced after the block
-            ('.word a\n.if ref("a")\na: .word b\n.end\n.if ref("b")\nb: .byte 9\n.end\n', [0x02, 0x10, 0x04, 0x10, 9]), # by a block
+            ('.word a\n'
+             '.if ref("a")\n'
+             'a: .word b\n'
+             '.end\n'
+             '.if ref("b")\n'
+             'b: .byte 9\n'
+             '.end\n',                                            [0x02, 0x10, 0x04, 0x10, 9]), # by a block
             ('.word f0\n' + chain,                        [0x02, 0x10] + [x for i in range(20) for x in (0x04 + 2 * i, 0x10)] + [9]),
             ('.byte 0\n' + chain,                         [0]),                                # nothing to start the chain
-            ('.byte 0\n.if ref("s")\ns: .word s\n.end\n', [0]),                                # only by itself
-            ('.byte 0\n.if ref("x")\nx: .word y\n.end\n.if ref("y")\ny: .word x\n.end\n', [0]), # only by each other
-            ('.if 0\n.word t\n.end\n.byte 0\n' + block,   [0]),                                # not referenced if skipped
-            ('.print "t"\n.byte 0\n' + block,             [0]),                                # text in a string
-            ('.print \'t\'\n.byte 0\n' + block,           [0]),
-            (".if ref('t')\nt: .byte 8\n.end\n.byte 0\n", [0]),                                # single quotes
+            ('.byte 0\n'
+             '.if ref("s")\n'
+             's: .word s\n'
+             '.end\n',                                            [0]), # only by itself
+            ('.byte 0\n'
+             '.if ref("x")\n'
+             'x: .word y\n'
+             '.end\n'
+             '.if ref("y")\n'
+             'y: .word x\n'
+             '.end\n',                                            [0]), # only by each other
+            ('.if 0\n'
+             '.word t\n'
+             '.end\n'
+             '.byte 0\n' + block,   [0]),                                # not referenced if skipped
+            ('.print "t"\n'
+             '.byte 0\n' + block,             [0]),                                # text in a string
+            ('.print \'t\'\n'
+             '.byte 0\n' + block,           [0]),
+            (".if ref('t')\n"
+             "t: .byte 8\n"
+             ".end\n"
+             ".byte 0\n", [0]),                                # single quotes
             ('.print "{t}"\n' + block,                    [8]),                                # an expression in a string
             ('lda #lo(t)\n' + block,                      [0xa9, 0x02, 8]),                    # in an expression
             ('.bytefill 1, lambda x: lo(t)\n' + block,    [0x01, 8]),                          # in a lambda
             ('@"jmp t"\n' + block,                        [0x4c, 0x03, 0x10, 8]),              # by generated code
-            ('.python\ndef f():\n    return t\n.end\n.word f()\n' + block, [0x02, 0x10, 8]), # by Python code
-            ('.if ref("t")\nt: .byte 8\n.else\n.byte 7\n.end\n',  [7]),                         # with .else
-            ('.if ref("nothing")\n.byte 1\n.end\n',       []),
+            ('.python\n'
+             'def f():\n'
+             '    return t\n'
+             '.end\n'
+             '.word f()\n' + block, [0x02, 0x10, 8]), # by Python code
+            ('.if ref("t")\n'
+             't: .byte 8\n'
+             '.else\n'
+             '.byte 7\n'
+             '.end\n',                                            [7]),                         # with .else
+            ('.if ref("nothing")\n'
+             '.byte 1\n'
+             '.end\n',                                    []),
         ]:
             with self.subTest(source=source[:50]):
                 self.assertEqual(self._memory(source), expected)
@@ -450,28 +569,37 @@ class TestAssemble(unittest.TestCase):
             ('CPU_6502',   'lda #300',      False),  # out of range
         ):
             with self.subTest(cpu=cpu, instruction=instruction):
-                anyErrors, output = self._assemble(f'.cpu {cpu}\n.print has("{instruction}")\n')
+                anyErrors, output = self._assemble(f'.cpu {cpu}\n'
+                                                   f'.print has("{instruction}")\n')
                 self.assertFalse(anyErrors, output)
                 self.assertEqual(output.strip(), str(expected))
 
     def testHasFollowsCpu(self):
         """has() answers for the cpu at that line, and chooses a code path."""
-        path = '.if has("lax $12")\nlax $12\n.else\nlda $12\ntax\n.end\n'
+        path = ('.if has("lax $12")\n'
+                'lax $12\n'
+                '.else\n'
+                'lda $12\n'
+                'tax\n'
+                '.end\n')
         self.assertEqual(self._memory(path + '.cpu CPU_65C02\n' + path), [0xa7, 0x12, 0xa5, 0x12, 0xaa])
 
     def testHasInGenerator(self):
         """A generator can use has() to choose the code."""
-        anyErrors, output = self._assemble("@'lax $12' if has('lax $12') else 'nop'\n.print _\n")
+        anyErrors, output = self._assemble("@'lax $12' if has('lax $12') else 'nop'\n"
+                                           ".print _\n")
         self.assertFalse(anyErrors, output)
         self.assertEqual(output.strip(), str(0x1002))
 
     def testHasLeavesNoTrace(self):
         """Trying an instruction stores nothing, reports nothing, and is no reference for ref()."""
         for source, expected in (
-            ('.print has("nop")\n.print _\n',          f'True\n{0x1000}'),  # no address change
+            ('.print has("nop")\n'
+             '.print _\n',                             f'True\n{0x1000}'),  # no address change
             ('.print has("sta nothing")\n',            'False'),            # no error
             ('.print has("jmp ($12ff)")\n',            'True'),             # no warning
-            ('.print has("sta t")\n.print ref("t")\n', 'False\nFalse'),     # no reference
+            ('.print has("sta t")\n'
+             '.print ref("t")\n',                      'False\nFalse'),     # no reference
         ):
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)
@@ -480,11 +608,16 @@ class TestAssemble(unittest.TestCase):
 
     def testHasStoresNothing(self):
         """Trying an instruction at an address in use leaves its byte alone."""
-        self.assertEqual(self._memory('nop\n.org $1000\n.if has("rts")\n.end\n'), [0xea])
+        self.assertEqual(self._memory('nop\n'
+                                      '.org $1000\n'
+                                      '.if has("rts")\n'
+                                      '.end\n'), [0xea])
 
     def testHasTypo(self):
         """A word that is an instruction of no cpu is an error, not a different code path."""
-        anyErrors, output = self._assemble('.if has("lxa $12")\nnop\n.end\n')
+        anyErrors, output = self._assemble('.if has("lxa $12")\n'
+                                           'nop\n'
+                                           '.end\n')
         self.assertTrue(anyErrors)
         self.assertIn('test.asm:1: error: Not an instruction: "lxa"', output)
 
@@ -497,23 +630,31 @@ class TestAssemble(unittest.TestCase):
             ('CPU_W65C02', [0x48, 0xda, 0x5a, 0x7a, 0xfa, 0x68]),
         ):
             with self.subTest(cpu=cpu):
-                self.assertEqual(self._memory(f'.cpu {cpu}\n@pushRegisters()\n@pullRegisters()\n'), expected)
+                self.assertEqual(self._memory(f'.cpu {cpu}\n'
+                                              '@pushRegisters()\n'
+                                              '@pullRegisters()\n'), expected)
 
     def testAssignment(self):
         """The value of a Python expression is assigned to the symbol."""
-        self.assertEqual(self._memory('x = 1 + 2\n.byte x\n'), [3])
+        self.assertEqual(self._memory('x = 1 + 2\n'
+                                      '.byte x\n'), [3])
 
     def testFailedAssignment(self):
         """A symbol is not assigned, if the expression fails."""
         self._assertMessages([
             ('x = undefined\n',          "test.asm:1: error: Name 'undefined' is not defined"),
-            ('x = undefined\n.byte x\n', "test.asm:2: error: Name 'x' is not defined"),
+            ('x = undefined\n'
+             '.byte x\n',                "test.asm:2: error: Name 'x' is not defined"),
         ])
 
     def testConstantKeepsValue(self):
         """An upper case symbol can be assigned the same value again, and keeps its value if it can't."""
-        self.assertEqual(self._memory('MAX = 1\nMAX = 1\n.byte MAX\n'), [1])
-        anyErrors, output = self._assemble('MAX = 1\nMAX = 2\n.print MAX\n')
+        self.assertEqual(self._memory('MAX = 1\n'
+                                      'MAX = 1\n'
+                                      '.byte MAX\n'), [1])
+        anyErrors, output = self._assemble('MAX = 1\n'
+                                           'MAX = 2\n'
+                                           '.print MAX\n')
         self.assertTrue(anyErrors)
         self.assertTrue(output.startswith('1\n'), output)
         self.assertIn('test.asm:2: error: Constant "MAX" cannot be changed from 1 to 2', output)
@@ -533,16 +674,39 @@ class TestAssemble(unittest.TestCase):
     def testRefOtherSymbols(self):
         """A symbol in a block that is not assembled is not defined."""
         self._assertMessages([
-            ('.if ref("t")\nt: nop\nK = 2\n.end\nlda #K\n',    "test.asm:5: error: Name 'K' is not defined"),
-            ('.if ref("t")\nt: nop\nv = zp(1)\n.end\nlda v\n', "test.asm:5: error: Name 'v' is not defined"),
+            ('.if ref("t")\n'
+             't: nop\n'
+             'K = 2\n'
+             '.end\n'
+             'lda #K\n',                                       "test.asm:5: error: Name 'K' is not defined"),
+            ('.if ref("t")\n'
+             't: nop\n'
+             'v = zp(1)\n'
+             '.end\n'
+             'lda v\n',                                        "test.asm:5: error: Name 'v' is not defined"),
         ])
 
     def testOptional(self):
         """An optional block is only assembled if one of its global labels was referenced in the last pass."""
-        table = '.optional\nmyTable: .byte 1, 2, 3\n.end\n'
-        functions = '.optional\nfunc1: nop\nrts\nfunc2: nop\nrts\n.end\n'
-        zeroPage = '.optional\nxyz = zp(1)\nfunc3: lda xyz\nrts\n.end\n'
-        selfUse = '.optional\nfunc6: dex\nbne func6\nrts\n.end\n'
+        table = ('.optional\n'
+                 'myTable: .byte 1, 2, 3\n'
+                 '.end\n')
+        functions = ('.optional\n'
+                     'func1: nop\n'
+                     'rts\n'
+                     'func2: nop\n'
+                     'rts\n'
+                     '.end\n')
+        zeroPage = ('.optional\n'
+                    'xyz = zp(1)\n'
+                    'func3: lda xyz\n'
+                    'rts\n'
+                    '.end\n')
+        selfUse = ('.optional\n'
+                   'func6: dex\n'
+                   'bne func6\n'
+                   'rts\n'
+                   '.end\n')
         for source, expected in [
             ('.byte 0\n' + table,                         [0]),                                # not referenced
             ('.word myTable\n' + table,                   [0x02, 0x10, 1, 2, 3]),
@@ -551,20 +715,41 @@ class TestAssemble(unittest.TestCase):
             ('.word func2\n' + functions,                 [0x04, 0x10, 0xea, 0x60, 0xea, 0x60]),
             ('.byte 0\n' + zeroPage,                      [0]),
             ('.word func3\n' + zeroPage,                  [0x02, 0x10, 0xa5, 0x02, 0x60]),
-            ('.optional\n.byte 1, 2, 3\n.end\n',          []),                                 # no global labels
-            ('.optional\n_x: .byte 1\n.end\n',            []),                                 # only a local label
+            ('.optional\n'
+             '.byte 1, 2, 3\n'
+             '.end\n',                                    []),                                 # no global labels
+            ('.optional\n'
+             '_x: .byte 1\n'
+             '.end\n',                                    []),                                 # only a local label
             ('.byte 0\n' + selfUse,                       [0]),                                # only by itself
             ('jsr func6\n' + selfUse,                     [0x20, 0x03, 0x10, 0xca, 0xd0, 0xfd, 0x60]),
-            ('.word a\n.optional\na: .word b\n.end\n.optional\nb: .byte 9\n.end\n', [0x02, 0x10, 0x04, 0x10, 9]), # by a block
-            ('.print "myTable"\n.byte 0\n' + table,       [0]),                                # text in a string
-            ('.word f\n.optional\n.if 1\nf: nop\n.end\n.end\n', [0x02, 0x10, 0xea]),          # in an .if in the block
+            ('.word a\n'
+             '.optional\n'
+             'a: .word b\n'
+             '.end\n'
+             '.optional\n'
+             'b: .byte 9\n'
+             '.end\n',                                    [0x02, 0x10, 0x04, 0x10, 9]),        # by a block
+            ('.print "myTable"\n'
+             '.byte 0\n' + table,       [0]),                                # text in a string
+            ('.word f\n'
+             '.optional\n'
+             '.if 1\n'
+             'f: nop\n'
+             '.end\n'
+             '.end\n',                                    [0x02, 0x10, 0xea]),                 # in an .if in the block
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
 
     def testOptionalNested(self):
         """A nested block is only assembled if the outer block is, and they each check their own labels."""
-        nested = '.optional\nfunc4: .byte 4\n.optional\nfunc5: .byte 5\n.end\n.end\n'
+        nested = ('.optional\n'
+                  'func4: .byte 4\n'
+                  '.optional\n'
+                  'func5: .byte 5\n'
+                  '.end\n'
+                  '.end\n')
         self.assertEqual(self._memory('.byte 0\n' + nested), [0])
         self.assertEqual(self._memory('.word func4\n' + nested), [0x02, 0x10, 4])
         self.assertEqual(self._memory('.word func4, func5\n' + nested), [0x04, 0x10, 0x05, 0x10, 4, 5])
@@ -572,24 +757,43 @@ class TestAssemble(unittest.TestCase):
     def testOptionalMessages(self):
         """An optional block needs an .end, and its symbols are not defined when it is left out."""
         self._assertMessages([
-            ('.optional\nt: nop\n',                      'test.asm:1: error: Optional without matching end'),
-            ('.optional\nf: nop\n.optional\ng: nop\n.end\n.end\njmp g\n', "test.asm:7: error: Name 'g' is not defined"),
-            ('.optional\nf: nop\nK = 2\n.end\nlda #K\n',  "test.asm:5: error: Name 'K' is not defined"),
+            ('.optional\n'
+             't: nop\n',                                 'test.asm:1: error: Optional without matching end'),
+            ('.optional\n'
+             'f: nop\n'
+             '.optional\n'
+             'g: nop\n'
+             '.end\n'
+             '.end\n'
+             'jmp g\n',                                  "test.asm:7: error: Name 'g' is not defined"),
+            ('.optional\n'
+             'f: nop\n'
+             'K = 2\n'
+             '.end\n'
+             'lda #K\n',                                  "test.asm:5: error: Name 'K' is not defined"),
         ])
 
     def testOperatorsNextToOperands(self):
         """Number prefixes and local labels work next to any operator, without spaces."""
         for source, expected in [
-            ('t = $20\nlda t-$10\n',         [0xa5, 0x10]),
+            ('t = $20\n'
+             'lda t-$10\n',                  [0xa5, 0x10]),
             ('.byte -$10\n',                 [0xf0]),
             ('.byte 2*$10\n',                [0x20]),
             ('.byte 8-%10\n',                [6]),
             ('.byte %101%2\n',               [1]),
             ('.byte 7%$10\n',                [7]),
-            ('x =.5\n.byte x*2\n',           [1]),
-            ('g:\n_a: nop\n_b: nop\n.byte _b-_a\n', [0xea, 0xea, 1]),
-            ('g:\n_a: nop\n.word 2*_a\n',    [0xea, 0x00, 0x20]),
-            ('nop\n.word _-1\n',             [0xea, 0x00, 0x10]),
+            ('x =.5\n'
+             '.byte x*2\n',                  [1]),
+            ('g:\n'
+             '_a: nop\n'
+             '_b: nop\n'
+             '.byte _b-_a\n',                [0xea, 0xea, 1]),
+            ('g:\n'
+             '_a: nop\n'
+             '.word 2*_a\n',                 [0xea, 0x00, 0x20]),
+            ('nop\n'
+             '.word _-1\n',                  [0xea, 0x00, 0x10]),
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
@@ -597,13 +801,41 @@ class TestAssemble(unittest.TestCase):
     def testSection(self):
         """A section starts at its address, and continues where it stopped."""
         for source, expected in [
-            ('.section "a", $2000\n.byte 1\n.section "b", $3000\n.byte 2\n.section "a"\n.byte 3\n',    {0x2000: 1, 0x2001: 3, 0x3000: 2}),
-            ('.section "a", 0\n.byte 1\n.section "b", $1000\n.byte 2\n.section "a"\n.byte 3\n',        {0: 1, 1: 3, 0x1000: 2}),                               # address 0
-            ('.section "a", $2000\n.org $2800\n.byte 1\n.section "b", $3000\n.section "a"\n.byte 2\n', {0x2800: 1, 0x2801: 2}),                                # .org in a section
-            ('.section "a", $2000\n.word b\n.section "b", $3000\nb: .byte 1\n',                        {0x2000: 0, 0x2001: 0x30, 0x3000: 1}),                  # a forward reference
-            ('.section "a", $2000\n_ = _ + 1\n.section "b", $3000\n.section "a"\n.byte 1\n',           {0x2001: 1}),                                           # memory reserved, nothing stored
-            ('.section "a", $2000\ng: nop\n_x: nop\n.section "b", $3000\n.word _x\n',                  {0x2000: 0xea, 0x2001: 0xea, 0x3000: 1, 0x3001: 0x20}), # local labels don't change
-            ('.byte 1\n.section "a", $2000\n.byte 2\n',                                                {0x1000: 1, 0x2000: 2}),                                # code before the first section
+            ('.section "a", $2000\n'
+             '.byte 1\n'
+             '.section "b", $3000\n'
+             '.byte 2\n'
+             '.section "a"\n'
+             '.byte 3\n',                                                                              {0x2000: 1, 0x2001: 3, 0x3000: 2}),
+            ('.section "a", 0\n'
+             '.byte 1\n'
+             '.section "b", $1000\n'
+             '.byte 2\n'
+             '.section "a"\n'
+             '.byte 3\n',                                                                              {0: 1, 1: 3, 0x1000: 2}),                               # address 0
+            ('.section "a", $2000\n'
+             '.org $2800\n'
+             '.byte 1\n'
+             '.section "b", $3000\n'
+             '.section "a"\n'
+             '.byte 2\n',                                                                              {0x2800: 1, 0x2801: 2}),                                # .org in a section
+            ('.section "a", $2000\n'
+             '.word b\n'
+             '.section "b", $3000\n'
+             'b: .byte 1\n',                                                                           {0x2000: 0, 0x2001: 0x30, 0x3000: 1}),                  # a forward reference
+            ('.section "a", $2000\n'
+             '_ = _ + 1\n'
+             '.section "b", $3000\n'
+             '.section "a"\n'
+             '.byte 1\n',                                                                              {0x2001: 1}),                                           # memory reserved, nothing stored
+            ('.section "a", $2000\n'
+             'g: nop\n'
+             '_x: nop\n'
+             '.section "b", $3000\n'
+             '.word _x\n',                                                                             {0x2000: 0xea, 0x2001: 0xea, 0x3000: 1, 0x3001: 0x20}), # local labels don't change
+            ('.byte 1\n'
+             '.section "a", $2000\n'
+             '.byte 2\n',                                                                              {0x1000: 1, 0x2000: 2}),                                # code before the first section
         ]:
             with self.subTest(source=source):
                 context = self._assembleForTarget(source)
@@ -614,21 +846,37 @@ class TestAssemble(unittest.TestCase):
         """A new section needs an address, and only a new section can have one."""
         self._assertMessages([
             ('.section "x"\n',                                                     'test.asm:1: error: New section needs an address: "x"'),
-            ('.section "x", $1000\n.section "x", $2000\n',                         'test.asm:2: error: Section already has an address: "x"'),
-            ('.section "x", $1000\n.section "y", $2000\n.section "x", $3000\n',    'test.asm:3: error: Section already has an address: "x"'),
+            ('.section "x", $1000\n'
+             '.section "x", $2000\n',                                              'test.asm:2: error: Section already has an address: "x"'),
+            ('.section "x", $1000\n'
+             '.section "y", $2000\n'
+             '.section "x", $3000\n',                                              'test.asm:3: error: Section already has an address: "x"'),
             ('.section 5, $1000\n',                                                'test.asm:1: error: Invalid directive: .section 5,0x1000'),
             ('.section\n',                                                         'test.asm:1: error: Invalid directive: .section'),
-            ('.section "a", $1000\n.byte 1, 1, 1\n.section "b", $1002\n.byte 2\n', 'test.asm:4: warning: $1002 is overwritten ($01 to $02)'),
+            ('.section "a", $1000\n'
+             '.byte 1, 1, 1\n'
+             '.section "b", $1002\n'
+             '.byte 2\n',                                                          'test.asm:4: warning: $1002 is overwritten ($01 to $02)'),
         ])
 
     def testSectionInImportedFile(self):
         """An imported file continues the sections of the file that imports it."""
         with tempfile.TemporaryDirectory() as directory:
             with open(os.path.join(directory, 'lib.asm'), 'w') as f:
-                f.write('.section "code"\n.byte 2\n.section "data"\n.byte 4\n')
+                f.write('.section "code"\n'
+                        '.byte 2\n'
+                        '.section "data"\n'
+                        '.byte 4\n')
             fileName = os.path.join(directory, 'test.asm')
             with open(fileName, 'w') as f:
-                f.write('.section "data", $2000\n.section "code", $1000\n.byte 1\n.import "lib.asm"\n.section "code"\n.byte 3\n.section "data"\n.byte 5\n')
+                f.write('.section "data", $2000\n'
+                        '.section "code", $1000\n'
+                        '.byte 1\n'
+                        '.import "lib.asm"\n'
+                        '.section "code"\n'
+                        '.byte 3\n'
+                        '.section "data"\n'
+                        '.byte 5\n')
             context = assembleFile(fileName)
         self.assertEqual(context.errors, [])
         self.assertEqual(context.memory, {0x1000: 1, 0x1001: 2, 0x1002: 3, 0x2000: 4, 0x2001: 5})
@@ -641,33 +889,47 @@ class TestAssemble(unittest.TestCase):
             ('a = zp("x")\n',            'test.asm:1: error: Zero page size must be an int, not str: "zp(f"x")"'),
             ('a = zp(True)\n',           'test.asm:1: error: Zero page size must be an int, not bool: "zp(True)"'),
             ('a = zp(255)\n',            'test.asm:1: error: Not enough zero page left: 255 needed, 254 left: "zp(255)"'),
-            ('a = zp(254)\nb = zp(1)\n', 'test.asm:2: error: Not enough zero page left: 1 needed, 0 left: "zp(1)"'),
+            ('a = zp(254)\n'
+             'b = zp(1)\n',              'test.asm:2: error: Not enough zero page left: 1 needed, 0 left: "zp(1)"'),
         ])
 
     def testZeroPageReused(self):
         """Each zp() allocates new bytes, also for a name that has some, or in a loop. A name holds its latest address,
         and a use before its first assignment gets the last one."""
         for source, expected in [
-            ('lda temp\ntemp = zp(1)\nsta temp\ntemp = zp(1)\nsta temp\n',  [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
-            ('.repeat 3\nv = zp(1)\n.end\nnext = zp(1)\n.byte next, v\n',   [0x05, 0x04]),                           # $02 to $04 in the loop
+            ('lda temp\n'
+             'temp = zp(1)\n'
+             'sta temp\n'
+             'temp = zp(1)\n'
+             'sta temp\n',                                                  [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
+            ('.repeat 3\n'
+             'v = zp(1)\n'
+             '.end\n'
+             'next = zp(1)\n'
+             '.byte next, v\n',                                             [0x05, 0x04]),                           # $02 to $04 in the loop
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
 
     def testPrint(self):
         """.print prints once, after the last pass, so values are final, even with errors."""
-        anyErrors, output = self._assemble('.print "start", later\njmp later\nlater: rts\n') # later is $1003
+        anyErrors, output = self._assemble('.print "start", later\n'
+                                           'jmp later\n'
+                                           'later: rts\n') # later is $1003
         self.assertFalse(anyErrors, output)
         self.assertEqual(output.count('start\n'), 1, output)
         self.assertIn('start\n4099\n', output)
-        anyErrors, output = self._assemble('.print "before"\n.error "stop"\n')
+        anyErrors, output = self._assemble('.print "before"\n'
+                                           '.error "stop"\n')
         self.assertTrue(anyErrors)
         self.assertIn('before\n', output)
 
     def testAssert(self):
         """.assert reports nothing if the condition is true, also for labels defined later."""
         for source in ['.assert 2 < 3\n', '.assert 2 < 3, "Something is wrong"\n',
-                       '.assert later == $1003\njmp later\nlater: rts\n']:
+                       '.assert later == $1003\n'
+                       'jmp later\n'
+                       'later: rts\n']:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)
                 self.assertFalse(anyErrors, output)
@@ -677,7 +939,12 @@ class TestAssemble(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fileName = os.path.join(directory, 'test.asm')
             with open(fileName, 'w') as f:
-                f.write('nop\n.break\nnop\n.break "RL > $40 && A == $00"\nlater: rts\n.break 5\n')
+                f.write('nop\n'
+                        '.break\n'
+                        'nop\n'
+                        '.break "RL > $40 && A == $00"\n'
+                        'later: rts\n'
+                        '.break 5\n')
             context = assembleFile(fileName)
         self.assertEqual(context.breakpoints, [(0x1001, None), (0x1002, 'RL > $40 && A == $00')])
         self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5'])
@@ -692,7 +959,9 @@ class TestAssemble(unittest.TestCase):
 
     def testNoTarget(self):
         """Without a target only the generic 6502 imports are available, and no BASIC."""
-        self.assertEqual(self._assembleForTarget('@ldax($1234)\n@pushRegisters()\nlda INTERRUPT_VECTOR_NMI\n').errors, [])
+        self.assertEqual(self._assembleForTarget('@ldax($1234)\n'
+                                                 '@pushRegisters()\n'
+                                                 'lda INTERRUPT_VECTOR_NMI\n').errors, [])
         for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_ROM', 'BASIC_TOKEN_SYS', 'basicLine', 'CHAR_ROM', 'IO_PORT_DATA']:
             with self.subTest(name=name):
                 self.assertIn(f"Name '{name}' is not defined", self._assembleForTarget(f'.word {name}\n').errors[0])
@@ -701,16 +970,22 @@ class TestAssemble(unittest.TestCase):
         """Each target has the BASIC version of its machine: its tokens, and the keywords @basicLine converts."""
         for target, graphic in [('c64', None), ('vic20', None), ('c16', 0xde), ('plus4', 0xde), ('c128', 0xde), ('cx16', None)]:
             with self.subTest(target=target):
-                context = self._assembleForTarget('.org $1000\n@basicLine(10, "GRAPHIC 1")\n', target)
+                context = self._assembleForTarget('.org $1000\n'
+                                                  '@basicLine(10, "GRAPHIC 1")\n', target)
                 self.assertEqual(context.errors, [])
                 self.assertEqual(context.symbols.get('BASIC_TOKEN_GRAPHIC'), graphic)
                 self.assertEqual(context.memory[0x1004], graphic or ord('G'))
-        context = self._assembleForTarget('.org $1000\n@basicLine(10, "BANK 15")\n', 'c128') # BASIC 7.0, not 3.5
+        context = self._assembleForTarget('.org $1000\n'
+                                          '@basicLine(10, "BANK 15")\n', 'c128') # BASIC 7.0, not 3.5
         self.assertEqual([context.memory[0x1004], context.memory[0x1005]], [0xfe, 0x02])
 
     def testBasicLineProgram(self):
         """Each line links to the next, labels can be used, and the text encoding is unchanged."""
-        memory = self._memory('.org $1001\n@basicLine(10, "SYS {start}")\n@basicLine(20, "END")\n@basicEnd()\nstart: .text "A"\n', 'c64')
+        memory = self._memory('.org $1001\n'
+                              '@basicLine(10, "SYS {start}")\n'
+                              '@basicLine(20, "END")\n'
+                              '@basicEnd()\n'
+                              'start: .text "A"\n', 'c64')
         self.assertEqual(memory[:2], [0x0c, 0x10])                     # 2 + 2 + 7 bytes of text and the end, from $1001
         self.assertEqual(memory[4:11], [0x9e, *b' 4116', 0])           # start is $1014
         self.assertEqual(memory[11:13], [0x12, 0x10])                  # the next line, at $100c
@@ -718,7 +993,10 @@ class TestAssemble(unittest.TestCase):
 
     def testBasicSys(self):
         """@basicSys is a @basicLine with a SYS, so it has the same link to the next line, and text encoding."""
-        memory = self._memory('.org $1001\n@basicSys(10, start)\n@basicEnd()\nstart: .text "A"\n', 'c64')
+        memory = self._memory('.org $1001\n'
+                              '@basicSys(10, start)\n'
+                              '@basicEnd()\n'
+                              'start: .text "A"\n', 'c64')
         self.assertEqual(memory, [0x0b, 0x10, 10, 0, 0x9e, *b'4109', 0, 0, 0, 1])
 
     def testBasicLineMessages(self):
@@ -734,7 +1012,11 @@ class TestAssemble(unittest.TestCase):
                 with open(fileName, 'w') as f:
                     f.write(source)
                 return assembleFile(fileName, defines=defines)
-        context = assembleWithDefines('.byte PAL, size\nsize = 2\n.if DEBUG\n.byte 3\n.end\n', {'PAL': '1', 'size': '$10', 'DEBUG': 'True'})
+        context = assembleWithDefines('.byte PAL, size\n'
+                                      'size = 2\n'
+                                      '.if DEBUG\n'
+                                      '.byte 3\n'
+                                      '.end\n', {'PAL': '1', 'size': '$10', 'DEBUG': 'True'})
         self.assertEqual(context.errors, [])
         self.assertEqual(context.memory, {0x1000: 1, 0x1001: 0x10, 0x1002: 3}) # size is $10 again in each pass
         self.assertEqual(assembleWithDefines('PAL = 1\n', {'PAL': '1'}).errors, [])   # the same value
@@ -744,7 +1026,10 @@ class TestAssemble(unittest.TestCase):
 
     def testTargets(self):
         """A target adds the imports of its folder, to the generic ones."""
-        source = '@basicStart()\n@basicLine(10, "SYS {start}")\n@basicEnd()\nstart: @ldax($1234)\n'
+        source = ('@basicStart()\n'
+                  '@basicLine(10, "SYS {start}")\n'
+                  '@basicEnd()\n'
+                  'start: @ldax($1234)\n')
         for target, start in [('c64', 0x0801), ('vic20', 0x1001), ('c16', 0x1001), ('plus4', 0x1001), ('c128', 0x1c01), ('cx16', 0x0801)]:
             with self.subTest(target=target):
                 context = self._assembleForTarget(source, target)
@@ -942,7 +1227,9 @@ class TestMusic(unittest.TestCase):
     def testImportMusic(self):
         """@importMusic stores the music where .org says, and defines the addresses with the prefix."""
         sid = os.path.basename(self._sidFile(loadAddress=0x2000, initAddress=0x2000, playAddress=0x2003, data=b'\x4c\x00\x20\x60'))
-        context = self._assemble(f'.org MUSIC_LOAD\n@importMusic("{sid}", "MUSIC")\njsr MUSIC_INIT\n')
+        context = self._assemble('.org MUSIC_LOAD\n'
+                                 f'@importMusic("{sid}", "MUSIC")\n'
+                                 'jsr MUSIC_INIT\n')
         self.assertEqual(context.errors, [])
         memory = [context.memory[address] for address in sorted(context.memory)]
         self.assertEqual(memory, [0x4c, 0x00, 0x20, 0x60, 0x20, 0x00, 0x20])
@@ -953,7 +1240,8 @@ class TestMusic(unittest.TestCase):
     def testImportMusicWithLoadAddressInData(self):
         """The load address in the first two bytes of the data is not stored."""
         sid = os.path.basename(self._sidFile(loadAddress=0, initAddress=0x2000, data=b'\x00\x20\x60'))
-        context = self._assemble(f'.org M_LOAD\n@importMusic("{sid}", "M")\n')
+        context = self._assemble('.org M_LOAD\n'
+                                 f'@importMusic("{sid}", "M")\n')
         self.assertEqual(context.errors, [])
         self.assertEqual(context.memory, {0x2000: 0x60})
 

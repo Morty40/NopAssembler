@@ -62,7 +62,9 @@ class TestLexer(unittest.TestCase):
 
     def testUnclosedQuote(self):
         """A missing end quote doesn't crash, and the other lines are still tokenized."""
-        strings = [t.string for t in tokenize('nop\n.text "abc\nrts')]
+        strings = [t.string for t in tokenize('nop\n'
+                                              '.text "abc\n'
+                                              'rts')]
         self.assertEqual(strings[:2], ['nop', '\n'])
         self.assertEqual(strings[-2:], ['rts', '\n'])
 
@@ -136,17 +138,26 @@ class TestLexer(unittest.TestCase):
     def testLocalLabelNames(self):
         """A local label is named global_local, after the last global label. Before any global label, or in all capitals, it isn't changed."""
         for source, expected in [
-            ('a: nop\n_b: bne _b',  ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
-            ('a:\nc:\n_b: nop',     ['a', ':', 'c', ':', 'c_b', ':', 'nop']),
+            ('a: nop\n'
+             '_b: bne _b',          ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
+            ('a:\n'
+             'c:\n'
+             '_b: nop',             ['a', ':', 'c', ':', 'c_b', ':', 'nop']),
             ('_b: nop',             ['_b', ':', 'nop']),
-            ('g: nop\n_B: bne _B',  ['g', ':', 'nop', '_B', ':', 'bne', '_B']),
+            ('g: nop\n'
+             '_B: bne _B',          ['g', ':', 'nop', '_B', ':', 'bne', '_B']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(source))[:-1] if t.string != '\n'], expected)
 
     def testPythonBlock(self):
         """A .python block becomes one .python line with the code as a string, keeping the line count."""
-        strings = [t.string for t in tokenize('nop\n.python\n    def f(x):\n        return x; # a;b\n.end\nrts')]
+        strings = [t.string for t in tokenize('nop\n'
+                                              '.python\n'
+                                              '    def f(x):\n'
+                                              '        return x; # a;b\n'
+                                              '.end\n'
+                                              'rts')]
         self.assertEqual(strings[:5], ['nop', '\n', '.', 'python', repr('def f(x):\n    return x; # a;b')])
         self.assertEqual(strings[5:], ['\n'] * 4 + ['rts', '\n'])
 

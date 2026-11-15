@@ -54,7 +54,13 @@ class TestGenerators(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fileName = os.path.join(directory, 'test.asm')
             with open(fileName, 'w') as f:
-                f.write('.python\ndef f(n):\n    return n or "_x: nop\\n"\n.end\n@f(1)\n@f(0)\nnop\n')
+                f.write('.python\n'
+                        'def f(n):\n'
+                        '    return n or "_x: nop\\n"\n'
+                        '.end\n'
+                        '@f(1)\n'
+                        '@f(0)\n'
+                        'nop\n')
             context = assembleFile(fileName)
         self.assertEqual(len(context.errors), 1, context.errors)
         self.assertIn('Generator must return a string, not int', context.errors[0])
@@ -73,20 +79,39 @@ class TestGenerators(unittest.TestCase):
 
     def testForwardReference(self):
         """A generator argument can be a symbol that is given after the call."""
-        self.assertEqual(self._memory('.python\n    def fill(x, n):\n        return f".byte {x}\\n" * n\n.end\n'
-                                      '@fill(1, length)\n@fill(2, length)\nlength = 3\n'), [1, 1, 1, 2, 2, 2])
+        self.assertEqual(self._memory('.python\n'
+                                      '    def fill(x, n):\n'
+                                      '        return f".byte {x}\\n" * n\n'
+                                      '.end\n'
+                                      '@fill(1, length)\n'
+                                      '@fill(2, length)\n'
+                                      'length = 3\n'), [1, 1, 1, 2, 2, 2])
 
     def testLocalLabelBytes(self):
         """Each call has its own local labels, after a label or in the same scope as the last call."""
-        self.assertEqual(self._memory('.python\n    def delay(n):\n        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n.end\n'
-                                      'aa: @delay(3)\nbb: @delay(5)\n@delay(7)\nrts\n'),
+        self.assertEqual(self._memory('.python\n'
+                                      '    def delay(n):\n'
+                                      '        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n'
+                                      '.end\n'
+                                      'aa: @delay(3)\n'
+                                      'bb: @delay(5)\n'
+                                      '@delay(7)\n'
+                                      'rts\n'),
                          [0xa2, 3, 0xca, 0xd0, 0xfd, 0xa2, 5, 0xca, 0xd0, 0xfd, 0xa2, 7, 0xca, 0xd0, 0xfd, 0x60])
 
     def testNamedArguments(self):
         """Named arguments work with or without spaces around the =."""
-        self.assertEqual(self._memory('.python\n    def jump(address):\n        return f"jmp {address}\\n"\n.end\nstart:\n'
-                                      '@jump(address=_sub)\n@jump(address =_sub)\n@jump(address= _sub)\n@jump(address = _sub)\n'
-                                      '_sub:\nrts\n'), [0x4c, 0x0c, 0x10] * 4 + [0x60])
+        self.assertEqual(self._memory('.python\n'
+                                      '    def jump(address):\n'
+                                      '        return f"jmp {address}\\n"\n'
+                                      '.end\n'
+                                      'start:\n'
+                                      '@jump(address=_sub)\n'
+                                      '@jump(address =_sub)\n'
+                                      '@jump(address= _sub)\n'
+                                      '@jump(address = _sub)\n'
+                                      '_sub:\n'
+                                      'rts\n'), [0x4c, 0x0c, 0x10] * 4 + [0x60])
 
 
 if __name__ == '__main__':
