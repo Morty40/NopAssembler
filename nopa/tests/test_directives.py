@@ -456,7 +456,8 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 errors = self._errors(source, files)
                 self.assertEqual(len(errors), 1, errors)
-                self.assertIn("(SyntaxError: '(' was never closed (bad.py, line 2))", errors[0])
+                self.assertEqual(errors, ['test.asm:1: error: Failed to execute python code: "bad.py" '
+                                          "(SyntaxError: '(' was never closed (bad.py, line 2))"])
 
     def testImportNamespaceNotAssembled(self):
         """A namespace imported in a block that is not assembled is not defined, like other symbols."""
