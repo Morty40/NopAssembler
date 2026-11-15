@@ -5,7 +5,7 @@ import unittest
 
 from ..context import Context
 from .. import text
-from ..evaluate import byteExpression, expression, intExpression, wordExpression
+from ..evaluate import byteExpression, byteValue, expression, intExpression, intValue, wordExpression, wordValue
 
 
 class TestEvaluate(unittest.TestCase):
@@ -92,6 +92,23 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(value, 0xffff)
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 1)
+
+    def testValues(self):
+        """A value is checked as an expression's value is, and a message shows its repr."""
+        for check, value, expected, warnings, errors in [
+            (intValue,  2,       2,      [],                                       []),
+            (intValue,  2.5,     2,      ['warning: Truncating float value: 2.5'], []),
+            (intValue,  'B',     0,      [],                                       ['error: Expected an int value instead of: "\'B\'"']),
+            (byteValue, -10,     0xf6,   [],                                       []),
+            (byteValue, 0x123,   0x23,   [],                                       ['error: Byte value out of range: 291']),
+            (wordValue, -10,     0xfff6, [],                                       []),
+            (wordValue, 0x12345, 0x2345, [],                                       ['error: Word value out of range: 74565']),
+        ]:
+            with self.subTest(check=check.__name__, value=value):
+                context = Context({})
+                self.assertEqual(check(value, context), expected)
+                self.assertEqual(context.warnings, warnings)
+                self.assertEqual(context.errors, errors)
 
     def testEncodingFunctions(self):
         """ord() and chr() in expressions use the current encoding."""

@@ -82,14 +82,14 @@ def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool
 def byte(context, *values):
     """Store bytes."""
     for value in values:
-        context.store(evaluate.byteValue(value, repr(value), context))
+        context.store(evaluate.byteValue(value, context))
 
 
 @directive('word')
 def word(context, *values):
     """Store 16-bit words, low byte first."""
     for value in values:
-        context.storeWord(evaluate.wordValue(value, repr(value), context))
+        context.storeWord(evaluate.wordValue(value, context))
 
 
 @directive('text')
@@ -110,7 +110,7 @@ def _storeTexts(context, texts, zeroTerminated: bool):
         for char in t:
             o = text.ord(char, context.encoding)
             if o is not None:
-                context.store(evaluate.byteValue(o, repr(o), context)) # your own encoding can have any value
+                context.store(evaluate.byteValue(o, context)) # your own encoding can have any value
             else:
                 context.reportError(f'Unknown character "{char}" in text "{t}"')
         if zeroTerminated:
@@ -162,7 +162,7 @@ def _fill(context, n: int, function: types.FunctionType | None, store, checkValu
             context.reportError(f'{message[:1].upper()}{message[1:]}, at index {x}')
             f = lambda x: 0
             value = 0
-        store(checkValue(value, repr(value), context))
+        store(checkValue(value, context))
 
 
 @directive('org')
