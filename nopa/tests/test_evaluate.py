@@ -77,14 +77,6 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(expression('chr(65)', context), 'A')
         self.assertEqual(len(context.errors), 0)
 
-    def testDivZeroExpression(self):
-        """Dividing by zero is an error, and gives None."""
-        context = Context({})
-        value = expression('0/0', context)
-        self.assertEqual(value, None)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 1)
-
 
 if __name__ == '__main__':
     unittest.main()

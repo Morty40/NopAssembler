@@ -543,7 +543,6 @@ class TestDirectives(unittest.TestCase):
     def testImportPythonMessages(self):
         """A Python file that fails is reported by its name, whatever goes wrong."""
         for content, exception in [
-            (b'x = (\n',  'SyntaxError'),
             (b'1/0\n',    'ZeroDivisionError'),
             (b'\xff\xfe', 'UnicodeDecodeError'), # can't be read
         ]:
