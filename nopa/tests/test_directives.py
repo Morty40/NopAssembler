@@ -79,6 +79,7 @@ class TestDirectives(unittest.TestCase):
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, lambda x: x+N\nN = 1\n',      [1, 0, 2, 0, 3, 0]),
             ('.bytefill 2, lambda x: int(cos(x*pi))\n',  [1, 0xff]), # with the math functions
+            ('.bytefill 4, lambda x: x / 2\n',            [0, 0, 1, 1]), # floats are truncated
             ('.python\n'
              'def double(x):\n'
              '    return x * 2\n'

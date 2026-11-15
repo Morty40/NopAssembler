@@ -111,6 +111,12 @@ class TestAssemble(unittest.TestCase):
                 self.assertTrue(anyErrors)
                 self.assertIn(size, output.splitlines())
 
+    def testFillWarning(self):
+        """Fill values that are truncated floats are one warning, for the first, and not one for each value."""
+        anyErrors, output = self._assemble('.bytefill 4, lambda x: x / 2\n')
+        self.assertEqual(len(output.splitlines()), 1)
+        self.assertIn('test.asm:1: warning: Truncating float value: 0.5', output)
+
     def testFillValueError(self):
         """A fill value that is out of range or not an int is one error, and not one for each value."""
         for source, message in [
