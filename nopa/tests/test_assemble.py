@@ -65,7 +65,7 @@ class TestAssemble(unittest.TestCase):
 
     def testByteWordString(self):
         """A string is not a .byte or .word value, even if a symbol has that name."""
-        for source in ['.byte "B"', '.word "B"', '.bytefill 1, "x: \'B\'"', '.wordfill 1, "x: \'B\'"']:
+        for source in ['.byte "B"', '.word "B"', '.bytefill 1, lambda x: "B"', '.wordfill 1, lambda x: "B"']:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(f'B = 5\n{source}\n')
                 self.assertIn('test.asm:2: error: Expected an int value instead of: "\'B\'"', output)
@@ -148,7 +148,8 @@ class TestAssemble(unittest.TestCase):
             ('.org undefinedSymbol\n',               'test.asm:1: error: Invalid directive: .org undefinedSymbol'),
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
-            ('.bytefill 1, "x: MAX_Speed"\n',        'test.asm:1: error: Name \'MAX_Speed\' is not defined\n'),
+            ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined\n'),
+            ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
         ])
 
     def testReportMessages(self):
@@ -367,7 +368,7 @@ class TestAssemble(unittest.TestCase):
             (".if ref('t')\nt: .byte 8\n.end\n.byte 0\n", [0]),                                # single quotes
             ('.print "{t}"\n' + block,                    [8]),                                # an expression in a string
             ('lda #lo(t)\n' + block,                      [0xa9, 0x02, 8]),                    # in an expression
-            ('.bytefill 1, "x: lo(t)"\n' + block,         [0x01, 8]),                          # in a lambda
+            ('.bytefill 1, lambda x: lo(t)\n' + block,    [0x01, 8]),                          # in a lambda
             ('@"jmp t"\n' + block,                        [0x4c, 0x03, 0x10, 8]),              # by generated code
             ('.python\ndef f():\n    return t\n.end\n.word f()\n' + block, [0x02, 0x10, 8]), # by Python code
             ('.if ref("t")\nt: .byte 8\n.else\n.byte 7\n.end\n',  [7]),                         # with .else

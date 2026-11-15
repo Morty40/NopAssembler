@@ -8,6 +8,7 @@ without an annotation accept any type.
 
 import inspect
 import os
+import types
 import typing
 from collections.abc import Callable
 
@@ -138,20 +139,20 @@ def bits(context, pattern: str):
 
 
 @directive('bytefill')
-def bytefill(context, n: int, function: str | None = None):
-    """Store n bytes: zero, or the values of a lambda, e.g. "x: x * 2"."""
+def bytefill(context, n: int, function: types.FunctionType | None = None):
+    """Store n bytes: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
     _fill(context, n, function, context.store, evaluate.byteExpression)
 
 
 @directive('wordfill')
-def wordfill(context, n: int, function: str | None = None):
-    """Store n words: zero, or the values of a lambda, e.g. "x: x * 2"."""
+def wordfill(context, n: int, function: types.FunctionType | None = None):
+    """Store n words: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
     _fill(context, n, function, context.storeWord, evaluate.wordExpression)
 
 
-def _fill(context, n: int, function: str | None, store, valueExpression):
+def _fill(context, n: int, function: types.FunctionType | None, store, valueExpression):
     """Store n values, using the store function, each checked by valueExpression."""
-    f = evaluate.lambdaExpression(function, context) if function is not None else lambda x: 0
+    f = function if function is not None else lambda x: 0
     for x in range(0, n):
         try:
             value = f(x)
