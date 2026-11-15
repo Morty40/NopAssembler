@@ -62,7 +62,7 @@ def wordValue(value, context: Context, e: str | None = None) -> int:
 
 
 def intExpression(e: str, context: Context) -> int:
-    """Evaluate an int. Floats are truncated, other types give an error."""
+    """Evaluate an int. Floats are truncated, other types give an error, as do infinity and NaN."""
     return intValue(expression(e, context), context, e)
 
 
