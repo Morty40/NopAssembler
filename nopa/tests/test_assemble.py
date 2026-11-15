@@ -89,6 +89,17 @@ class TestAssemble(unittest.TestCase):
                 self.assertEqual(len(output.splitlines()), 1)
                 self.assertIn(message, output)
 
+    def testFillValueError(self):
+        """A fill value that is out of range or not an int is one error, and not one for each value."""
+        for source, message in [
+            ('.bytefill 200, lambda x: x * 2\n', 'test.asm:1: error: Byte value out of range: 256'),
+            ('.wordfill 3, lambda x: "a"\n',     'test.asm:1: error: Expected an int value instead of: "\'a\'"'),
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertEqual(len(output.splitlines()), 1)
+                self.assertIn(message, output)
+
     def testGeneratorNotString(self):
         """A generator must return assembly code as a string, or it is an error."""
         anyErrors, output = self._assemble('.python\ndef emit(): pass\n.end\n@emit()\n') # forgot to return the code
