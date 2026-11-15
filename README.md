@@ -816,7 +816,7 @@ reversed:   .bytefill 256, reverseBits
 ```
 Like `.bytefill`, but stores 16-bit words.
 
-A table of the SID frequency of each note, with the C64 target's names: each note is 2^(1/12) above the one before, and the SID's value is the frequency in Hz × 2²⁴ / the clock rate:
+A table of the SID frequency of each note, with the C64 target's names: each note is 2^(1/12) times the one before, and the SID's value is the frequency in Hz × 2^24 / the clock rate:
 
 ```
 ; play the note in x on voice 1
