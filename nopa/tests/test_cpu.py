@@ -84,7 +84,7 @@ class TestCpu(unittest.TestCase):
 
     def testIllegalInstructions(self):
         """The stable illegal instructions are instructions, but not the illegal nops, usbc, or the unstable ones."""
-        self.assertEqual(self._opcodeCount(), 208)
+        self.assertEqual(self._opcodeCount(), 208) # 151 documented, and 57 stable illegal opcodes
         self.assertEqual(CPU_6502.instructionForOpcode(0xa7), (CPU_6502.instructionWithMnemonic('lax'), AddressMode.ZERO_PAGE))
         self.assertEqual(CPU_6502.instructionForOpcode(0x04), None) # an illegal nop
         self.assertEqual(CPU_6502.instructionForOpcode(0xeb), None) # usbc, the same as sbc #
@@ -216,7 +216,7 @@ class TestCpu(unittest.TestCase):
 
     def testUnknownAddressMode(self):
         """A misspelled address mode in the table is an error when the module is loaded."""
-        self.assertRaises(KeyError, Instruction, 'xxx', zeroPagee=(0x00, '2'))
+        self.assertRaises(KeyError, Instruction, 'xxx', zeroPagee=(0x00, '2')) # zeroPage, misspelled
 
 
 if __name__ == '__main__':

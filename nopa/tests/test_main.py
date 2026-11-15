@@ -31,12 +31,33 @@ class TestMain(unittest.TestCase):
 
     def testUsage(self):
         """Missing or incorrect arguments print the usage, and exit with 2."""
-        for arguments in [[], ['-o', 'x.prg'], ['-d'], ['x.asm', 'extra'], ['-x'],
-                          ['x.asm', '--vice'], ['x.asm', '-t'], ['x.asm', '-t', 'amiga'], ['-d', 'x.prg', '-t', 'c64'],
-                          ['x.asm', '-l'], ['x.asm', '--labels'], ['x.asm', '--cpu'], ['x.asm', '--cpu', 'z80'],
-                          ['x.asm', '--format'], ['x.asm', '--format', 'd64'], ['-d', 'x.prg', '--format', 'bin'],
-                          ['x.asm', '-D'], ['x.asm', '-D', '1X=2'], ['x.asm', '-D', '=2'], ['-d', 'x.prg', '-D', 'X'],
-                          ['x.asm', '-D', '_x=1'], ['x.asm', '-D', '_=1'], ['x.asm', '-D', 'if'], ['x.asm', '-D', 'lda=1'], ['x.asm', '-D', 'stz']]:
+        for arguments in [
+            [],                                 # no file
+            ['-o', 'x.prg'],
+            ['-d'],
+            ['x.asm', 'extra'],                 # two files
+            ['-x'],                             # an unknown option
+            ['x.asm', '--vice'],                # an option without its value
+            ['x.asm', '-t'],
+            ['x.asm', '-l'],
+            ['x.asm', '--labels'],
+            ['x.asm', '--cpu'],
+            ['x.asm', '--format'],
+            ['x.asm', '-D'],
+            ['x.asm', '-t', 'amiga'],           # a value that isn't one of the choices
+            ['x.asm', '--cpu', 'z80'],
+            ['x.asm', '--format', 'd64'],
+            ['-d', 'x.prg', '-t', 'c64'],       # an option only for assembling
+            ['-d', 'x.prg', '--format', 'bin'],
+            ['-d', 'x.prg', '-D', 'X'],
+            ['x.asm', '-D', '1X=2'],            # a name the source can't use
+            ['x.asm', '-D', '=2'],
+            ['x.asm', '-D', '_x=1'],
+            ['x.asm', '-D', '_=1'],
+            ['x.asm', '-D', 'if'],
+            ['x.asm', '-D', 'lda=1'],
+            ['x.asm', '-D', 'stz'],             # a mnemonic of the 65C02
+        ]:
             with self.subTest(arguments=arguments):
                 code, output, errors = self._main(arguments)
                 self.assertEqual(code, 2)
@@ -80,6 +101,7 @@ class TestMain(unittest.TestCase):
             asmFile = os.path.join(directory, 'test.asm')
             with open(asmFile, 'w') as f:
                 f.write('.print BASIC_START_ADDRESS\n')
+            # BASIC_START_ADDRESS in decimal: $0801 on the C64, $1001 on the VIC-20 and C16
             for arguments, expected in [(['-t', 'c64'], '2049'), (['--target', 'vic20'], '4097'), (['-t', 'c16'], '4097'), (['--target=c64'], '2049')]:
                 with self.subTest(arguments=arguments):
                     code, output, errors = self._main([asmFile] + arguments)
@@ -97,10 +119,10 @@ class TestMain(unittest.TestCase):
                 f.write('.print PAL, size, DEBUG\n')
             code, output, errors = self._main([asmFile, '-D', 'PAL=45', '--define', 'size=$10', '-D', 'DEBUG'])
             self.assertEqual(code, 0, errors)
-            self.assertEqual(output.splitlines()[:3], ['45', '16', 'True'])
+            self.assertEqual(output.splitlines()[:3], ['45', '16', 'True']) # $10 is 16, and a name alone is True
             code, output, errors = self._main([asmFile, '-D', 'PAL=x', '-D', 'size=1', '-D', 'DEBUG'])
             self.assertEqual(code, 1)
-            self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors)
+            self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors) # a -D value is reported as from the command line
 
     def testDefineInvalid(self):
         """A -D name must be a name the source can use: not a local label, a Python keyword or built-in, or a mnemonic."""
@@ -124,7 +146,7 @@ class TestMain(unittest.TestCase):
             self.assertIn('Memory used: $1000-$1001 (2 bytes)', output.splitlines())
             self.assertEqual(errors, f'{asmFile}:2: warning: careful\n')
             with open(prgFile, 'rb') as f:
-                self.assertEqual(f.read(), bytes([0x00, 0x10, 0xa9, 0x01]))
+                self.assertEqual(f.read(), bytes([0x00, 0x10, 0xa9, 0x01])) # the load address $1000, and lda #1
 
     def testAssembleError(self):
         """With an error, assembling still prints the .print output, but not the memory use, and saves nothing. Exits with 1."""
@@ -156,9 +178,9 @@ class TestMain(unittest.TestCase):
     def testPrg(self):
         """A .prg file is the load address, the lowest address used or $1000 if nothing is stored,
         then the bytes from there to the highest address, gaps as 0."""
-        for memory, expected in [({0x2000: 1, 0x1fff: 2}, [0xff, 0x1f, 2, 1]),
-                                 ({0x1000: 1, 0x1002: 3}, [0x00, 0x10, 1, 0, 3]),
-                                 ({},                     [0x00, 0x10])]:
+        for memory, expected in [({0x2000: 1, 0x1fff: 2}, [0xff, 0x1f, 2, 1]),    # from the lowest address, $1fff
+                                 ({0x1000: 1, 0x1002: 3}, [0x00, 0x10, 1, 0, 3]), # a gap as 0
+                                 ({},                     [0x00, 0x10])]:         # nothing stored: $1000, and no bytes
             with self.subTest(memory=memory):
                 context = Context({})
                 context.memory = memory
@@ -278,7 +300,7 @@ class TestMain(unittest.TestCase):
                      'sprites.asm': 'draw: rts\n'
                                     '.import "plot.asm", "util"\n',
                      'plot.asm':    'plot: rts\n',
-                     'other.asm':   '.import "game.py"\n'
+                     'other.asm':   '.import "game.py"\n' # the labels file is Python, which another program can import
                                     'jsr spr_util_plot\n'}
             for name, text in files.items():
                 with open(os.path.join(directory, name), 'w') as f:
@@ -290,7 +312,7 @@ class TestMain(unittest.TestCase):
                 self.assertEqual(f.read(), expected)
             context = assemble.assembleFile(os.path.join(directory, 'other.asm'))
             self.assertEqual(context.errors, [])
-            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10})
+            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10}) # jsr spr_util_plot, at $1002
 
     def testLabelCollision(self):
         """Two labels that are written with the same name, e.g. spr_draw and spr.draw, are an error,
@@ -361,7 +383,7 @@ class TestMain(unittest.TestCase):
                         '.warning "careful"\n')
             output = subprocess.run([sys.executable, '-m', 'nopa.main', asmFile], cwd=root,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
-        lines = [line.split('/')[-1] for line in output.splitlines()]
+        lines = [line.split('/')[-1] for line in output.splitlines()] # without the folder
         self.assertEqual(lines[:2], ['hi', 'test.asm:2: warning: careful'])
 
     def testMissingSource(self):
@@ -387,7 +409,7 @@ class TestMain(unittest.TestCase):
             ([],       'None',                  '0 full, 0 partial', {}),
             ([0x0000], '$0000-$0000 (1 bytes)', '0 full, 1 partial', {0: '+...............'}),
             ([0xffff], '$ffff-$ffff (1 bytes)', '0 full, 1 partial', {15: '...............+'}),
-            ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}),
+            ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}), # gaps counted: page $10 full, $11 empty, $12 partly used
         ]:
             with self.subTest(used=used):
                 context = Context({})

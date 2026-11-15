@@ -68,13 +68,13 @@ class TestDirectives(unittest.TestCase):
         """The directives that store bytes, including values given after they are used."""
         for source, expected in [
             ('.byte -128, 0, 127, 255',                 [0x80, 0x00, 0x7f, 0xff]), # no newline at the end
-            ('.word -32768, 0, 32767, 65535',           [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]),
+            ('.word -32768, 0, 32767, 65535',           [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]), # two's complement, the low byte first
             ('.bits "00000000"\n',                      [0]),
             ('.bits "000000010000001000000011"\n',      [1, 2, 3]),
             ('.bits "     #  "\n',                      [4]),                      # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',      [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n'
-             '.string "ABC", "DEF"\n',                  [1, 2, 3, 0, 4, 5, 6, 0]),
+             '.string "ABC", "DEF"\n',                  [1, 2, 3, 0, 4, 5, 6, 0]), # each text followed by a zero
             ('.bytefill 0\n',                           []),                       # nothing, but not an error
             ('.bytefill 3\n',                           [0, 0, 0]),
             ('.bytefill 3, lambda x: x+N\n'
@@ -153,7 +153,7 @@ class TestDirectives(unittest.TestCase):
     def testImport(self):
         """.import assembles a source file, or runs a Python file, found beside the main source file."""
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
-        self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
+        self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'}) # also into a namespace
         self._assertBytes('.import "fill.py"\n'
                           '@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n'
                                                                '    return f".byte {x}\\n" * n\n'})
@@ -293,7 +293,7 @@ class TestDirectives(unittest.TestCase):
              'jsr spr.util.draw\n'
              '.byte spr.util.SPEED\n', [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
             ('.import "inherit.asm", "spr"\n'
-             'jsr spr.helper\n',       [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
+             'jsr spr.helper\n',       [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]), # helper from plain.asm, which is in spr too
             ('.import "pyouter.asm", "spr"\n'
              '.byte spr.util.x\n',     [5, 5]), # a .py namespace in spr
             ('.import "fillouter.asm", "spr"\n'
@@ -418,7 +418,7 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('main: rts\n'
              '.import "main.asm", "spr"\n',    ['main.asm:1: error: Name \'main\' is not defined: "main"',
-                                              'main.asm:1: error: Expected an int value instead of: "main"']),
+                                                'main.asm:1: error: Expected an int value instead of: "main"']),
             ('speed = 3\n'
              '.import "speed.asm", "spr"\n',   ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
             ('.python\n'
@@ -427,7 +427,7 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.import "helper.asm", "spr"\n',  ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
             ('.import "outer.asm", "spr"\n',   ['inner.asm:1: error: Name \'start\' is not defined: "start"',
-                                              'inner.asm:1: error: Expected an int value instead of: "start"']),
+                                                'inner.asm:1: error: Expected an int value instead of: "start"']),
             ('.import "pyouter.asm", "spr"\n'
              '.byte util.x\n',                 ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
             ('.import "sprites.asm", "spr"\n'

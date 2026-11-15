@@ -38,7 +38,7 @@ class TestAssemble(unittest.TestCase):
         """Only all upper case symbols are constants, including the built-in ones."""
         anyErrors, output = self._assemble('myValue = 1\n'
                                            'myValue = 2\n'
-                                           'MyValue = 1\n'
+                                           'MyValue = 1\n' # capitals and lower case: a variable
                                            'MyValue = 2\n')
         self.assertFalse(anyErrors, output)
 
@@ -109,7 +109,7 @@ class TestAssemble(unittest.TestCase):
         ]:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)
-                self.assertEqual([line[line.index('test.asm'):] for line in output.splitlines()], expected)
+                self.assertEqual([line[line.index('test.asm'):] for line in output.splitlines()], expected) # without the folder
 
     def testFillErrorSize(self):
         """A fill keeps its size when values fail, as they are zero, so the addresses after it stay the same."""
@@ -144,6 +144,7 @@ class TestAssemble(unittest.TestCase):
     def testFilePaths(self):
         """.binary and @importMusic read files relative to the folder of the main source file, not the current folder."""
         with tempfile.TemporaryDirectory() as directory:
+            # a PSID header: version 2, data at $7c, load and init at $2000, play at $2003, and one song
             sid = struct.pack('>4sHHHHHHHL32s32s32sHBBBB', b'PSID', 2, 0x7c, 0x2000, 0x2000, 0x2003, 1, 1, 0, b'', b'', b'', 0, 0, 0, 0, 0)
             for name, data in [('paths.bin', b'\x01\x02'), ('paths.sid', sid + b'\x60')]:
                 with open(os.path.join(directory, name), 'wb') as f:
@@ -195,7 +196,7 @@ class TestAssemble(unittest.TestCase):
         """.cpu needs a cpu, and each pass starts with the 6502 again."""
         self._assertMessages([
             ('.cpu 7\n',         'test.asm:1: error: Invalid directive: .cpu 7'),
-            ('.cpu "65C02"\n',   'test.asm:1: error: Invalid directive: .cpu f"65C02"'),
+            ('.cpu "65C02"\n',   'test.asm:1: error: Invalid directive: .cpu f"65C02"'),                          # a string, not a cpu
             ('stz $10\n'
              '.cpu CPU_65C02\n', 'test.asm:1: error: Not an instruction of the 6502: "stz", see .cpu and --cpu'), # not from the last pass
             ('.cpu CPU_65C02\n'
@@ -320,7 +321,7 @@ class TestAssemble(unittest.TestCase):
                                       '.encoding ENCODING_PETSCII_UPPER\n'
                                       '.text "A"\n'
                                       '.encoding ENCODING_PETSCII_MIXED\n'
-                                      '.text "A"\n'), [0x01, 0x41, 0x41, 0x61])
+                                      '.text "A"\n'), [0x01, 0x41, 0x41, 0x61]) # A in each encoding
 
     def testEncodingEachPass(self):
         """Every pass starts with the default encoding, whichever encoding the previous pass ended with."""
@@ -349,7 +350,7 @@ class TestAssemble(unittest.TestCase):
                                       '.byte ord("B")\n'
                                       '.byte int(chr(0) == "A")\n'), [1, 0, 1, 1])
         self.assertEqual(self._memory('.encoding {"A": -1}\n'
-                                      '.string "A"\n'), [0xff, 0])
+                                      '.string "A"\n'), [0xff, 0]) # -1 in two's complement
 
     def testEncodingMessages(self):
         """.encoding needs an encoding, and its values must fit in a byte."""
@@ -372,7 +373,7 @@ class TestAssemble(unittest.TestCase):
                                       '_1: jmp _0\n'
                                       'bb: nop\n'
                                       '_0: jmp _0\n'),
-                         [0xea, 0x4c, 0x05, 0x10, 0xea, 0x4c, 0x01, 0x10, 0xea, 0x4c, 0x09, 0x10])
+                         [0xea, 0x4c, 0x05, 0x10, 0xea, 0x4c, 0x01, 0x10, 0xea, 0x4c, 0x09, 0x10]) # aa_0 jumps to aa_1, aa_1 to aa_0, and bb_0 to itself
 
     def testLocalLabelFromOutside(self):
         """A local label can be used by its full name, global_local, from anywhere."""
@@ -412,13 +413,13 @@ class TestAssemble(unittest.TestCase):
             'g:\n'
             '_Loop: nop\n',
             'g:\n'
-            '_0: nop\n',
-            'VICe:\n'
+            '_0: nop\n', # digits only
+            'VICe:\n' # mixed case
             '_BORDER2x: nop\n',
             '.python\n'
             '_MAX = 5\n'
             '.end\n'
-            'g: lda #_MAX\n',
+            'g: lda #_MAX\n', # a Python name, not a label
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._assembleForTarget(source).errors, [])
@@ -428,7 +429,7 @@ class TestAssemble(unittest.TestCase):
         for source, expected in [
             ('.byte 1 if flag else 2\n',                 [1]),
             ('.byte 3 if not flag else 4\n',             [4]),
-            ('.byte flag and 5, flag or 6\n',            [5, 1]),
+            ('.byte flag and 5, flag or 6\n',            [5, 1]),   # and gives 5, or gives flag
             ('.byte 7 if 3 in [1, 2, 3] else 8\n',       [7]),
             ('.word $1234 if flag is not None else 0\n', [0x34, 0x12]),
             ('lda #9 if flag else 10\n',                 [0xa9, 9]),
@@ -438,7 +439,7 @@ class TestAssemble(unittest.TestCase):
              '    def fill(x, n):\n'
              '        return f".byte {x}\\n" * n\n'
              '.end\n'
-             '@fill(11, 2) if flag else ""\n',           [11, 11]),
+             '@fill(11, 2) if flag else ""\n',           [11, 11]), # a generator call in an expression
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(f'flag = 1\n{source}'), expected)
@@ -446,8 +447,8 @@ class TestAssemble(unittest.TestCase):
     def testFormattedStrings(self):
         """A double-quoted string can use symbols, as in a Python f-string."""
         self.assertEqual(self._memory('a = "ABC"\n'
-                                      '\tb = 123\n'
-                                      '.text "{a} {b}"\n'), [1, 2, 3, 0x20, 0x31, 0x32, 0x33])
+                                      '\tb = 123\n' # an assignment can be indented, also with a tab
+                                      '.text "{a} {b}"\n'), [1, 2, 3, 0x20, 0x31, 0x32, 0x33]) # ABC, a space and 123, in screen codes
 
     def testLoHi(self):
         """lo() and hi() are the low and the high byte of a value."""
@@ -477,6 +478,7 @@ class TestAssemble(unittest.TestCase):
         block = ('.if ref("t")\n'
                  't: .byte 8\n'
                  '.end\n')
+        # 21 blocks, each assembled only when the one before it is
         chain = ''.join(f'.if ref("f{i}")\n'
                         f'f{i}: .word f{i + 1}\n'
                         '.end\n' for i in range(20)) + ('.if ref("f20")\n'
@@ -493,7 +495,7 @@ class TestAssemble(unittest.TestCase):
              '.if ref("b")\n'
              'b: .byte 9\n'
              '.end\n',                 [0x02, 0x10, 0x04, 0x10, 9]), # by a block
-            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(20) for x in (0x04 + 2 * i, 0x10)] + [9]),
+            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(20) for x in (0x04 + 2 * i, 0x10)] + [9]), # the whole chain
             ('.byte 0\n' + chain,      [0]),                         # nothing to start the chain
             ('.byte 0\n'
              '.if ref("s")\n'
@@ -582,14 +584,14 @@ class TestAssemble(unittest.TestCase):
                 'lda $12\n'
                 'tax\n'
                 '.end\n')
-        self.assertEqual(self._memory(path + '.cpu CPU_65C02\n' + path), [0xa7, 0x12, 0xa5, 0x12, 0xaa])
+        self.assertEqual(self._memory(path + '.cpu CPU_65C02\n' + path), [0xa7, 0x12, 0xa5, 0x12, 0xaa]) # lax on the 6502, lda and tax on the 65C02
 
     def testHasInGenerator(self):
         """A generator can use has() to choose the code."""
         anyErrors, output = self._assemble("@'lax $12' if has('lax $12') else 'nop'\n"
                                            ".print _\n")
         self.assertFalse(anyErrors, output)
-        self.assertEqual(output.strip(), str(0x1002))
+        self.assertEqual(output.strip(), str(0x1002)) # lax $12 was assembled, 2 bytes
 
     def testHasLeavesNoTrace(self):
         """Trying an instruction stores nothing, reports nothing, and is no reference for ref()."""
@@ -624,8 +626,8 @@ class TestAssemble(unittest.TestCase):
     def testPushPullRegisters(self):
         """pushRegisters and pullRegisters use phx, phy, plx and ply on the cpus that have them."""
         for cpu, expected in (
-            ('CPU_6502',   [0x48, 0x8a, 0x48, 0x98, 0x48, 0x68, 0xa8, 0x68, 0xaa, 0x68]),
-            ('CPU_65C02',  [0x48, 0xda, 0x5a, 0x7a, 0xfa, 0x68]),
+            ('CPU_6502',   [0x48, 0x8a, 0x48, 0x98, 0x48, 0x68, 0xa8, 0x68, 0xaa, 0x68]), # pha, txa, pha, tya, pha, and pla, tay, pla, tax, pla
+            ('CPU_65C02',  [0x48, 0xda, 0x5a, 0x7a, 0xfa, 0x68]),                         # pha, phx, phy, and ply, plx, pla
             ('CPU_R65C02', [0x48, 0xda, 0x5a, 0x7a, 0xfa, 0x68]),
             ('CPU_W65C02', [0x48, 0xda, 0x5a, 0x7a, 0xfa, 0x68]),
         ):
@@ -778,22 +780,22 @@ class TestAssemble(unittest.TestCase):
         for source, expected in [
             ('t = $20\n'
              'lda t-$10\n',    [0xa5, 0x10]),
-            ('.byte -$10\n',   [0xf0]),
+            ('.byte -$10\n',   [0xf0]),             # two's complement
             ('.byte 2*$10\n',  [0x20]),
-            ('.byte 8-%10\n',  [6]),
-            ('.byte %101%2\n', [1]),
-            ('.byte 7%$10\n',  [7]),
+            ('.byte 8-%10\n',  [6]),                # 8 - 2
+            ('.byte %101%2\n', [1]),                # 5 % 2
+            ('.byte 7%$10\n',  [7]),                # 7 % 16
             ('x =.5\n'
-             '.byte x*2\n',    [1]),
+             '.byte x*2\n',    [1]),                # .5 right after =
             ('g:\n'
              '_a: nop\n'
              '_b: nop\n'
              '.byte _b-_a\n',  [0xea, 0xea, 1]),
             ('g:\n'
              '_a: nop\n'
-             '.word 2*_a\n',   [0xea, 0x00, 0x20]),
+             '.word 2*_a\n',   [0xea, 0x00, 0x20]), # 2 * $1000
             ('nop\n'
-             '.word _-1\n',    [0xea, 0x00, 0x10]),
+             '.word _-1\n',    [0xea, 0x00, 0x10]), # the current address, $1001, less 1
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
@@ -901,12 +903,12 @@ class TestAssemble(unittest.TestCase):
              'temp = zp(1)\n'
              'sta temp\n'
              'temp = zp(1)\n'
-             'sta temp\n',      [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]),
+             'sta temp\n',      [0xa5, 0x03, 0x85, 0x02, 0x85, 0x03]), # temp before its first assignment is the last one, $03
             ('.repeat 3\n'
              'v = zp(1)\n'
              '.end\n'
              'next = zp(1)\n'
-             '.byte next, v\n', [0x05, 0x04]),                           # $02 to $04 in the loop
+             '.byte next, v\n', [0x05, 0x04]),                         # $02 to $04 in the loop
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self._memory(source), expected)
@@ -947,7 +949,7 @@ class TestAssemble(unittest.TestCase):
                         '.break 5\n')
             context = assembleFile(fileName)
         self.assertEqual(context.breakpoints, [(0x1001, None), (0x1002, 'RL > $40 && A == $00')])
-        self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5'])
+        self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5']) # without the folder
 
     def _assembleForTarget(self, source: str, target: str | None = None) -> Context:
         """Assemble source for the target, and return the context."""
@@ -974,7 +976,7 @@ class TestAssemble(unittest.TestCase):
                                                   '@basicLine(10, "GRAPHIC 1")\n', target)
                 self.assertEqual(context.errors, [])
                 self.assertEqual(context.symbols.get('BASIC_TOKEN_GRAPHIC'), graphic)
-                self.assertEqual(context.memory[0x1004], graphic or ord('G'))
+                self.assertEqual(context.memory[0x1004], graphic or ord('G')) # the text, after the link and the line number
         context = self._assembleForTarget('.org $1000\n'
                                           '@basicLine(10, "BANK 15")\n', 'c128') # BASIC 7.0, not 3.5
         self.assertEqual([context.memory[0x1004], context.memory[0x1005]], [0xfe, 0x02])
@@ -997,7 +999,7 @@ class TestAssemble(unittest.TestCase):
                               '@basicSys(10, start)\n'
                               '@basicEnd()\n'
                               'start: .text "A"\n', 'c64')
-        self.assertEqual(memory, [0x0b, 0x10, 10, 0, 0x9e, *b'4109', 0, 0, 0, 1])
+        self.assertEqual(memory, [0x0b, 0x10, 10, 0, 0x9e, *b'4109', 0, 0, 0, 1]) # the link to $100b, line 10, SYS 4109 ($100d), the ends of the line and program, and A
 
     def testBasicLineMessages(self):
         """Text that BASIC can't store is an error."""
@@ -1090,7 +1092,7 @@ class TestAssemble(unittest.TestCase):
                             ('TED_COLOR_BLACK', 0), ('TED_COLOR_YELLOW', 7), ('TED_COLOR_LIGHT_GREEN', 15)]:
             with self.subTest(name=name):
                 self.assertEqual(symbols[name], value)
-        self.assertEqual(symbols['tedColor'](symbols['TED_COLOR_RED'], 5), 0x52)
+        self.assertEqual(symbols['tedColor'](symbols['TED_COLOR_RED'], 5), 0x52) # luminance 5 in the high nibble, and red, 2
         self.assertIn("Name 'TED_BORDER_COLOR' is not defined", self._assembleForTarget('.word TED_BORDER_COLOR\n', 'c64').errors[0])
 
     def testKernal(self):
@@ -1134,7 +1136,7 @@ class TestAssemble(unittest.TestCase):
         """The Plus/4 has the same symbols as the C16, and no SID."""
         symbols = {target: self._assembleForTarget('nop\n', target).symbols for target in ['c16', 'plus4']}
         for name, value in symbols['c16'].items():
-            if name.isupper() and name != 'SOURCE_FOLDER':
+            if name.isupper() and name != 'SOURCE_FOLDER': # the folder of the source: a new temporary folder for each
                 with self.subTest(name=name):
                     self.assertEqual(symbols['plus4'][name], value)
         self.assertEqual(symbols['plus4']['TED_BORDER_COLOR'], 0xff19)
@@ -1193,21 +1195,21 @@ class TestMusic(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.directory = directory.name
-        self._Music = self._assemble('nop\n').symbols.get('_Music')
+        self._Music = self._assemble('nop\n').symbols.get('_Music') # the Music class of music.py
 
     def _sidFile(self, magicId=b'PSID', version=2, dataOffset=None, loadAddress=0x1000, initAddress=0x1000, playAddress=0x1003,
                  songs=1, startSong=1, speed=0, name=b'', author=b'', released=b'',
                  flags=0, startPage=0, pageLength=0, secondSid=0, thirdSid=0, data=b'\x4c\x00\x10\x60') -> str:
         """Write a SID file, with the header of the version, and return its name."""
         if dataOffset is None:
-            dataOffset = 0x76 if version == 1 else 0x7c
+            dataOffset = 0x76 if version == 1 else 0x7c # the header size of version 1, and of the later versions
         header = struct.pack('>4sHHHHHHHL32s32s32s', magicId, version, dataOffset, loadAddress, initAddress, playAddress,
                              songs, startSong, speed, name, author, released)
         if version >= 2:
             header += struct.pack('>HBBBB', flags, startPage, pageLength, secondSid, thirdSid)
         fileName = os.path.join(self.directory, f'{len(os.listdir(self.directory))}.sid')
         with open(fileName, 'wb') as f:
-            f.write(header[:dataOffset] + data)
+            f.write(header[:dataOffset] + data) # a smaller data offset cuts the header short
         return fileName
 
     def _load(self, fileName: str):
@@ -1232,7 +1234,7 @@ class TestMusic(unittest.TestCase):
                                  'jsr MUSIC_INIT\n')
         self.assertEqual(context.errors, [])
         memory = [context.memory[address] for address in sorted(context.memory)]
-        self.assertEqual(memory, [0x4c, 0x00, 0x20, 0x60, 0x20, 0x00, 0x20])
+        self.assertEqual(memory, [0x4c, 0x00, 0x20, 0x60, 0x20, 0x00, 0x20]) # the music, and jsr MUSIC_INIT
         self.assertEqual(min(context.memory), 0x2000)
         symbols = context.symbols
         self.assertEqual((symbols['MUSIC_LOAD'], symbols['MUSIC_INIT'], symbols['MUSIC_PLAY']), (0x2000, 0x2000, 0x2003))
@@ -1301,7 +1303,7 @@ class TestMusic(unittest.TestCase):
     def testExtraSids(self):
         """Version 3 adds a second SID, and version 4 a third, each with its own model and address."""
         flags = 0b01 << 4 | 0b10 << 6 | 0b01 << 8 # MOS6581, MOS8580, MOS6581
-        music, errors = self._load(self._sidFile(version=3, flags=flags, secondSid=0x42))
+        music, errors = self._load(self._sidFile(version=3, flags=flags, secondSid=0x42)) # $42 is $d420
         self.assertEqual(errors, [])
         self.assertEqual((music.sidAddresses, music.sidModels), ([0xd400, 0xd420], ['MOS6581', 'MOS8580']))
         music, errors = self._load(self._sidFile(version=4, flags=flags, secondSid=0x42, thirdSid=0xe0))

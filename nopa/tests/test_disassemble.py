@@ -38,7 +38,7 @@ class TestDisassemble(unittest.TestCase):
         """Disassemble for the cpu, and return the lines after the header, with single spaces, and without the monitor comments."""
         lines = disassemble(bytes(data), start, cpu=cpu).splitlines()
         org = next(index for index, line in enumerate(lines) if '.org' in line)
-        return [' '.join(line.split(';')[0].split()) for line in lines[org + 2:]]
+        return [' '.join(line.split(';')[0].split()) for line in lines[org + 2:]] # after the .org line, and the blank line after it
 
     def testRoundtrip(self):
         """asm -> prg -> asm -> prg -> asm gives the same .prg and the same source, for code and data."""
@@ -104,6 +104,7 @@ class TestDisassemble(unittest.TestCase):
                     if not (found := theCpu.instructionForOpcode(opcode)):
                         continue
                     instruction, mode = found
+                    # a branch to itself, a zero page address and a branch to itself, or an operand of the mode's size
                     operands = (['_'] if mode is AddressMode.RELATIVE else ['$12', '_'] if mode is AddressMode.ZERO_PAGE_RELATIVE
                                 else ['$1234'] if mode.size == 3 else ['$12'])
                     source = (f'.cpu CPU_{theCpu.name}\n'
@@ -116,7 +117,7 @@ class TestDisassemble(unittest.TestCase):
                         self._disassemble(prgFile, asmFile, theCpu)
                         self.assertEqual(self._assemble(asmFile, prgFile), prg)
                         if instruction.mnemonic != 'brk': # brk is treated as data
-                            self.assertIn(instruction.mnemonic, [line.partition(' ')[0] for line in self._lines(prg[2:], cpu=theCpu)])
+                            self.assertIn(instruction.mnemonic, [line.partition(' ')[0] for line in self._lines(prg[2:], cpu=theCpu)]) # prg[2:]: without the load address
 
     def testLabels(self):
         """Branch, jmp and jsr destinations in the code get labels."""
@@ -209,7 +210,7 @@ class TestDisassemble(unittest.TestCase):
         basic = [0x0b, 0x08, 0x0a, 0x00, 0x9e, *b'2061', 0x00, 0x00, 0x00] # 10 SYS2061
         self.assertEqual(self._lines(basic + [0xee, 0x20, 0xd0, 0x60], 0x0801),
             ['.byte $0b, $08, $0a, $00, $9e, $32, $30, $36, $31, $00, $00, $00', '', 'inc $d020', 'rts'])
-        self.assertEqual(self._lines([0x60, 0x02, 0xee, 0x20, 0xd0, 0x40]),
+        self.assertEqual(self._lines([0x60, 0x02, 0xee, 0x20, 0xd0, 0x40]), # an interrupt handler after data, which nothing jumps to
             ['rts', '', '.byte $02', '', 'inc $d020', 'rti'])
         self.assertEqual(self._lines([0x80, 0x01, 0x02, 0x60], cpu=cpu.CPU_65C02),   # bra always branches, like jmp
             ['bra l1003', '', '.byte $02', '', 'l1003:', 'rts'])
@@ -219,13 +220,13 @@ class TestDisassemble(unittest.TestCase):
     def testData(self):
         """Bytes that aren't code are data, in rows of up to 16 bytes, and 16 or more of the same byte are a .bytefill."""
         for data, expected in [
-            ([0x60, *range(1, 19)],          ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']),
-            ([0xea, 0x02, 0xea],             ['.byte $ea, $02, $ea']),                                   # runs into an unknown opcode, and the end
-            ([0x4c, 0x04, 0x10, 0x60, 0x02], ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']),       # jumps to an unknown opcode
-            ([0xea, 0x00, 0x60],             ['.byte $ea, $00', '', 'rts']),                             # runs into brk
-            ([0x60, *[0]*16, *[0xff]*35],    ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']),
-            ([0x60, *[0]*15],                ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),
-            ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']), # absolute below $100 would assemble as zero page, but lda has no zero page,y
+            ([0x60, *range(1, 19)],          ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']), # rows of 16
+            ([0xea, 0x02, 0xea],             ['.byte $ea, $02, $ea']),                                    # runs into an unknown opcode, and the end
+            ([0x4c, 0x04, 0x10, 0x60, 0x02], ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']),        # jumps to an unknown opcode
+            ([0xea, 0x00, 0x60],             ['.byte $ea, $00', '', 'rts']),                              # runs into brk
+            ([0x60, *[0]*16, *[0xff]*35],    ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']), # 16 or more of the same byte
+            ([0x60, *[0]*15],                ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),            # 15: not enough for a .bytefill
+            ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']),  # absolute below $100 would assemble as zero page, but lda has no zero page,y
         ]:
             with self.subTest(data=data[:6]):
                 self.assertEqual(self._lines(data), expected)

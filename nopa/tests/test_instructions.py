@@ -73,7 +73,7 @@ class TestInstructions(unittest.TestCase):
             with self.subTest(line=line):
                 data, context = self._assemble(line)
                 self.assertEqual(data, [])
-                self.assertEqual(context.errors, [f'error: Unknown instruction or address mode: {line.split()[0]} {operand}'])
+                self.assertEqual(context.errors, [f'error: Unknown instruction or address mode: {line.split()[0]} {operand}']) # the operand as Python, $ as 0x
 
     def _assertOpcodes(self, table: list):
         """Each row is an operand, its bytes, and the opcode of each instruction with that operand."""
@@ -161,7 +161,7 @@ class TestInstructions(unittest.TestCase):
 
     def testBranchRange(self):
         """A branch reaches -128 to +127 bytes, counted from $1002, the address after the branch."""
-        for target, expected in [('$1081', [0xd0, 0x7f]), ('$0f82', [0xd0, 0x80])]:
+        for target, expected in [('$1081', [0xd0, 0x7f]), ('$0f82', [0xd0, 0x80])]: # +127 and -128
             with self.subTest(target=target):
                 data, context = self._assemble(f'bne {target}')
                 self.assertEqual(data, expected)
@@ -175,7 +175,7 @@ class TestInstructions(unittest.TestCase):
             ('bbr3 $12,$0f83',   [0x3f, 0x12, 0x80], []), # -128
             ('bbr3 $12,$1083',   [0x3f, 0x12, 0x00], ['error: Branch destination out of range [-128..127]: 128']),
             ('bbr3 $1234,$1000', [0x3f, 0x34, 0xfd], ['error: Byte value out of range: 4660']), # a zero page address
-            ('bbr3 $12',         [],                 ['error: Unknown instruction or address mode: bbr3 0x12']),
+            ('bbr3 $12',         [],                 ['error: Unknown instruction or address mode: bbr3 0x12']), # no branch destination
         ]:
             with self.subTest(line=line):
                 data, context = self._assemble(line, CPU_R65C02)

@@ -70,7 +70,7 @@ class TestEvaluate(unittest.TestCase):
     def testEncodingFunctions(self):
         """ord() and chr() in expressions use the current encoding."""
         context = Context({})
-        self.assertEqual(expression('ord("A")', context), 1)
+        self.assertEqual(expression('ord("A")', context), 1) # screen codes, the default encoding
         self.assertEqual(expression('chr(1)', context), 'A')
         context.encoding = text.ENCODING_PETSCII_UPPER
         self.assertEqual(expression('ord("A")', context), 65)

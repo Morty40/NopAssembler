@@ -50,7 +50,7 @@ class TestText(unittest.TestCase):
     def testLetters(self):
         """The codes of A and a in each encoding. The upper case encodings have no lower case letters."""
         for encoding, upper, lower in [(ENCODING_SCREEN_UPPER,  1,  None),
-                                       (ENCODING_SCREEN_MIXED,  65, 1),
+                                       (ENCODING_SCREEN_MIXED,  65, 1), # lower case letters at the codes of the capitals, capitals at those of graphics
                                        (ENCODING_PETSCII_UPPER, 65, None),
                                        (ENCODING_PETSCII_MIXED, 97, 65)]:
             with self.subTest(encoding=encoding):

@@ -50,12 +50,12 @@ class TestContext(unittest.TestCase):
     def testNamespaceCandidates(self):
         """A name in a namespace is looked up as its own, e.g. spr.util.draw, and then as it is if it is built in,
         but not in the namespace it is in. A name keeps its case, and _ is always the current address."""
-        view = NamespaceSymbols({}, 'spr.util', {'lo', '_'})
+        view = NamespaceSymbols({}, 'spr.util', {'lo', '_'}) # the symbols, the namespace, and the built-in names
         for name, expected in [
             ('draw',  ['spr.util.draw']),
             ('SPEED', ['spr.util.SPEED']),
             ('lo',    ['spr.util.lo', 'lo']),
-            ('_',     ['_', '_']),
+            ('_',     ['_', '_']), # never in a namespace
         ]:
             with self.subTest(name=name):
                 self.assertEqual(view.candidates(name), expected)
@@ -65,7 +65,7 @@ class TestContext(unittest.TestCase):
         """A symbol in a namespace is defined as a symbol, e.g. util.table, or as a name of a .py file in it, e.g. util.double."""
         symbols: dict = {'util.table': 0x1000}
         symbols['util'] = Namespace('util', symbols, set())
-        vars(symbols['util'])['double'] = 2
+        vars(symbols['util'])['double'] = 2 # as a .py file in util would define double
         view = NamespaceSymbols(symbols, 'util', set())
         for symbol, value in [('util.table', 0x1000), ('util.double', 2)]:
             with self.subTest(symbol=symbol):
@@ -78,7 +78,7 @@ class TestContext(unittest.TestCase):
         """Code outside a namespace sees the symbols, and code in one a view of them, the same one during a pass."""
         context = Context({})
         self.assertIs(context.namespaceSymbols(), context.symbols)
-        context.pushReadPointer(('a.asm', 0), 'spr')
+        context.pushReadPointer(('a.asm', 0), 'spr') # a file in the namespace spr
         view = context.namespaceSymbols()
         self.assertIsInstance(view, NamespaceSymbols)
         self.assertEqual(view.candidates('draw'), ['spr.draw'])
@@ -87,7 +87,7 @@ class TestContext(unittest.TestCase):
     def testZeroPage(self):
         """zp(size) allocates zero page bytes from $02, and returns the address of the first."""
         context = Context({})
-        self.assertEqual([context.symbols['zp'](size) for size in [1, 2, 1, 8, 1]], [0x02, 0x03, 0x05, 0x06, 0x0e])
+        self.assertEqual([context.symbols['zp'](size) for size in [1, 2, 1, 8, 1]], [0x02, 0x03, 0x05, 0x06, 0x0e]) # each after the bytes of the one before
 
     def testReport(self):
         """Warnings and errors are prefixed with the file and line, if any."""
