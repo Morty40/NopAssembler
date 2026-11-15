@@ -32,7 +32,7 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(len(context.errors), 1)
 
     def testEvalIntExpression(self):
-        """A float is truncated, with a warning."""
+        """A float is truncated, with a warning. Infinity and NaN are not ints, so they are an error, and give 0."""
         context = Context({})
         value = intExpression('12', context)
         self.assertEqual(value, 12)
@@ -44,6 +44,14 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(value, 1)
         self.assertEqual(len(context.warnings), 1)
         self.assertEqual(len(context.errors), 0)
+
+        for e in ['inf', '-inf', 'nan']:
+            with self.subTest(e=e):
+                context = Context({})
+                value = intExpression(e, context)
+                self.assertEqual(value, 0)
+                self.assertEqual(len(context.warnings), 0)
+                self.assertEqual(context.errors, [f'error: Expected an int value instead of: "{e}"'])
 
     def testEvalByteExpression(self):
         """A negative byte is two's complement. Out of range is an error, and keeps the low byte."""

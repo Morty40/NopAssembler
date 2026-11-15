@@ -70,6 +70,14 @@ class TestAssemble(unittest.TestCase):
                 anyErrors, output = self._assemble(f'B = 5\n{source}\n')
                 self.assertIn('test.asm:2: error: Expected an int value instead of: "\'B\'"', output)
 
+    def testByteWordNotInt(self):
+        """A .byte or .word value that isn't an int is one error, also when it isn't written as Python, such as a function."""
+        for source in ['.byte print', '.word print', '.bytefill 1, lambda x: print', '.wordfill 1, lambda x: print']:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(f'{source}\n')
+                self.assertEqual(len(output.splitlines()), 1)
+                self.assertIn('test.asm:1: error: Expected an int value instead of: "<built-in function print>"', output)
+
     def testGeneratorNotString(self):
         """A generator must return assembly code as a string, or it is an error."""
         anyErrors, output = self._assemble('.python\ndef emit(): pass\n.end\n@emit()\n') # forgot to return the code
@@ -150,6 +158,8 @@ class TestAssemble(unittest.TestCase):
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
             ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined\n'),
             ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
+            ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
+            ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),
         ])
 
     def testReportMessages(self):
