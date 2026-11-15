@@ -771,11 +771,96 @@ Stores `n` bytes. Without the second argument the bytes are zero. With it, byte 
 sine:       .bytefill 256, lambda x: int(128 + 127 * sin(x / 128 * pi))
 ```
 
+A table of the address where each screen row starts saves a multiplication by 40 for every character drawn:
+
+```
+SCREEN = $0400
+
+; put the character in a at column x, row y
+putChar:    pha
+            lda rowLo,y
+            sta $fb
+            lda rowHi,y
+            sta $fc
+            txa
+            tay
+            pla
+            sta ($fb),y
+            rts
+
+; the address of each of the 25 screen rows, as low and high bytes
+rowLo:      .bytefill 25, lambda y: lo(SCREEN + 40 * y)
+rowHi:      .bytefill 25, lambda y: hi(SCREEN + 40 * y)
+```
+
+When the rule needs more than one expression, write it as a Python function, and give its name:
+
+```
+.python
+def reverseBits(b):
+    """The byte with its bits in reverse order, e.g. %00000001 becomes %10000000."""
+    return int(f'{b:08b}'[::-1], 2)
+.end
+
+; mirror a byte with a table lookup, instead of moving its bits one at a time
+            ldx #%00000011
+            lda reversed,x  ; %11000000
+            rts
+
+reversed:   .bytefill 256, reverseBits
+```
+
 #### .wordfill
 ```
 .wordfill n[, function]
 ```
 Like `.bytefill`, but stores 16-bit words.
+
+A table of the SID frequency of each note, with the C64 target's names: each note is 2^(1/12) above the one before, and the SID's value is the frequency in Hz × 2²⁴ / the clock rate:
+
+```
+; play the note in x on voice 1
+playNote:   txa
+            asl             ; 2 bytes for each note
+            tax
+            lda notes,x
+            sta SID_VOICE1_FREQUENCY_LO
+            lda notes+1,x
+            sta SID_VOICE1_FREQUENCY_HI
+            rts
+
+; the SID frequency of each note from C-0 to B-6, on a PAL C64, where note 57 is A-4 at 440 Hz
+PAL_CLOCK = 985248
+notes:      .wordfill 84, lambda n: round(440 * 2 ** ((n - 57) / 12) * 2 ** 24 / PAL_CLOCK)
+```
+
+A jump table, where each entry jumps into an unrolled copy, so that only the last n pairs of `lda` and `sta` run:
+
+```
+source = $c000
+target = $0400
+vector = zp(2)
+
+; copy the last x bytes of a 40-byte row, by jumping into the unrolled copy,
+; so only the last x of its 40 lda and sta pairs run
+copy:       txa
+            asl             ; 2 bytes for each entry
+            tay
+            lda entries,y
+            sta vector
+            lda entries+1,y
+            sta vector+1
+            jmp (vector)
+
+.for i=0, i<40, i+=1
+            lda source + i
+            sta target + i
+.end
+copyEnd:    rts
+
+; where to start to copy n bytes, for n from 0 to 40: an lda and an sta are 6 bytes
+entries:    .wordfill 41, lambda n: copyEnd - 6 * n
+```
 
 ### Text encoding
 
