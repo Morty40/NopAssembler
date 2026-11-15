@@ -150,7 +150,7 @@ def disassemble(data: bytes, start: int, names: dict[int, str] | None = None, cp
             chunk = data[address-start:stop-start]
             size = len(chunk) - len(chunk.lstrip(chunk[:1])) # the bytes equal to the first
             if size >= 16:
-                text = f'.bytefill {size}' + (f', "x: 0x{chunk[0]:02x}"' if chunk[0] else '')
+                text = f'.bytefill {size}' + (f', lambda x: ${chunk[0]:02x}' if chunk[0] else '')
             else:
                 size = min(len(chunk), 16)
                 text = byteList(chunk[:size])

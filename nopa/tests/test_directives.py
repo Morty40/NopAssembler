@@ -49,7 +49,9 @@ class TestDirectives(unittest.TestCase):
         self.assertFalse(_matches(org, ['a']))               # wrong type
         self.assertFalse(_matches(org, [True]))              # a bool is not an int
         self.assertTrue(_matches(bytefill, [3]))             # optional argument
-        self.assertTrue(_matches(bytefill, [3, 'x: x']))
+        self.assertTrue(_matches(bytefill, [3, lambda x: x]))
+        self.assertTrue(_matches(bytefill, [3, abs]))        # any callable for Callable, also a built-in function
+        self.assertFalse(_matches(bytefill, [3, 'x: x']))    # a string is not a function
         self.assertTrue(_matches(bytefill, [3, None]))       # one of the types in an optional argument
         self.assertFalse(_matches(bytefill, [3, 5]))         # none of them
         self.assertTrue(_matches(byte, []))                  # any number of any type
@@ -72,10 +74,26 @@ class TestDirectives(unittest.TestCase):
             ('.bits "     #  "\n',                       [4]), # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',       [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n.string "ABC", "DEF"\n', [1, 2, 3, 0, 4, 5, 6, 0]),
+            ('.bytefill 0\n',                            []),        # nothing, but not an error
             ('.bytefill 3\n',                            [0, 0, 0]),
-            ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]), # x is the index, and N is assigned later
+            ('.bytefill 3, lambda x: x+N\nN = 1\n',      [1, 2, 3]), # x is the index, and N is assigned later
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
-            ('.wordfill 3, "x: x+N"\nN = 1\n',           [1, 0, 2, 0, 3, 0]),
+            ('.wordfill 3, lambda x: x+N\nN = 1\n',      [1, 0, 2, 0, 3, 0]),
+            ('.bytefill 2, lambda x: int(cos(x*pi))\n',  [1, 0xff]), # with the math functions
+            ('.bytefill 4, lambda x: x / 2\n',            [0, 0, 1, 1]), # floats are truncated
+            ('.python\n'
+             'def double(x):\n'
+             '    return x * 2\n'
+             '.end\n'
+             '.bytefill 3, double\n',                    [0, 2, 4]), # a function defined in Python code
+            ('.bytefill 3, abs\n',                       [0, 1, 2]), # a built-in function
+            ('.python\n'
+             'class Table:\n'
+             '    def get(self, x):\n'
+             '        return x * 3\n'
+             'table = Table()\n'
+             '.end\n'
+             '.bytefill 3, table.get\n',                 [0, 3, 6]), # a method
             ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
             ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
             ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),             # buffer is $02 to $09
@@ -109,6 +127,8 @@ class TestDirectives(unittest.TestCase):
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
+        self._assertBytes('.import "util.py"\n'
+                          '.bytefill 3, double\n', [0, 2, 4], {'util.py': 'def double(v):\n    return v * 2\n'}) # a function to fill with
 
     def testImportSourceNamespaceLabels(self):
         """The labels of a source file imported into a namespace are in it: draw in spr is spr.draw,
@@ -139,7 +159,7 @@ class TestDirectives(unittest.TestCase):
                            'rts\n'),
             'own.asm':    ('jsr draw\n'
                            'draw: rts\n'),
-            'lambda.asm': 'table: .bytefill 2, "x: lo(table) + x"\n',
+            'lambda.asm': 'table: .bytefill 2, lambda x: lo(table) + x\n',
             'python.asm': ('.python\n'
                            'def twice(v):\n'
                            '    return v * 2\n'
@@ -405,6 +425,8 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('.import "util.py", "util"\n.byte util.x\n',         [5]),
             ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
+            ('.import "util.py", "util"\n'
+             '.bytefill 3, util.double\n',                        [0, 2, 4]), # a function to fill with
             ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
             ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import, with util from the last pass
             ('.import "lib.py", "lib"\n.byte lib.value\n',        [6]),  # import and class in a namespace

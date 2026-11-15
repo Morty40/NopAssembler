@@ -65,10 +65,58 @@ class TestAssemble(unittest.TestCase):
 
     def testByteWordString(self):
         """A string is not a .byte or .word value, even if a symbol has that name."""
-        for source in ['.byte "B"', '.word "B"', '.bytefill 1, "x: \'B\'"', '.wordfill 1, "x: \'B\'"']:
+        for source in ['.byte "B"', '.word "B"', '.bytefill 1, lambda x: "B"', '.wordfill 1, lambda x: "B"']:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(f'B = 5\n{source}\n')
                 self.assertIn('test.asm:2: error: Expected an int value instead of: "\'B\'"', output)
+
+    def testByteWordNotInt(self):
+        """A .byte or .word value that isn't an int is one error, also when it isn't written as Python, such as a function."""
+        for source in ['.byte print', '.word print', '.bytefill 1, lambda x: print', '.wordfill 1, lambda x: print']:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(f'{source}\n')
+                self.assertEqual(len(output.splitlines()), 1)
+                self.assertIn('test.asm:1: error: Expected an int value instead of: "<built-in function print>"', output)
+
+    def testFillFunctionError(self):
+        """Each value the fill function fails for is an error, with the index."""
+        for source, expected in [
+            ('.wordfill 4, lambda x: [5, 6][x]\n', ['test.asm:1: error: List index out of range, at index 2',
+                                                   'test.asm:1: error: List index out of range, at index 3']),
+            ('.bytefill 2, lambda x: {0: 1}[x]\n', ['test.asm:1: error: KeyError: 1, at index 1']),     # the type, as the text is only the key
+            ('.python\n'
+             'def check(x):\n'
+             '    assert x < 2\n'
+             '    return x\n'
+             '.end\n'
+             '.bytefill 4, check\n',               ['test.asm:6: error: AssertionError, at index 2',   # the type, as there is no text
+                                                   'test.asm:6: error: AssertionError, at index 3']),
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertEqual([line[line.index('test.asm'):] for line in output.splitlines()], expected)
+
+    def testFillErrorSize(self):
+        """A fill keeps its size when values fail, as they are zero, so the addresses after it stay the same."""
+        for source, size in [
+            ('.bytefill 4, lambda x: nothing\n'
+             '.print _ - $1000\n',                '4'), # fails for every value
+            ('.bytefill 4, lambda x: [1][x]\n'
+             '.print _ - $1000\n',                '4'), # fails from the second value
+            ('.wordfill 3, lambda x: 70000\n'
+             '.print _ - $1000\n',                '6'), # values out of range
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertTrue(anyErrors)
+                self.assertIn(size, output.splitlines())
+
+    def testFillWarning(self):
+        """Each fill value that is a truncated float is a warning."""
+        anyErrors, output = self._assemble('.bytefill 4, lambda x: x / 2\n')
+        self.assertEqual([line[line.index('test.asm'):] for line in output.splitlines()],
+                         ['test.asm:1: warning: Truncating float value: 0.5',
+                          'test.asm:1: warning: Truncating float value: 1.5'])
 
     def testGeneratorNotString(self):
         """A generator must return assembly code as a string, or it is an error."""
@@ -145,10 +193,16 @@ class TestAssemble(unittest.TestCase):
             ('.string "A", 65\n',                     'test.asm:1: error: Invalid directive: .string f"A",65'),
             ('.text ["A"]\n',                        'test.asm:1: error: Invalid directive: .text [f"A"]'),
             ('.align 0\n',                           'test.asm:1: error: Alignment must be positive: 0'),
+            ('.bytefill -2\n',                       'test.asm:1: error: Count must not be negative: -2'),
+            ('.wordfill -1, lambda x: x\n',          'test.asm:1: error: Count must not be negative: -1'),
             ('.org undefinedSymbol\n',               'test.asm:1: error: Invalid directive: .org undefinedSymbol'),
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
-            ('.bytefill 1, "x: MAX_Speed"\n',        'test.asm:1: error: Name \'MAX_Speed\' is not defined\n'),
+            ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
+            ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
+            ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
+            ('.byte {0: 1}[1]\n',                    'test.asm:1: error: KeyError: 1: "{0:1}[1]"'),
+            ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),
         ])
 
     def testReportMessages(self):
@@ -367,7 +421,7 @@ class TestAssemble(unittest.TestCase):
             (".if ref('t')\nt: .byte 8\n.end\n.byte 0\n", [0]),                                # single quotes
             ('.print "{t}"\n' + block,                    [8]),                                # an expression in a string
             ('lda #lo(t)\n' + block,                      [0xa9, 0x02, 8]),                    # in an expression
-            ('.bytefill 1, "x: lo(t)"\n' + block,         [0x01, 8]),                          # in a lambda
+            ('.bytefill 1, lambda x: lo(t)\n' + block,    [0x01, 8]),                          # in a lambda
             ('@"jmp t"\n' + block,                        [0x4c, 0x03, 0x10, 8]),              # by generated code
             ('.python\ndef f():\n    return t\n.end\n.word f()\n' + block, [0x02, 0x10, 8]), # by Python code
             ('.if ref("t")\nt: .byte 8\n.else\n.byte 7\n.end\n',  [7]),                         # with .else
