@@ -2,12 +2,12 @@
 """Nop Assembler command line: nopa <asmFile> -o <outFile>, or nopa -d <prgFile> -o <asmFile>"""
 
 import argparse
-import keyword
 import sys
 
 from . import __version__
 from . import assemble
 from . import disassemble
+from . import lexer
 from .cpu import CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
 from .context import Context
 
@@ -53,14 +53,32 @@ def prg(context: Context) -> bytes:
 FORMATS = {'prg': prg, 'bin': binary} # the formats of the output file
 
 
+def writtenLabels(context: Context) -> list:
+    """Return the (address, name) of each label as the labels file and the VICE monitor commands write it,
+    sorted by address: with _ for ., e.g. spr_draw for spr.draw, so a label is one word, for any tool."""
+    return [(address, label.replace('.', '_')) for address, label in sortedLabels(context)]
+
+
+def labelCollisions(context: Context) -> list[str]:
+    """Return an error for each label written with the same name as another, e.g. spr_draw and spr.draw."""
+    written: dict[str, str] = {} # name: label
+    errors = []
+    for label in sorted(context.labels):
+        name = label.replace('.', '_')
+        if name in written:
+            errors.append(f'error: Labels "{written[name]}" and "{label}" are both written as "{name}"')
+        written[name] = label
+    return errors
+
+
 def pythonLabels(context: Context) -> str:
-    """Return the labels as Python assignments, sorted by address."""
-    return ''.join(f'{label} = 0x{address:04x}\n' for address, label in sortedLabels(context))
+    """Return the labels as Python assignments, sorted by address, e.g. start = 0x080d and spr_draw = 0x0900."""
+    return ''.join(f'{name} = 0x{address:04x}\n' for address, name in writtenLabels(context))
 
 
 def viceMonitorCommands(context: Context) -> str:
     """Return the VICE monitor commands: the labels, sorted by address, then the breakpoints."""
-    commands = [f'al C:{address:04x} .{label}' for address, label in sortedLabels(context)]
+    commands = [f'al C:{address:04x} .{name}' for address, name in writtenLabels(context)]
     commands += [f'break C:{address:04x}' + (f' if {condition}' if condition else '') for address, condition in context.breakpoints]
     return ''.join(f'{command}\n' for command in commands)
 
@@ -97,8 +115,7 @@ def main():
     defines = {}
     for define in arguments.defines:
         name, equals, value = define.partition('=')
-        # a name the source can use: not a local label, a Python keyword or a mnemonic
-        if not name.isidentifier() or name.startswith('_') or keyword.iskeyword(name) or isMnemonic(name):
+        if not lexer.isValidGlobalSymbolName(name) or isMnemonic(name): # a mnemonic would make name = value an instruction
             parser.error(f'Invalid define: {define}')
         defines[name] = value if equals else 'True'
     cpu = CPUS[arguments.cpu]
@@ -119,6 +136,11 @@ def main():
             for message in context.warnings + context.errors:
                 print(message, file=sys.stderr)
             anyErrors = len(context.errors) > 0
+            if not anyErrors and (arguments.labelsFile or arguments.viceFile):
+                collisions = labelCollisions(context)
+                for message in collisions:
+                    print(message, file=sys.stderr)
+                anyErrors = len(collisions) > 0
             if not anyErrors:
                 printMemoryUse(context)
                 if arguments.outFile:

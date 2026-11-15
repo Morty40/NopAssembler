@@ -102,6 +102,14 @@ class TestMain(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors)
 
+    def testDefineInvalid(self):
+        """A -D name must be a name the source can use: not a local label, a Python keyword or built-in, or a mnemonic."""
+        for define in ['_x=1', 'if=1', 'lda=1', 'len=1', 'print', '2x=1', 'my-x=1', '=1']:
+            with self.subTest(define=define):
+                code, output, errors = self._main(['test.asm', '-D', define])
+                self.assertEqual(code, 2)
+                self.assertIn(f'Invalid define: {define}', errors)
+
     def testAssemble(self):
         """Assembling prints the .print output and the memory use, sends warnings to stderr, and saves the -o file."""
         with tempfile.TemporaryDirectory() as directory:
@@ -187,6 +195,25 @@ class TestMain(unittest.TestCase):
             context = assemble.assembleFile(asmFile)
         self.assertEqual(sortedLabels(context), [(0x1000, 'start'), (0x1002, 'start_loop'), (0x1006, 'wait1_x')])
 
+    def testNamespacedLabels(self):
+        """The labels of a source file imported into a namespace have their full names, e.g. spr.draw and spr.draw_loop,
+        written with _ in the VICE monitor commands, spr_draw, as VICE labels are a single word."""
+        sprites = ('draw: ldx #2\n'
+                   '_loop: dex\n'
+                   'bne _loop\n'
+                   'rts\n')
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile, viceFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.vmc')
+            with open(asmFile, 'w') as f:
+                f.write('.import "sprites.asm", "spr"\n')
+            with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
+                f.write(sprites)
+            self.assertEqual(sortedLabels(assemble.assembleFile(asmFile)), [(0x1000, 'spr.draw'), (0x1002, 'spr.draw_loop')])
+            code, output, errors = self._main([asmFile, '--vice', viceFile])
+            self.assertEqual(code, 0, errors)
+            with open(viceFile) as f:
+                self.assertEqual(f.read(), 'al C:1000 .spr_draw\nal C:1002 .spr_draw_loop\n')
+
     def testViceCommands(self):
         """--vice writes a VICE monitor commands file: the labels, then the .break breakpoints.
         The memory use doesn't list the labels."""
@@ -218,6 +245,44 @@ class TestMain(unittest.TestCase):
                     with open(labelsFile) as f:
                         self.assertEqual(f.read(), 'start = 0x1000\nstart_loop = 0x1002\n')
 
+    def testNamespacedLabelsFile(self):
+        """The labels of a namespace are written with _ for ., e.g. spr_draw for spr.draw, as in the VICE monitor
+        commands, so every line of the labels file is still name = address, for scripts and other tools."""
+        expected = ('start = 0x1000\n'
+                    'spr_draw = 0x1001\n'
+                    'spr_util_plot = 0x1002\n')
+        with tempfile.TemporaryDirectory() as directory:
+            files = {'test.asm':    'start: rts\n.import "sprites.asm", "spr"\n',
+                     'sprites.asm': 'draw: rts\n.import "plot.asm", "util"\n',
+                     'plot.asm':    'plot: rts\n',
+                     'other.asm':   '.import "game.py"\njsr spr_util_plot\n'}
+            for name, text in files.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            labelsFile = os.path.join(directory, 'game.py')
+            code, output, errors = self._main([os.path.join(directory, 'test.asm'), '-l', labelsFile])
+            self.assertEqual(code, 0, errors)
+            with open(labelsFile) as f:
+                self.assertEqual(f.read(), expected)
+            context = assemble.assembleFile(os.path.join(directory, 'other.asm'))
+            self.assertEqual(context.errors, [])
+            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10})
+
+    def testLabelCollision(self):
+        """Two labels that are written with the same name, e.g. spr_draw and spr.draw, are an error,
+        and the labels file and the VICE monitor commands aren't written."""
+        with tempfile.TemporaryDirectory() as directory:
+            files = {'test.asm': 'spr_draw: nop\n.import "sprites.asm", "spr"\n', 'sprites.asm': 'draw: rts\n'}
+            for name, text in files.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            labelsFile, viceFile = os.path.join(directory, 'test.py'), os.path.join(directory, 'test.vmc')
+            code, output, errors = self._main([os.path.join(directory, 'test.asm'), '-l', labelsFile, '--vice', viceFile])
+            self.assertEqual(code, 1)
+            self.assertIn('error: Labels "spr.draw" and "spr_draw" are both written as "spr_draw"', errors)
+            self.assertFalse(os.path.exists(labelsFile))
+            self.assertFalse(os.path.exists(viceFile))
+
     def testLabelsDisassemble(self):
         """With -d, -l reads the labels, and the disassembly uses their names."""
         with tempfile.TemporaryDirectory() as directory:
@@ -231,6 +296,26 @@ class TestMain(unittest.TestCase):
             lines = [line.split(';')[0].strip() for line in output.splitlines()] # without the monitor comments
             for line in ['start:', 'start_loop:', 'bne start_loop']:
                 self.assertIn(line, lines)
+
+    def testNamespacedLabelsDisassemble(self):
+        """The disassembly uses the labels of a namespace by their names in the labels file, e.g. spr_draw,
+        and assembles to the same bytes."""
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile, prgFile, labelsFile, sourceFile = (os.path.join(directory, name)
+                                                        for name in ['test.asm', 'test.prg', 'test.py', 'source.asm'])
+            with open(asmFile, 'w') as f:
+                f.write('start: jsr spr.draw\nrts\n.import "sprites.asm", "spr"\n')
+            with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
+                f.write('draw: ldx #5\n_loop: dex\nbne _loop\nrts\n')
+            code, output, errors = self._main([asmFile, '-o', prgFile, '-l', labelsFile])
+            self.assertEqual(code, 0, errors)
+            code, output, errors = self._main(['-d', prgFile, '-l', labelsFile, '-o', sourceFile])
+            self.assertEqual(code, 0, errors)
+            with open(sourceFile) as f:
+                lines = [line.split(';')[0].strip() for line in f.read().splitlines()] # without the monitor comments
+            for line in ['jsr spr_draw', 'spr_draw:', 'spr_draw_loop:', 'bne spr_draw_loop']:
+                self.assertIn(line, lines)
+            self.assertEqual(assemble.assembleFile(sourceFile).memory, assemble.assembleFile(asmFile).memory)
 
     def testOutputOrder(self):
         """With stderr in the same pipe as stdout (2>&1), .print output comes before the warnings, as on a terminal."""

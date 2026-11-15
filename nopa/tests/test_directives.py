@@ -14,15 +14,26 @@ from ..directives import assemble, byte, bytefill, _matches, org, printValues
 class TestDirectives(unittest.TestCase):
     """Tests of the directive arguments, and what the directives store."""
 
-    def _memory(self, source: str, files: dict | None = None) -> dict:
-        """Assemble source without errors, with the files {name: text} beside it, and return the memory."""
+    def _assemble(self, source: str, files: dict | None = None, defines: dict | None = None) -> tuple[dict, list]:
+        """Assemble source, with the files {name: text or bytes} beside it, and the defines {name: expression}, as with -D.
+        Return the memory, and the errors without the folder."""
         with tempfile.TemporaryDirectory() as directory:
-            for name, text in {'test.asm': source, **(files or {})}.items():
-                with open(os.path.join(directory, name), 'w') as f:
-                    f.write(text)
-            context = assembleFile(os.path.join(directory, 'test.asm'))
-        self.assertEqual(context.errors, [])
-        return context.memory
+            for name, content in {'test.asm': source, **(files or {})}.items():
+                with open(os.path.join(directory, name), 'wb' if type(content) is bytes else 'w') as f:
+                    f.write(content)
+            context = assembleFile(os.path.join(directory, 'test.asm'), defines=defines)
+            return context.memory, [error.replace(directory + os.sep, '') for error in context.errors]
+
+    def _memory(self, source: str, files: dict | None = None) -> dict:
+        """Assemble source without errors, with the files {name: text or bytes} beside it, and return the memory."""
+        memory, errors = self._assemble(source, files)
+        self.assertEqual(errors, [])
+        return memory
+
+    def _errors(self, source: str, files: dict | None = None) -> list:
+        """Assemble source, with the files {name: text or bytes} beside it, and return the errors, without the folder."""
+        memory, errors = self._assemble(source, files)
+        return errors
 
     def _assertBytes(self, source: str, expected: list, files: dict | None = None):
         """Source stores exactly the expected bytes, without gaps, from the default address $1000."""
@@ -58,16 +69,16 @@ class TestDirectives(unittest.TestCase):
             ('.word -32768, 0, 32767, 65535',            [0x00, 0x80, 0x00, 0x00, 0xff, 0x7f, 0xff, 0xff]),
             ('.bits "00000000"\n',                       [0]),
             ('.bits "000000010000001000000011"\n',       [1, 2, 3]),
-            ('.bits "     #  "\n',                       [4]),
+            ('.bits "     #  "\n',                       [4]), # # is a 1 bit, and a space a 0 bit
             ('.bits "     # #     ##      ###"\n',       [5, 6, 7]),
             ('.encoding ENCODING_SCREEN_UPPER\n.string "ABC", "DEF"\n', [1, 2, 3, 0, 4, 5, 6, 0]),
             ('.bytefill 3\n',                            [0, 0, 0]),
-            ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]),
+            ('.bytefill 3, "x: x+N"\nN = 1\n',           [1, 2, 3]), # x is the index, and N is assigned later
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, "x: x+N"\nN = 1\n',           [1, 0, 2, 0, 3, 0]),
-            ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]),
-            ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]),
-            ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),
+            ('lda aa\nlda bb\naa = zp(1)\nbb = zp(1)\n', [0xa5, 0x02, 0xa5, 0x03]), # zero page lda, though used before zp()
+            ('lda aa\nlda bb\naa = zp(2)\nbb = zp(2)\n', [0xa5, 0x02, 0xa5, 0x04]), # two bytes each
+            ('buffer = zp(8)\nnext = zp(1)\nlda next\n', [0xa5, 0x0a]),             # buffer is $02 to $09
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
@@ -75,7 +86,7 @@ class TestDirectives(unittest.TestCase):
     def testAddresses(self):
         """.org, .align and assigning _ choose the address of the next byte."""
         for source, expected in [
-            ('.org $1000\n.align 16\n.byte 1\n.align 16\n.byte 2\n', {0x1000: 1, 0x1010: 2}),
+            ('.org $1000\n.align 16\n.byte 1\n.align 16\n.byte 2\n', {0x1000: 1, 0x1010: 2}), # $1000 is already aligned
             ('.org $2000\n.byte 1\n_ = $2010\n.byte 2\n',            {0x2000: 1, 0x2010: 2}),
         ]:
             with self.subTest(source=source):
@@ -86,8 +97,8 @@ class TestDirectives(unittest.TestCase):
         for source, expected in [
             ('lax $10\n',                                       [0xa7, 0x10]),                    # the 6502 by default
             ('.cpu CPU_65C02\nstz $d020\nlda ($12)\n',          [0x9c, 0x20, 0xd0, 0xb2, 0x12]),
-            ('.cpu CPU_65C02\nbra later\n.cpu CPU_6502\nlater: lax $10\n', [0x80, 0x00, 0xa7, 0x10]),  # switching
-            ('.cpu CPU_R65C02\nloop: rmb3 $12\nbbr3 $12,loop\n',  [0x37, 0x12, 0x3f, 0x12, 0xfb]),
+            ('.cpu CPU_65C02\nbra later\n.cpu CPU_6502\nlater: lax $10\n', [0x80, 0x00, 0xa7, 0x10]),  # switching, bra to the next line is offset 0
+            ('.cpu CPU_R65C02\nloop: rmb3 $12\nbbr3 $12,loop\n',  [0x37, 0x12, 0x3f, 0x12, 0xfb]), # back to loop is offset -5
             ('.cpu CPU_W65C02\nwai\nstp\nsmb0 $12\n',             [0xcb, 0xdb, 0x87, 0x12]),
         ]:
             with self.subTest(source=source):
@@ -96,11 +107,416 @@ class TestDirectives(unittest.TestCase):
     def testImport(self):
         """.import assembles a source file, or runs a Python file, found beside the main source file."""
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
+        self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "fill.py"\n@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n    return f".byte {x}\\n" * n\n'})
+
+    def testImportSourceNamespaceLabels(self):
+        """The labels of a source file imported into a namespace are in it: draw in spr is spr.draw,
+        so the same file can be imported into two namespaces."""
+        files = {'sprites.asm': 'draw: rts\n'}
+        for source, expected in [
+            ('.import "sprites.asm", "spr"\n'
+             'jsr spr.draw\n',                 [0x60, 0x20, 0x00, 0x10]),
+            ('.import "sprites.asm", "a"\n'
+             '.import "sprites.asm", "b"\n'
+             'jsr a.draw\n'
+             'jsr b.draw\n',                   [0x60, 0x60, 0x20, 0x00, 0x10, 0x20, 0x01, 0x10]), # no duplicate label
+            ('.import "sprites.asm", "SID"\n'
+             'jsr SID.draw\n',                 [0x60, 0x20, 0x00, 0x10]),                         # a namespace in capitals
+            ('jsr spr.draw\n'
+             '.import "sprites.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),                         # used before the import
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceNames(self):
+        """The code of a source file in a namespace uses its own names first, and else the global names.
+        Names that Python code in it defines, with .python or .for, are in the namespace too."""
+        files = {
+            'loop.asm':   ('draw: ldx #2\n'
+                           '_loop: dex\n'
+                           'bne _loop\n'
+                           'rts\n'),
+            'own.asm':    ('jsr draw\n'
+                           'draw: rts\n'),
+            'lambda.asm': 'table: .bytefill 2, "x: lo(table) + x"\n',
+            'python.asm': ('.python\n'
+                           'def twice(v):\n'
+                           '    return v * 2\n'
+                           '.end\n'
+                           '.byte twice(3)\n'),
+            'for.asm':    ('.for i=0, i<3, i+=1\n'
+                           '.byte i\n'
+                           '.end\n'),
+        }
+        for source, expected in [
+            ('.import "loop.asm", "spr"\n'
+             'jsr spr.draw_loop\n',           [0xa2, 0x02, 0xca, 0xd0, 0xfd, 0x60, 0x20, 0x02, 0x10]), # a local label
+            ('draw: nop\n'
+             '.import "own.asm", "spr"\n',    [0xea, 0x20, 0x04, 0x10, 0x60]),                         # spr.draw, not the global draw
+            ('.import "lambda.asm", "spr"\n', [0x00, 0x01]),                                           # table in a lambda
+            ('.import "python.asm", "spr"\n'
+             '.byte spr.twice(4)\n',          [6, 8]),                                                 # twice is spr.twice
+            ('.import "for.asm", "spr"\n'
+             '.byte spr.i\n',                 [0, 1, 2, 3]),                                           # i is spr.i
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceGlobals(self):
+        """globals() in Python code in a namespace finds names as they are looked up, its own and the built-in ones."""
+        files = {
+            'debug.asm': ('.python\n'
+                          'if "DEBUG" not in globals():\n'
+                          '    DEBUG = 0\n'
+                          'level = globals().get("DEBUG", 9)\n'
+                          'own = int("level" in globals())\n'
+                          '.end\n'
+                          '.byte DEBUG, level, own\n'),
+        }
+        for defines, expected in [
+            ({'DEBUG': '1'}, [1, 1, 1]), # -D DEBUG=1, a built-in symbol
+            (None,           [0, 0, 1]), # its own DEBUG, spr.DEBUG
+        ]:
+            with self.subTest(defines=defines):
+                memory, errors = self._assemble('.import "debug.asm", "spr"\n', files, defines)
+                self.assertEqual(errors, [])
+                self.assertEqual([memory[0x1000 + i] for i in range(3)], expected)
+
+    def testImportSourceNamespaceAssignments(self):
+        """Assignments in a source file in a namespace get it too, and a constant stays a constant: SPEED is spr.SPEED."""
+        files = {
+            'vars.asm': ('speed = 3\n'
+                         'SPEED = 4\n'
+                         'count = zp(1)\n'
+                         '.byte speed, SPEED, count\n'),
+        }
+        for source, expected in [
+            ('.import "vars.asm", "spr"\n'
+             '.byte spr.speed, spr.SPEED, spr.count\n', [3, 4, 2, 3, 4, 2]),
+            ('speed = 9\n'
+             '.import "vars.asm", "spr"\n'
+             '.byte speed\n',                           [3, 4, 2, 9]),       # spr.speed, not the global speed
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceAddress(self):
+        """_ is the current address in a namespace too, also when Python code assigns it."""
+        files = {
+            'org.asm':    ('_ = $1010\n'
+                           '.byte 1\n'),
+            'python.asm': ('.python\n'
+                           '_ = 0x1020\n'
+                           '.end\n'
+                           '.byte 2\n'),
+        }
+        for source, expected in [
+            ('.import "org.asm", "spr"\n',    {0x1010: 1}),
+            ('.import "python.asm", "spr"\n', {0x1020: 2}),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._memory(source, files), expected)
+
+    def testImportSourceNamespaceNested(self):
+        """A namespace can be inside a namespace: draw in util in spr is spr.util.draw. A file imported without
+        a namespace is in the namespace of the file that imports it, also a .py file."""
+        files = {
+            'outer.asm':     ('start: rts\n'
+                              '.import "inner.asm", "util"\n'),
+            'inner.asm':     ('draw: rts\n'
+                              'SPEED = 2\n'
+                              '.byte SPEED\n'),
+            'inherit.asm':   ('.import "plain.asm"\n'
+                              'jsr helper\n'),
+            'plain.asm':     'helper: rts\n',
+            'pyouter.asm':   ('.import "util.py", "util"\n'
+                              '.byte util.x\n'),
+            'util.py':       'x = 5\n',
+            'fillouter.asm': '.import "fill.py"\n',
+            'fill.py':       ('def fill(n):\n'
+                              '    return f".byte {n}\\n"\n'),
+        }
+        for source, expected in [
+            ('.import "outer.asm", "spr"\n'
+             'jsr spr.util.draw\n'
+             '.byte spr.util.SPEED\n',         [0x60, 0x60, 0x02, 0x20, 0x01, 0x10, 0x02]),
+            ('.import "inherit.asm", "spr"\n'
+             'jsr spr.helper\n',               [0x60, 0x20, 0x00, 0x10, 0x20, 0x00, 0x10]),
+            ('.import "pyouter.asm", "spr"\n'
+             '.byte spr.util.x\n',             [5, 5]),                                                 # a .py namespace in spr
+            ('.import "fillouter.asm", "spr"\n'
+             '@spr.fill(7)\n',                 [7]),                                                    # a .py file in spr
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceReferences(self):
+        """A use of a name in a namespace counts as a use of the name it resolves to, e.g. spr.draw, for .optional
+        and ref(), and ref() in a namespace resolves the label there, also when called from outside it.
+        Labels in code that a generator returns in a namespace get the namespace too."""
+        files = {
+            'opt.asm':    ('.optional\n'
+                           'draw: rts\n'
+                           '.end\n'),
+            'optuse.asm': ('jsr draw\n'
+                           '.optional\n'
+                           'draw: rts\n'
+                           '.end\n'),
+            'ref.asm':    ('draw: rts\n'
+                           '.if ref("draw")\n'
+                           '.byte 1\n'
+                           '.else\n'
+                           '.byte 0\n'
+                           '.end\n'),
+            'wait.py':    ('def wait():\n'
+                           '    return "_x: dex\\nbne _x\\n"\n'),
+            'gen.asm':    ('.import "wait.py"\n'
+                           '@wait()\n'),
+            'ifref.asm':  ('.if ref("draw")\n'
+                           'draw: rts\n'
+                           '.end\n'),
+            'maybe.asm':  ('.python\n'
+                           'def maybe():\n'
+                           '    return "nop\\n" if ref("draw") else ""\n'
+                           '.end\n'
+                           'draw: rts\n'),
+        }
+        for source, expected in [
+            ('.import "opt.asm", "spr"\n'
+             '.byte 0\n',                     [0]),                                  # draw isn't used
+            ('.import "opt.asm", "spr"\n'
+             'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]),
+            ('.import "optuse.asm", "spr"\n', [0x20, 0x03, 0x10, 0x60]),             # used in the namespace
+            ('.import "optuse.asm", "spr"\n'
+             '.optional\n'
+             'draw: nop\n'
+             '.end\n',                        [0x20, 0x03, 0x10, 0x60]),             # not the global draw
+            ('.import "ref.asm", "spr"\n',    [0x60, 0]),
+            ('.import "ref.asm", "spr"\n'
+             'jsr spr.draw\n',                [0x60, 1, 0x20, 0x00, 0x10]),
+            ('.import "ifref.asm", "spr"\n'
+             '.byte 0\n',                     [0]),                                  # draw isn't used
+            ('.import "ifref.asm", "spr"\n'
+             'jsr spr.draw\n',                [0x60, 0x20, 0x00, 0x10]),             # ref() of a label it defines
+            ('.import "gen.asm", "spr"\n'
+             'jmp spr.wait1_x\n',             [0xca, 0xd0, 0xfd, 0x4c, 0x00, 0x10]), # wait1_x is spr.wait1_x
+            ('.import "maybe.asm", "spr"\n'
+             '@spr.maybe()\n',               [0x60]),                               # ref() in spr, called from outside
+            ('.import "maybe.asm", "spr"\n'
+             'jsr spr.draw\n'
+             '@spr.maybe()\n',               [0x60, 0x20, 0x00, 0x10, 0xea]),
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportSourceNamespaceShared(self):
+        """A .py file and a source file imported into the same namespace share it, in either order: the source uses
+        the functions of the .py file, the .py file the labels of the source, and both are used as util.name."""
+        files = {
+            'util.py':  ('def double(x):\n'
+                         '    return x * 2\n'
+                         'def tableAddress():\n'
+                         '    return table\n'),
+            'util.asm': 'table: .byte double(3)\n',
+        }
+        for source in [
+            ('.import "util.py", "util"\n'
+             '.import "util.asm", "util"\n'),
+            ('.import "util.asm", "util"\n'
+             '.import "util.py", "util"\n'),
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source + '.byte util.double(4)\n.word util.table, util.tableAddress()\n',
+                                  [6, 8, 0x00, 0x10, 0x00, 0x10], files)
+
+    def testImportSourceNamespaceIsolated(self):
+        """Code in a namespace sees its own names and the built-in symbols, those defined before the source,
+        such as lo(), zp(), the math names and -D defines, but not the names of the program."""
+        files = {
+            'builtins.asm': '.byte lo($1234), hi($1234), floor(pi), zp(1), LEVEL\n',
+        }
+        memory, errors = self._assemble('.import "builtins.asm", "spr"\n', files, {'LEVEL': '5'})
+        self.assertEqual(errors, [])
+        self.assertEqual([memory[0x1000 + i] for i in range(5)], [0x34, 0x12, 3, 2, 5])
+
+    def testImportSourceNamespaceMessages(self):
+        """A namespace doesn't see the names of the program, or of the namespace it is in. A label, an assigned name or
+        a Python name in a namespace isn't global, not even as spr_draw, a constant can't change, the namespace can't be
+        another symbol, and the label rules apply to a label's name without it."""
+        files = {
+            'sprites.asm': 'draw: rts\n',
+            'caps.asm':    'DRAW: rts\n',
+            'python.asm':  ('.python\n'
+                            'def twice(v):\n'
+                            '    return v * 2\n'
+                            '.end\n'),
+            'vars.asm':    'speed = 3\n',
+            'const.asm':   ('SPEED = 1\n'
+                            'SPEED = 2\n'),
+            'pyouter.asm': '.import "util.py", "util"\n',
+            'util.py':     'x = 5\n',
+            'main.asm':    'jsr main\n',
+            'speed.asm':   '.byte speed\n',
+            'helper.asm':  '.byte helper()\n',
+            'outer.asm':   ('start: rts\n'
+                            '.import "inner.asm", "util"\n'),
+            'inner.asm':   'jsr start\n',
+        }
+        for source, expected in [
+            ('main: rts\n'
+             '.import "main.asm", "spr"\n',   ['main.asm:1: error: Name \'main\' is not defined: "main"',
+                                              'main.asm:1: error: Expected an int value instead of: "main"']),
+            ('speed = 3\n'
+             '.import "speed.asm", "spr"\n',  ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
+            ('.python\n'
+             'def helper():\n'
+             '    return 1\n'
+             '.end\n'
+             '.import "helper.asm", "spr"\n', ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
+            ('.import "outer.asm", "spr"\n',  ['inner.asm:1: error: Name \'start\' is not defined: "start"',
+                                              'inner.asm:1: error: Expected an int value instead of: "start"']),
+            ('.import "pyouter.asm", "spr"\n'
+             '.byte util.x\n',                ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
+            ('.import "sprites.asm", "spr"\n'
+             '.word draw\n',                  ['test.asm:2: error: Name \'draw\' is not defined: "draw"']),
+            ('.import "sprites.asm", "spr"\n'
+             '.word spr_draw\n',              ['test.asm:2: error: Name \'spr_draw\' is not defined: "spr_draw"']),
+            ('spr: nop\n'
+             '.import "sprites.asm", "spr"\n', ['test.asm:2: error: Symbol "spr" cannot change type from int to Namespace']),
+            ('.import "python.asm", "spr"\n'
+             '.byte twice(3)\n',              ['test.asm:2: error: Name \'twice\' is not defined: "twice(3)"']),
+            ('.import "vars.asm", "spr"\n'
+             '.byte speed\n',                 ['test.asm:2: error: Name \'speed\' is not defined: "speed"']),
+            ('.import "const.asm", "spr"\n',  ['const.asm:2: error: Constant "spr.SPEED" cannot be changed from 1 to 2']),
+            ('.import "caps.asm", "spr"\n',   ['caps.asm:1: error: Capitals are for constants, not labels: "DRAW"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
+    def testImportNamespace(self):
+        """A .py file imported into a namespace runs in a module of that name, so its names are used as namespace.name.
+        It is ordinary Python, also with import and class, which read Python's built-ins in their own ways."""
+        files = {'util.py': 'x = 5\ndef double(v):\n    return v * 2\n',
+                 'lib.py':  ('import math\n'
+                             'class Colors:\n'
+                             '    RED = 2\n'
+                             'value = int(math.sqrt(16)) + Colors.RED\n')}
+        for source, expected in [
+            ('.import "util.py", "util"\n.byte util.x\n',         [5]),
+            ('.import "util.py", "util"\n.byte util.double(3)\n', [6]),
+            ('.import "util.py", "UTIL"\n.byte UTIL.x\n',         [5]),
+            ('.byte util.x\n.import "util.py", "util"\n',         [5]),  # used before the import, with util from the last pass
+            ('.import "lib.py", "lib"\n.byte lib.value\n',        [6]),  # import and class in a namespace
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportNamespaceGenerators(self):
+        """A generator in a namespace is called as @namespace.name(), and its local labels are named after the name,
+        also when two namespaces have a generator of the same name. Its code is assembled with the global names."""
+        wait = 'def wait():\n    return "_x: dex\\nbne _x\\n"\n'
+        files = {'a.py': wait, 'b.py': wait,
+                 'util.py': 'COUNT = 2\ndef fill(v):\n    return f".byte {v}\\n" * COUNT\ndef jump():\n    return "jmp end\\n"\n'}
+        for source, expected in [
+            ('.import "a.py", "a"\n@a.wait()\n',                                     [0xca, 0xd0, 0xfd]),       # dex, bne -3 to wait1_x
+            ('.import "a.py", "a"\n.import "b.py", "b"\n@a.wait()\n@b.wait()\n',     [0xca, 0xd0, 0xfd, 0xca, 0xd0, 0xfd]), # wait1_x and wait2_x
+            ('.import "util.py", "util"\nv = 7\n@util.fill(v)\n',                    [7, 7]),                   # COUNT from its module
+            ('.import "util.py", "util"\n@util.jump()\nend: rts\n',                  [0x4c, 0x03, 0x10, 0x60]), # jmp to the global label end, at $1003
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportPythonSyntaxError(self):
+        """A syntax error in an imported Python file is reported with the file's name and line, also in a namespace."""
+        files = {'bad.py': 'x = 1\ny = (\n'}
+        for source in ['.import "bad.py"\n', '.import "bad.py", "bad"\n']:
+            with self.subTest(source=source):
+                errors = self._errors(source, files)
+                self.assertEqual(len(errors), 1, errors)
+                self.assertIn("(SyntaxError: '(' was never closed (bad.py, line 2))", errors[0])
+
+    def testImportNamespaceNotAssembled(self):
+        """A namespace imported in a block that is not assembled is not defined, like other symbols."""
+        source = '.if ref("t")\nt: nop\n.import "util.py", "util"\n.end\n.byte util.x\n' # nothing uses t, so the block is never assembled
+        self.assertEqual(self._errors(source, {'util.py': 'x = 5\n'}), ['test.asm:5: error: Name \'util\' is not defined: "util.x"'])
+
+    def testImportNamespaceIsolated(self):
+        """The names of a file in a namespace are not global, and the file sees the built-in symbols, such as lo(),
+        but not the names of the program."""
+        files = {'util.py': 'x = 5\n', 'low.py': 'y = lo(0x1234)\n', 'see.py': 'def f():\n    return start\n',
+                 'peek.py': 'found = int(any("symbols" in name for name in globals()))\n'}
+        for source, expected in [
+            ('.import "util.py", "util"\n.byte x\n', ['test.asm:2: error: Name \'x\' is not defined: "x"']),
+            ('.import "peek.py", "peek"\n.assert peek.found == 0\n', []),      # nor the symbols, through its module
+            ('.import "low.py", "low"\n.byte low.y\n', []),
+            ('start: rts\n.import "see.py", "see"\n.word see.f()\n',
+                                                     ['test.asm:3: error: Name \'start\' is not defined: "see.f()"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
+    def testImportNamespaceMerged(self):
+        """Files imported into the same namespace share it, and a later file sees the names of an earlier one."""
+        files = {'a.py': 'x = 1\n', 'b.py': 'y = x + 1\n'}
+        for source, expected in [
+            ('.import "a.py", "util"\n.import "b.py", "util"\n.byte util.x, util.y\n', [1, 2]),
+            ('.import "a.py", "util"\n.import "a.py", "util"\n.byte util.x\n',         [1]),     # the same file twice
+            ('.byte util.y\n.import "a.py", "util"\n.import "b.py", "util"\n',         [2]),     # used before the imports, from the last pass
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
+
+    def testImportNamespaceTaken(self):
+        """A namespace can't be the name of another symbol, such as a label or a module imported by Python code,
+        or of a Python built-in, and the file isn't run then."""
+        files = {'bad.py': '1/0\n'} # fails if it runs, so a second error would show that it ran
+        for source, expected in [
+            ('.import "bad.py", "sin"\n',                           ['test.asm:1: error: Symbol "sin" cannot change type from builtin_function_or_method to Namespace']),
+            ('util: nop\n.import "bad.py", "util"\n',               ['test.asm:2: error: Symbol "util" cannot change type from int to Namespace']),
+            ('.python\nimport os\n.end\n.import "bad.py", "os"\n', ['test.asm:4: error: Symbol "os" cannot change type from module to Namespace']),
+            ('.import "bad.py", "len"\n',                           ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "len"']),
+            ('.import "bad.py", "print"\n',                         ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "print"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
+
+    def testImportNamespaceMessages(self):
+        """A .py file or a source file can be imported into a namespace, a name that isn't a Python keyword
+        or built-in, and doesn't start with _."""
+        files = {'util.py': 'x = 1\n', 'bytes.txt': '.byte 1\n'}
+        for source, expected in [
+            ('.import "util.py", "util"\n',    []),
+            ('.import "util.py", "myUtil"\n',  []),
+            ('.import "util.py", "my_util"\n', []),
+            ('.import "util.py", "Util2"\n',   []),
+            ('.import "util.py", "UTIL"\n',    []),
+            ('.import "bytes.txt", "util"\n',  []),
+            ('.import "bytes.txt", "_util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "_util"']),
+            ('.import "bytes.txt", "if"\n',    ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "if"']),
+            ('.import "none.asm", "util"\n',   ['test.asm:1: error: File not found: "none.asm"']),
+            ('.import "util.py", "my-util"\n', ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "my-util"']),
+            ('.import "util.py", "if"\n',      ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "if"']),
+            ('.import "util.py", "_util"\n',   ['test.asm:1: error: Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "_util"']),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self._errors(source, files), expected)
 
     def testImportPythonReferences(self):
         """The names used by an imported Python file count as references, also inside its functions."""
+        # g is never called, but its use of f is enough to assemble the optional block
         self._assertBytes('.import "uses.py"\n.optional\nf: nop\n.end\n', [0xea], {'uses.py': 'def g():\n    return f\n'})
+
+    def testImportNamespaceReferences(self):
+        """The names used by a Python file in a namespace are its own, so they don't count as references,
+        but the code its generators return does."""
+        files = {'lib.py': 'def init():\n    return ""\ndef call():\n    return "jsr init\\n"\n'}
+        for source, expected in [
+            ('.import "lib.py", "lib"\n.optional\ninit: rts\n.end\n.byte 0\n',     [0]),                      # init isn't used
+            ('.import "lib.py", "lib"\n@lib.call()\n.optional\ninit: rts\n.end\n', [0x20, 0x03, 0x10, 0x60]), # jsr init, at $1003, so the block is assembled
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(source, expected, files)
 
     def testImportPythonMessages(self):
         """A Python file that fails is reported by its name, whatever goes wrong."""
@@ -109,12 +525,8 @@ class TestDirectives(unittest.TestCase):
             (b'1/0\n',    'ZeroDivisionError'),
             (b'\xff\xfe', 'UnicodeDecodeError'), # can't be read
         ]:
-            with self.subTest(exception=exception), tempfile.TemporaryDirectory() as directory:
-                with open(os.path.join(directory, 'bad.py'), 'wb') as f:
-                    f.write(content)
-                with open(os.path.join(directory, 'test.asm'), 'w') as f:
-                    f.write('.import "bad.py"\n')
-                errors = assembleFile(os.path.join(directory, 'test.asm')).errors
+            with self.subTest(exception=exception):
+                errors = self._errors('.import "bad.py"\n', {'bad.py': content})
                 self.assertEqual(len(errors), 1, errors)
                 self.assertIn(f'test.asm:1: error: Failed to execute python code: "bad.py" ({exception}', errors[0])
 
@@ -128,12 +540,12 @@ class TestDirectives(unittest.TestCase):
             ('.if a>5\n.if a<5\n.byte $ee\n.else\n.byte 4\n.end\n.end\n', [4]), # nested
             ('.if a<5\ninner: .if a>5\n.byte $ee\n.else\n.byte $ee\n.end\n'     # skipped, with a label, a nested if and a loop
              '.repeat 2\n.byte $ee\n.end\n.else\n.byte 5\n.end\n', [5]),
-            ('.if a>5\nboth: .byte 6\n.else\nboth: .byte $ee\n.end\n', [6]),    # the same label in both branches
+            ('.if a>5\nboth: .byte 6\n.else\nboth: .byte $ee\n.end\n', [6]),    # the same label in both branches, as only one is assembled
             ('.if a>5 and not a>10\n.byte 7\n.end\n',          [7]),   # Python keywords in the condition
             ('.for i=0, i<4, i+=1\n.if i % 2 == 0\n.byte i\n.end\n.end\n', [0, 2]), # inside a loop
         ]:
             with self.subTest(source=source):
-                self._assertBytes(f'a = 7\n{source}', expected)
+                self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
     def testFor(self):
         """.for loops, with an initial statement, a condition and a step."""

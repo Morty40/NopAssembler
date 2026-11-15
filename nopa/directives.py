@@ -14,7 +14,7 @@ from collections.abc import Callable
 from . import evaluate
 from . import lexer
 from . import text
-from .context import Context
+from .context import Context, Namespace
 from .cpu import CPU
 
 
@@ -375,7 +375,8 @@ def optional(context, tokens: list, chunks: dict):
     if _skipBlock(context, chunks, 'optional') is None:
         return
     fileName, end = context.readPointer()
-    if _globalLabels(chunks[fileName][start[1] + 1:end]) & context.lastReferences:
+    labels = {context.namespacedName(label) for label in _globalLabels(chunks[fileName][start[1] + 1:end])}
+    if labels & context.lastReferences:
         context.jumpReadPointer(start)
         context.blockStack.append( ('optional', start) )
 
@@ -388,11 +389,22 @@ def reportOpenBlocks(context):
         context.popReadPointer()
 
 
-def _runPython(context, code: str):
-    """Run Python code with the symbols as its variables, and note the names it uses."""
-    compiled = compile(code, '<string>', 'exec')
-    context.noteReferences(compiled)
-    exec(compiled, context.symbols)
+def _runPython(context, code: str, variables: dict | None = None, fileName: str = '<string>'):
+    """Run Python code with the symbols as its variables, as the current namespace sees them, and note
+    the names it uses as references, for ref() and .optional: a function that uses a label, e.g. return f,
+    refers to it.
+
+    With other variables, such as a namespace's module, the code can't see the symbols, so a name
+    like init is always its own, never a label, and isn't a reference. Nothing is lost: the arguments
+    of @namespace.f(label), and the code a generator returns, are noted where they are assembled.
+    The file name, if the code is from a file, is where Python reports a syntax error.
+    """
+    compiled = compile(code, fileName, 'exec')
+    if variables is None:
+        context.noteReferences(compiled)
+        exec(compiled, context.namespaceSymbols())
+    else:
+        exec(compiled, variables)
 
 
 def _execute(context, code: str) -> bool:
@@ -411,21 +423,50 @@ def python(context, code: str):
     _execute(context, code)
 
 
+def _namespaceModule(context, namespace: str) -> Namespace | None:
+    """The module of a namespace, as a symbol, e.g. spr, or spr.util in a source file's namespace spr.
+    Files imported into it share it, also in later passes, as other symbols. None, after reporting
+    an error, if the name is another type of symbol."""
+    name = context.namespacedName(namespace)
+    module = context.symbols.get(name)
+    if type(module) is not Namespace: # the first import into it, or the name is another symbol, which setSymbol() reports
+        module = Namespace(name, context.symbols, context.builtinNames)
+    return module if context.setSymbol(name, module) else None
+
+
+def _importPyFile(context, path: str, fileName: str, namespace: str | None):
+    """Run a .py file with the symbols as its variables, or in the module of a namespace."""
+    variables = None # the symbols
+    if namespace is not None:
+        module = _namespaceModule(context, namespace)
+        if module is None:
+            return # the name is another type of symbol, so the file isn't run
+        variables = module.__dict__
+    try:
+        with open(path) as f:
+            _runPython(context, f.read(), variables, fileName)
+    except Exception as exception:
+        context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
+
+
 @directive('import')
-def importFile(context, fileName: str):
-    """Import a file: a .py file is executed, any other file is assembled as source code."""
+def importFile(context, fileName: str, namespace: str | None = None):
+    """Import a file: a .py file is executed, any other file is assembled as source code.
+
+    A file can be imported into a namespace, a name that isn't a Python keyword or built-in, and doesn't
+    start with _. A .py file then runs in a module of that name, so its names are used as namespace.name.
+    Files imported into the same namespace share its module.
+    """
     path = os.path.join(context.path, fileName)
-    if os.path.splitext(path)[1] == ".py":
-        try:
-            with open(path) as f:
-                _runPython(context, f.read())
-        except Exception as exception:
-            context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
+    if namespace is not None and not lexer.isValidGlobalSymbolName(namespace):
+        context.reportError(f'Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "{namespace}"')
+    elif os.path.splitext(path)[1] == ".py":
+        _importPyFile(context, path, fileName, namespace)
     elif not os.path.isfile(path):
         context.reportError(f'File not found: "{fileName}"')
-    else:
+    elif namespace is None or _namespaceModule(context, namespace) is not None: # else the name is another type of symbol
         context.advanceReadPointer()
-        context.pushReadPointer( (path, 0) )
+        context.pushReadPointer( (path, 0), namespace )
         return False # the read pointer was moved
 
 

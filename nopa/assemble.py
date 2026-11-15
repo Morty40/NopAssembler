@@ -26,13 +26,14 @@ def _assembleAssignment(tokens: list, context: Context):
     """Assign the value of a Python expression to a symbol: name = expression.
 
     Upper case symbols are constants: once they have a value, they can't
-    be assigned a different value.
+    be assigned a different value. In a namespace, the symbol gets its
+    namespaced name, e.g. speed in spr is spr.speed.
     """
-    symbol = tokens[0].string
+    symbol = context.namespacedName(tokens[0].string)
     expression = lexer.join(tokens[2:])
     value = evaluate.expression(expression, context)
     if value is not None:
-        if symbol.isupper():
+        if symbol.rsplit('.', 1)[-1].isupper(): # the name, without a namespace, e.g. SPEED in spr.SPEED
             if symbol in context.symbols and context.symbols[symbol] != value:
                 context.reportError(f'Constant "{symbol}" cannot be changed from {context.symbols[symbol]} to {value}')
                 return # the constant keeps its value
@@ -77,6 +78,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
 
     lastMemory: dict[int, int] = {}
     lastReferences: set[str] = set()
+    builtinNames: set[str] = set() # the symbols before the source, which code in a namespace sees, set in the first pass
     chunks = {} # the tokenized files and generated code, by name: tokenized once, for all passes
 
     for _ in range(MAX_PASSES):
@@ -94,6 +96,9 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
             _assembleAssignment(lexer.tokenize(f'{name} = {value}')[:-1], context)
             context.popReadPointer()
 
+        if not builtinNames: # in the first pass, after the -D defines and before the first line of source
+            builtinNames = set(symbols)
+        context.builtinNames = builtinNames
         context.pushReadPointer( (inFile, 0) )
 
         # assemble line by line, from the file on top of the read pointer stack
@@ -120,6 +125,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                         context.reportError(f'Capitals are for constants, not labels: "{label}"')
                     elif label.startswith('_'):
                         context.reportError(f'Local label without a global label before it: "{label}"')
+                    label = context.namespacedName(label) # the rules above are for the name as written, the rest for its full name
                     if label in context.labels:
                         context.reportError(f'Label was already defined: "{label}"')
                     context.setSymbol(label, context.symbols['_'])

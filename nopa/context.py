@@ -1,6 +1,9 @@
 #! /usr/bin/env python3
 """The assembler state: symbols, memory, messages and the current line."""
 
+import builtins
+import dis
+import functools
 import math
 import types
 
@@ -8,23 +11,169 @@ from . import cpu
 from . import text
 
 
+class Namespace(types.ModuleType):
+    """A namespace, the symbol of .import "file", "namespace": names in it are used as namespace.name.
+
+    For a .py file, it is the module the file runs in. The names a source file in it defines are symbols
+    with the dotted name, e.g. spr.draw, so an attribute the module doesn't have is looked up there,
+    also a namespace inside it, e.g. spr.util.
+
+    A type of its own, so a symbol can't change between a namespace and another module,
+    e.g. one imported by Python code.
+    """
+
+    __slots__ = ('_symbols',) # not in the module's __dict__, the globals of a .py file in it, so the file can't see them
+
+    def __init__(self, name: str, symbols: dict, builtinNames: set[str]):
+        super().__init__(name)
+        self._symbols = symbols
+        self.__dict__['__builtins__'] = NamespaceBuiltins(name, symbols, builtinNames) # what a .py file in it sees besides its own names
+
+    def __getattr__(self, name: str):
+        # only called when the module's __dict__ doesn't have the name, e.g. for a label of a source file in it
+        symbol = f'{self.__name__}.{name}'
+        if symbol in self._symbols:
+            return self._symbols[symbol]
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+
+class NamespaceBuiltins(dict):
+    """The built-ins of a .py file in a namespace: the names of the source files in the namespace first,
+    e.g. table for util.table, then the built-in symbols, such as lo(), and then Python's built-ins,
+    which it holds, as Python reads some directly."""
+
+    def __init__(self, namespace: str, symbols: dict, builtinNames: set[str]):
+        super().__init__(builtins.__dict__) # a copy of Python's built-ins, where __getitem__ looks last, e.g. for len and __import__
+        self.namespace = namespace
+        self.symbols = symbols
+        self.builtinNames = builtinNames
+
+    def __getitem__(self, name: str):
+        symbol = f'{self.namespace}.{name}'
+        if symbol in self.symbols:
+            return self.symbols[symbol]
+        if name in self.builtinNames:
+            return self.symbols[name] # read when used, as some are new each pass, e.g. zp() and has()
+        return super().__getitem__(name)
+
+
+@functools.lru_cache(maxsize=10000) # the same expression compiles to an equal code object in every pass
+def dottedNames(code) -> list[list[str]]:
+    """The dotted names used by compiled Python code, not in the functions in it, as a name and its attributes,
+    e.g. ['spr', 'util', 'draw'] for spr.util.draw. Cached, so the lists are shared, and must not be changed."""
+    chains: list[list[str]] = []
+    chain: list[str] | None = None
+    for instruction in dis.get_instructions(code):
+        if instruction.opname == 'EXTENDED_ARG': # before an instruction with an argument over 255, part of it
+            continue
+        if instruction.opname in ('LOAD_NAME', 'LOAD_GLOBAL'):
+            chain = [instruction.argval] # a new chain, which the attributes loaded right after it extend
+            chains.append(chain)
+        elif instruction.opname in ('LOAD_ATTR', 'LOAD_METHOD') and chain is not None: # LOAD_METHOD before Python 3.12
+            chain.append(instruction.argval)
+        else:
+            chain = None # anything else ends the chain, e.g. a call or an operator
+    return [chain for chain in chains if len(chain) > 1] # a name alone isn't dotted
+
+
+def namespacedName(name: str, namespace: str) -> str:
+    """The name a symbol defined in a namespace gets, e.g. draw in spr is spr.draw, and a constant
+    SPEED is spr.SPEED. Without a namespace, '', the name is unchanged, and so is _, the current address."""
+    if not namespace or name == '_':
+        return name
+    return f'{namespace}.{name}'
+
+
+class NamespaceSymbols(dict):
+    """The symbols as the code in a namespace sees them: its own names, e.g. draw is spr.draw, or spr.util.draw
+    in a namespace inside it, and the built-in symbols, those defined before the source, such as lo() and the
+    -D defines, but not the names of the program, or of the namespace it is in. A name it defines gets the namespace.
+
+    Used as the globals of eval() and exec(), which then look names up here, also in lambdas and
+    functions. It copies nothing: its own dict only holds the __builtins__ that eval() adds.
+
+    The global statement isn't supported in a namespace: Python stores a name declared global
+    straight into this dict, without __setitem__, so the symbols never get it, and reading it
+    back fails. Code in a namespace keeps state in a container instead, e.g. counts = [0] and
+    counts[0] += 1 in a function.
+    """
+
+    def __init__(self, symbols: dict, namespace: str, builtinNames: set[str]):
+        super().__init__()
+        self.symbols = symbols
+        self.namespace = namespace # e.g. spr.util
+        self.builtinNames = builtinNames
+
+    def candidates(self, name: str) -> list[str]:
+        """The symbols a name can be looked up as, in order: its own, e.g. spr.util.draw, and the name itself if it is built in."""
+        return [namespacedName(name, self.namespace)] + ([name] if name in self.builtinNames else [])
+
+    def defined(self, symbol: str) -> bool:
+        """True if the symbol is defined, also as a name of a .py file in a namespace, e.g. util.double."""
+        namespace, _, name = symbol.rpartition('.') # e.g. util and double for util.double
+        module = self.symbols.get(namespace)
+        return symbol in self.symbols or (type(module) is Namespace and name in vars(module)) # vars(): the .py file's names
+
+    def value(self, symbol: str):
+        """The value of a symbol, also of a name of a .py file in a namespace. Raises KeyError if it isn't defined,
+        as the namespace of a dotted symbol, e.g. util for util.double, is a module, since its .import."""
+        if symbol in self.symbols:
+            return self.symbols[symbol]
+        namespace, _, name = symbol.rpartition('.')
+        return vars(self.symbols[namespace])[name] # a KeyError here becomes a NameError in eval() and exec()
+
+    def resolve(self, name: str) -> str:
+        """The symbol a name is looked up as: the first candidate that is defined, else its own, e.g. spr.draw."""
+        # else its own name, so an undefined name is a NameError, and is never looked up among the program's names
+        return next((candidate for candidate in self.candidates(name) if self.defined(candidate)), self.candidates(name)[0])
+
+    def referenceNames(self, name: str) -> list[str]:
+        """The symbols a use of the name counts as, for ref() and .optional: the one it is looked up as,
+        or all the candidates while none is defined, so a block that defines it can be assembled."""
+        defined = [candidate for candidate in self.candidates(name) if self.defined(candidate)]
+        return defined[:1] or self.candidates(name) # [:1]: only the first counts, as only it is looked up
+
+    def __getitem__(self, name: str):
+        symbol = self.resolve(name)
+        if symbol == 'ref': # the built-in ref(), with the label looked up in this namespace, wherever it is called from
+            return lambda label: any(self.symbols['ref'](reference) for reference in self.referenceNames(label))
+        return self.value(symbol)
+
+    def __contains__(self, name) -> bool:
+        """True if the name is defined as it is looked up, for name in globals() in Python code."""
+        return self.defined(self.resolve(name))
+
+    def get(self, name, default=None):
+        """The value of the name as it is looked up, or the default, for globals().get() in Python code."""
+        symbol = self.resolve(name)
+        return self.value(symbol) if self.defined(symbol) else default
+
+    def __setitem__(self, name: str, value):
+        self.symbols[namespacedName(name, self.namespace)] = value # a name Python code defines, e.g. in .python or .for
+
+
 class Context:
     """The state of one assemble pass.
 
     The read pointer stack has a (fileName, lineIndex) for each file
     being assembled. The top is the current line, and an imported file
-    or generator is pushed on top of the file that uses it.
+    or generator is pushed on top of the file that uses it. Each also has
+    the namespace it is in, that the names it defines are prefixed with,
+    e.g. spr.util for spr.util.draw.
     """
 
     def __init__(self, symbols: dict):
         """Create the state for a pass. The symbols are shared by all passes."""
         self.readPointerStack: list[tuple[str, int]] = []
+        self.namespaceStack: list[str] = [] # the namespace of each read pointer, e.g. spr.util, '' for none
+        self.builtinNames: set[str] = set() # the symbols defined before the source, which code in a namespace sees
+        self.namespaceViews: dict[str, NamespaceSymbols] = {} # namespace: the view of the symbols in it, see namespaceSymbols()
 
         # math, and ord/chr in the current text encoding, for expressions
         symbols.update(math.__dict__)
         symbols['ord'] = lambda char: text.ord(char, self.encoding)
         symbols['chr'] = lambda value: text.chr(value, self.encoding)
-        symbols['ref'] = lambda label: label in self.lastReferences
+        symbols['ref'] = lambda label: label in self.lastReferences # in a namespace, NamespaceSymbols looks the label up first
         symbols['zp'] = self.zp
         self.symbols = symbols
         self.labels: set[str] = set() # labels defined in this pass, to find duplicates
@@ -42,11 +191,27 @@ class Context:
         self.encoding: dict[str, int] = text.ENCODING_SCREEN_UPPER
         self.cpu: cpu.CPU = cpu.CPU_6502 # the instructions
         self.references: set[str] = set() # the names used by the Python code and expressions in this pass
-        self.lastReferences: set[str] = set() # the same from the last pass, for ref()
+        self.lastReferences: set[str] = set() # the same from the last pass, for ref() and .optional
 
     def noteReferences(self, code):
-        """Note the names used by compiled Python code, including the functions in it."""
-        self.references.update(code.co_names)
+        """Note the names used by compiled Python code, including the functions in it,
+        as the symbols they are looked up as in the current namespace, e.g. spr.draw for draw,
+        and the dotted names it uses, e.g. spr.draw, which Python has as the two names spr and draw.
+
+        A name that isn't defined yet is noted as all the symbols it could be, so an optional block
+        that defines it is assembled, and the next pass notes just the one it is.
+        """
+        symbols = self.namespaceSymbols()
+
+        def noted(name: str) -> list[str]:
+            return symbols.referenceNames(name) if isinstance(symbols, NamespaceSymbols) else [name]
+
+        for name in code.co_names:
+            self.references.update(noted(name))
+        for chain in dottedNames(code): # Python has spr and draw as two names
+            for name in noted(chain[0]): # the namespace as it is looked up, e.g. spr.util for util in spr
+                for length in range(2, len(chain) + 1): # each part, e.g. spr.util and spr.util.draw, as either can be used
+                    self.references.add('.'.join([name] + chain[1:length]))
         for constant in code.co_consts:
             if isinstance(constant, types.CodeType):
                 self.noteReferences(constant)
@@ -106,13 +271,35 @@ class Context:
         if self.readPointerStack:
             self.readPointerStack[-1] = readPointer
 
-    def pushReadPointer(self, readPointer: tuple):
-        """Start assembling another file, on top of the current one."""
+    def pushReadPointer(self, readPointer: tuple, namespace: str | None = None):
+        """Start assembling another file, on top of the current one, in the same namespace,
+        or in the namespace inside it, if given, e.g. spr.util for util in spr."""
+        self.namespaceStack.append(self.namespace() if namespace is None else self.namespacedName(namespace)) # generators, .optional and files without a namespace keep the current one
         self.readPointerStack.append(readPointer)
 
     def popReadPointer(self):
         """Finish the current file, and return its read pointer."""
+        if self.namespaceStack:
+            self.namespaceStack.pop()
         return self.readPointerStack.pop() if self.readPointerStack else None
+
+    def namespace(self) -> str:
+        """The namespace of the current file, the prefix of the names it defines, e.g. spr.util, '' for none."""
+        return self.namespaceStack[-1] if self.namespaceStack else ''
+
+    def namespacedName(self, name: str) -> str:
+        """The name a symbol defined in the current namespace gets, see namespacedName()."""
+        return namespacedName(name, self.namespace())
+
+    def namespaceSymbols(self) -> dict:
+        """The symbols as the code in the current namespace sees them, for eval() and exec(): the symbols
+        themselves outside a namespace, and else a view of them, made once in a pass for each namespace."""
+        namespace = self.namespace()
+        if not namespace:
+            return self.symbols
+        if namespace not in self.namespaceViews:
+            self.namespaceViews[namespace] = NamespaceSymbols(self.symbols, namespace, self.builtinNames)
+        return self.namespaceViews[namespace]
 
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""
