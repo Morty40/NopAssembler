@@ -19,14 +19,14 @@ class TestGenerators(unittest.TestCase):
         context = Context(symbols)
         context.pushReadPointer( ('test.asm', 0) )
         chunks = {}
-        advance = assemble(lexer.tokenize(line)[:-1], context, chunks)
-        self.assertFalse(advance)
+        advance = assemble(lexer.tokenize(line)[:-1], context, chunks) # without the newline token
+        self.assertFalse(advance) # the generated code is read next, not the next line
         return context, chunks
 
     def testGeneratedCode(self):
         """The generated code is assembled next, like an imported file."""
         context, chunks = self._assemble('@code(2)', {'code': lambda n: 'nop\n' * n})
-        self.assertEqual(context.readPointer(), ('test.asm:1 @code(2)', 0))
+        self.assertEqual(context.readPointer(), ('test.asm:1 @code(2)', 0)) # the code, named after the line and the call
         lines = [[t.string for t in lineTokens] for lineTokens in chunks['test.asm:1 @code(2)']]
         self.assertEqual(lines[:2], [['nop'], ['nop']])
         self.assertEqual(context.errors, [])
@@ -36,6 +36,7 @@ class TestGenerators(unittest.TestCase):
         context, chunks = self._assemble('@loop()', {'loop': lambda: '_loop: bne _loop\n'})
         line = [t.string for t in chunks['test.asm:1 @loop()'][0]]
         self.assertEqual(line, ['loop1_loop', ':', 'bne', 'loop1_loop'])
+        # each generator counts its own calls, and a dotted generator, such as sprites.draw(), is named after its last part
         for generator, expected in [('@loop()', 'loop2_x'), ('@wait(3)', 'wait1_x'), ('@loop()', 'loop3_x'), ('@sprites.draw()', 'draw1_x')]:
             with self.subTest(generator=generator):
                 context.symbols.update({'loop': lambda: '_x: nop\n', 'wait': lambda n: '_x: nop\n',
@@ -54,12 +55,18 @@ class TestGenerators(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fileName = os.path.join(directory, 'test.asm')
             with open(fileName, 'w') as f:
-                f.write('.python\ndef f(n):\n    return n or "_x: nop\\n"\n.end\n@f(1)\n@f(0)\nnop\n')
+                f.write('.python\n'
+                        'def f(n):\n'
+                        '    return n or "_x: nop\\n"\n'
+                        '.end\n'
+                        '@f(1)\n' # 1 is not a string: an error
+                        '@f(0)\n' # the second call, so its label is f2_x
+                        'nop\n')
             context = assembleFile(fileName)
         self.assertEqual(len(context.errors), 1, context.errors)
         self.assertIn('Generator must return a string, not int', context.errors[0])
         self.assertIn('f2_x', context.labels)
-        self.assertEqual(list(context.memory.values()), [0xea, 0xea])
+        self.assertEqual(list(context.memory.values()), [0xea, 0xea]) # the nop of @f(0), and the last nop
 
     def _memory(self, source: str) -> list:
         """Assemble source without errors, and return the bytes in memory, by address."""
@@ -73,20 +80,39 @@ class TestGenerators(unittest.TestCase):
 
     def testForwardReference(self):
         """A generator argument can be a symbol that is given after the call."""
-        self.assertEqual(self._memory('.python\n    def fill(x, n):\n        return f".byte {x}\\n" * n\n.end\n'
-                                      '@fill(1, length)\n@fill(2, length)\nlength = 3\n'), [1, 1, 1, 2, 2, 2])
+        self.assertEqual(self._memory('.python\n'
+                                      '    def fill(x, n):\n'
+                                      '        return f".byte {x}\\n" * n\n'
+                                      '.end\n'
+                                      '@fill(1, length)\n'
+                                      '@fill(2, length)\n'
+                                      'length = 3\n'), [1, 1, 1, 2, 2, 2])
 
     def testLocalLabelBytes(self):
         """Each call has its own local labels, after a label or in the same scope as the last call."""
-        self.assertEqual(self._memory('.python\n    def delay(n):\n        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n.end\n'
-                                      'aa: @delay(3)\nbb: @delay(5)\n@delay(7)\nrts\n'),
-                         [0xa2, 3, 0xca, 0xd0, 0xfd, 0xa2, 5, 0xca, 0xd0, 0xfd, 0xa2, 7, 0xca, 0xd0, 0xfd, 0x60])
+        self.assertEqual(self._memory('.python\n'
+                                      '    def delay(n):\n'
+                                      '        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n'
+                                      '.end\n'
+                                      'aa: @delay(3)\n'
+                                      'bb: @delay(5)\n'
+                                      '@delay(7)\n'
+                                      'rts\n'),
+                         [0xa2, 3, 0xca, 0xd0, 0xfd, 0xa2, 5, 0xca, 0xd0, 0xfd, 0xa2, 7, 0xca, 0xd0, 0xfd, 0x60]) # each bne back to its own _loop
 
     def testNamedArguments(self):
         """Named arguments work with or without spaces around the =."""
-        self.assertEqual(self._memory('.python\n    def jump(address):\n        return f"jmp {address}\\n"\n.end\nstart:\n'
-                                      '@jump(address=_sub)\n@jump(address =_sub)\n@jump(address= _sub)\n@jump(address = _sub)\n'
-                                      '_sub:\nrts\n'), [0x4c, 0x0c, 0x10] * 4 + [0x60])
+        self.assertEqual(self._memory('.python\n'
+                                      '    def jump(address):\n'
+                                      '        return f"jmp {address}\\n"\n'
+                                      '.end\n'
+                                      'start:\n'
+                                      '@jump(address=_sub)\n'
+                                      '@jump(address =_sub)\n'
+                                      '@jump(address= _sub)\n'
+                                      '@jump(address = _sub)\n'
+                                      '_sub:\n'
+                                      'rts\n'), [0x4c, 0x0c, 0x10] * 4 + [0x60]) # jmp $100c, where _sub is after the four jmps
 
 
 if __name__ == '__main__':

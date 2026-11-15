@@ -84,7 +84,7 @@ class TestCpu(unittest.TestCase):
 
     def testIllegalInstructions(self):
         """The stable illegal instructions are instructions, but not the illegal nops, usbc, or the unstable ones."""
-        self.assertEqual(self._opcodeCount(), 208)
+        self.assertEqual(self._opcodeCount(), 208) # 151 documented, and 57 stable illegal opcodes
         self.assertEqual(CPU_6502.instructionForOpcode(0xa7), (CPU_6502.instructionWithMnemonic('lax'), AddressMode.ZERO_PAGE))
         self.assertEqual(CPU_6502.instructionForOpcode(0x04), None) # an illegal nop
         self.assertEqual(CPU_6502.instructionForOpcode(0xeb), None) # usbc, the same as sbc #
@@ -129,7 +129,7 @@ class TestCpu(unittest.TestCase):
     def testCPUClashes(self):
         """Two instructions with the same opcode, or two opcodes for the same mode of an instruction, are an error.
         A later set may repeat a mode with the same opcode."""
-        for first, second in [(Instruction('aaa', IMPLIED=(0x01, '2')), Instruction('bbb', IMPLIED=(0x01, '2'))),
+        for first, second in [(Instruction('aaa', IMPLIED=(0x01, '2')),   Instruction('bbb', IMPLIED=(0x01, '2'))),
                               (Instruction('lda', IMMEDIATE=(0xa9, '2')), Instruction('lda', IMMEDIATE=(0x42, '2')))]:
             with self.subTest(second=second.mnemonic):
                 self.assertRaises(ValueError, CPU, 'test', {first}, {second})
@@ -146,16 +146,16 @@ class TestCpu(unittest.TestCase):
                     with self.subTest(cpu=cpu.name, opcode=opcode):
                         self.assertRegex(found[0].cycles[found[1]], r'^[2-8]\*{0,2}$')
         for mnemonic, mode, cycles6502, cycles65C02 in [
-            ('lda', AddressMode.ABSOLUTE_X,        '4*',  '4*'),   # a page crossed
-            ('bne', AddressMode.RELATIVE,          '2**', '2**'),  # taken, and to another page
-            ('sta', AddressMode.ABSOLUTE_X,        '5',   '5'),
-            ('dec', AddressMode.ABSOLUTE,          '6',   '6'),    # py65 has 3
-            ('jmp', AddressMode.ABSOLUTE_INDIRECT, '5',   '6'),    # the 65C02 fixes the page boundary bug
-            ('asl', AddressMode.ABSOLUTE_X,        '7',   '6*'),   # faster on the 65C02, unless a page is crossed
-            ('adc', AddressMode.IMMEDIATE,         '2',   '2*'),   # decimal mode on the 65C02
-            ('adc', AddressMode.ABSOLUTE_Y,        '4*',  '4**'),
-            ('lax', AddressMode.ZERO_PAGE_INDIRECT_Y, '5*', None), # illegal, 6502 only
-            ('bra', AddressMode.RELATIVE,          None,  '3*'),   # 65C02 only
+            ('lda', AddressMode.ABSOLUTE_X,           '4*',  '4*'),  # a page crossed
+            ('bne', AddressMode.RELATIVE,             '2**', '2**'), # taken, and to another page
+            ('sta', AddressMode.ABSOLUTE_X,           '5',   '5'),
+            ('dec', AddressMode.ABSOLUTE,             '6',   '6'),   # py65 has 3
+            ('jmp', AddressMode.ABSOLUTE_INDIRECT,    '5',   '6'),   # the 65C02 fixes the page boundary bug
+            ('asl', AddressMode.ABSOLUTE_X,           '7',   '6*'),  # faster on the 65C02, unless a page is crossed
+            ('adc', AddressMode.IMMEDIATE,            '2',   '2*'),  # decimal mode on the 65C02
+            ('adc', AddressMode.ABSOLUTE_Y,           '4*',  '4**'),
+            ('lax', AddressMode.ZERO_PAGE_INDIRECT_Y, '5*',  None),  # illegal, 6502 only
+            ('bra', AddressMode.RELATIVE,             None,  '3*'),  # 65C02 only
         ]:
             for cpu, expected in [(CPU_6502, cycles6502), (CPU_65C02, cycles65C02)]:
                 with self.subTest(cpu=cpu.name, mnemonic=mnemonic, mode=mode.name):
@@ -216,7 +216,7 @@ class TestCpu(unittest.TestCase):
 
     def testUnknownAddressMode(self):
         """A misspelled address mode in the table is an error when the module is loaded."""
-        self.assertRaises(KeyError, Instruction, 'xxx', zeroPagee=(0x00, '2'))
+        self.assertRaises(KeyError, Instruction, 'xxx', zeroPagee=(0x00, '2')) # zeroPage, misspelled
 
 
 if __name__ == '__main__':

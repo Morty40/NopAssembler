@@ -31,12 +31,33 @@ class TestMain(unittest.TestCase):
 
     def testUsage(self):
         """Missing or incorrect arguments print the usage, and exit with 2."""
-        for arguments in [[], ['-o', 'x.prg'], ['-d'], ['x.asm', 'extra'], ['-x'],
-                          ['x.asm', '--vice'], ['x.asm', '-t'], ['x.asm', '-t', 'amiga'], ['-d', 'x.prg', '-t', 'c64'],
-                          ['x.asm', '-l'], ['x.asm', '--labels'], ['x.asm', '--cpu'], ['x.asm', '--cpu', 'z80'],
-                          ['x.asm', '--format'], ['x.asm', '--format', 'd64'], ['-d', 'x.prg', '--format', 'bin'],
-                          ['x.asm', '-D'], ['x.asm', '-D', '1X=2'], ['x.asm', '-D', '=2'], ['-d', 'x.prg', '-D', 'X'],
-                          ['x.asm', '-D', '_x=1'], ['x.asm', '-D', '_=1'], ['x.asm', '-D', 'if'], ['x.asm', '-D', 'lda=1'], ['x.asm', '-D', 'stz']]:
+        for arguments in [
+            [],                                 # no file
+            ['-o', 'x.prg'],
+            ['-d'],
+            ['x.asm', 'extra'],                 # two files
+            ['-x'],                             # an unknown option
+            ['x.asm', '--vice'],                # an option without its value
+            ['x.asm', '-t'],
+            ['x.asm', '-l'],
+            ['x.asm', '--labels'],
+            ['x.asm', '--cpu'],
+            ['x.asm', '--format'],
+            ['x.asm', '-D'],
+            ['x.asm', '-t', 'amiga'],           # a value that isn't one of the choices
+            ['x.asm', '--cpu', 'z80'],
+            ['x.asm', '--format', 'd64'],
+            ['-d', 'x.prg', '-t', 'c64'],       # an option only for assembling
+            ['-d', 'x.prg', '--format', 'bin'],
+            ['-d', 'x.prg', '-D', 'X'],
+            ['x.asm', '-D', '1X=2'],            # a name the source can't use
+            ['x.asm', '-D', '=2'],
+            ['x.asm', '-D', '_x=1'],
+            ['x.asm', '-D', '_=1'],
+            ['x.asm', '-D', 'if'],
+            ['x.asm', '-D', 'lda=1'],
+            ['x.asm', '-D', 'stz'],             # a mnemonic of the 65C02
+        ]:
             with self.subTest(arguments=arguments):
                 code, output, errors = self._main(arguments)
                 self.assertEqual(code, 2)
@@ -44,7 +65,7 @@ class TestMain(unittest.TestCase):
 
     def testInterrupted(self):
         """Ctrl-C prints a message, without a traceback, and exits with 130."""
-        for module, function, arguments in [(assemble, 'assembleFile', ['x.asm']),
+        for module, function, arguments in [(assemble,    'assembleFile',    ['x.asm']),
                                             (disassemble, 'disassembleFile', ['-d', 'x.prg'])]:
             with self.subTest(function=function), mock.patch.object(module, function, side_effect=KeyboardInterrupt):
                 code, output, errors = self._main(arguments)
@@ -80,6 +101,7 @@ class TestMain(unittest.TestCase):
             asmFile = os.path.join(directory, 'test.asm')
             with open(asmFile, 'w') as f:
                 f.write('.print BASIC_START_ADDRESS\n')
+            # BASIC_START_ADDRESS in decimal: $0801 on the C64, $1001 on the VIC-20 and C16
             for arguments, expected in [(['-t', 'c64'], '2049'), (['--target', 'vic20'], '4097'), (['-t', 'c16'], '4097'), (['--target=c64'], '2049')]:
                 with self.subTest(arguments=arguments):
                     code, output, errors = self._main([asmFile] + arguments)
@@ -97,10 +119,10 @@ class TestMain(unittest.TestCase):
                 f.write('.print PAL, size, DEBUG\n')
             code, output, errors = self._main([asmFile, '-D', 'PAL=45', '--define', 'size=$10', '-D', 'DEBUG'])
             self.assertEqual(code, 0, errors)
-            self.assertEqual(output.splitlines()[:3], ['45', '16', 'True'])
+            self.assertEqual(output.splitlines()[:3], ['45', '16', 'True']) # $10 is 16, and a name alone is True
             code, output, errors = self._main([asmFile, '-D', 'PAL=x', '-D', 'size=1', '-D', 'DEBUG'])
             self.assertEqual(code, 1)
-            self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors)
+            self.assertIn('<command-line>:1: error: Name \'x\' is not defined', errors) # a -D value is reported as from the command line
 
     def testDefineInvalid(self):
         """A -D name must be a name the source can use: not a local label, a Python keyword or built-in, or a mnemonic."""
@@ -115,21 +137,24 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile = os.path.join(directory, 'a.asm'), os.path.join(directory, 'a.prg')
             with open(asmFile, 'w') as f:
-                f.write('.print "hi"\n.warning "careful"\nlda #1\n')
+                f.write('.print "hi"\n'
+                        '.warning "careful"\n'
+                        'lda #1\n')
             code, output, errors = self._main([asmFile, '-o', prgFile])
             self.assertEqual(code, 0, errors)
             self.assertIn('hi', output.splitlines())
             self.assertIn('Memory used: $1000-$1001 (2 bytes)', output.splitlines())
             self.assertEqual(errors, f'{asmFile}:2: warning: careful\n')
             with open(prgFile, 'rb') as f:
-                self.assertEqual(f.read(), bytes([0x00, 0x10, 0xa9, 0x01]))
+                self.assertEqual(f.read(), bytes([0x00, 0x10, 0xa9, 0x01])) # the load address $1000, and lda #1
 
     def testAssembleError(self):
         """With an error, assembling still prints the .print output, but not the memory use, and saves nothing. Exits with 1."""
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile = os.path.join(directory, 'a.asm'), os.path.join(directory, 'a.prg')
             with open(asmFile, 'w') as f:
-                f.write('.print "hi"\n.error "stop"\n')
+                f.write('.print "hi"\n'
+                        '.error "stop"\n')
             code, output, errors = self._main([asmFile, '-o', prgFile])
             self.assertEqual(code, 1)
             self.assertIn('hi', output.splitlines())
@@ -142,7 +167,9 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile, missingFolder = os.path.join(directory, 'a.asm'), os.path.join(directory, 'missing', 'a.prg')
             with open(asmFile, 'w') as f:
-                f.write('.print "hi"\n.warning "careful"\nnop\n')
+                f.write('.print "hi"\n'
+                        '.warning "careful"\n'
+                        'nop\n')
             code, output, errors = self._main([asmFile, '-o', missingFolder])
             self.assertEqual(code, 1)
             self.assertIn('hi', output.splitlines())
@@ -151,9 +178,9 @@ class TestMain(unittest.TestCase):
     def testPrg(self):
         """A .prg file is the load address, the lowest address used or $1000 if nothing is stored,
         then the bytes from there to the highest address, gaps as 0."""
-        for memory, expected in [({0x2000: 1, 0x1fff: 2}, [0xff, 0x1f, 2, 1]),
-                                 ({0x1000: 1, 0x1002: 3}, [0x00, 0x10, 1, 0, 3]),
-                                 ({},                     [0x00, 0x10])]:
+        for memory, expected in [({0x2000: 1, 0x1fff: 2}, [0xff, 0x1f, 2, 1]),    # from the lowest address, $1fff
+                                 ({0x1000: 1, 0x1002: 3}, [0x00, 0x10, 1, 0, 3]), # a gap as 0
+                                 ({},                     [0x00, 0x10])]:         # nothing stored: $1000, and no bytes
             with self.subTest(memory=memory):
                 context = Context({})
                 context.memory = memory
@@ -186,8 +213,17 @@ class TestMain(unittest.TestCase):
     def testSortedLabels(self):
         """The labels, sorted by address, with local labels as global_local, and generator labels
         as generator1_local. Other symbols, such as constants and zero page variables, are not included."""
-        source = 'VALUE = 5\ncounter = zp(1)\nstart: lda #VALUE\n_loop: dex\nbne _loop\nrts\n' \
-                 '.python\ndef wait():\n    return "_x: dex\\nbne _x"\n.end\n@wait()\n'
+        source = ('VALUE = 5\n'
+                  'counter = zp(1)\n'
+                  'start: lda #VALUE\n'
+                  '_loop: dex\n'
+                  'bne _loop\n'
+                  'rts\n'
+                  '.python\n'
+                  'def wait():\n'
+                  '    return "_x: dex\\nbne _x"\n'
+                  '.end\n'
+                  '@wait()\n')
         with tempfile.TemporaryDirectory() as directory:
             asmFile = os.path.join(directory, 'test.asm')
             with open(asmFile, 'w') as f:
@@ -217,7 +253,11 @@ class TestMain(unittest.TestCase):
     def testViceCommands(self):
         """--vice writes a VICE monitor commands file: the labels, then the .break breakpoints.
         The memory use doesn't list the labels."""
-        source = 'start: nop\n.break\nnop\n.break "RL > $40"\nrts\n'
+        source = ('start: nop\n'
+                  '.break\n'
+                  'nop\n'
+                  '.break "RL > $40"\n'
+                  'rts\n')
         expected = 'al C:1000 .start\nbreak C:1001\nbreak C:1002 if RL > $40\n'
         with tempfile.TemporaryDirectory() as directory:
             asmFile, viceFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.vmc')
@@ -237,7 +277,10 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile, labelsFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.py')
             with open(asmFile, 'w') as f:
-                f.write('start: ldx #5\n_loop: dex\nbne _loop\nrts\n')
+                f.write('start: ldx #5\n'
+                        '_loop: dex\n'
+                        'bne _loop\n'
+                        'rts\n')
             for option in ['-l', '--labels']:
                 with self.subTest(option=option):
                     code, output, errors = self._main([asmFile, option, labelsFile])
@@ -252,10 +295,13 @@ class TestMain(unittest.TestCase):
                     'spr_draw = 0x1001\n'
                     'spr_util_plot = 0x1002\n')
         with tempfile.TemporaryDirectory() as directory:
-            files = {'test.asm':    'start: rts\n.import "sprites.asm", "spr"\n',
-                     'sprites.asm': 'draw: rts\n.import "plot.asm", "util"\n',
+            files = {'test.asm':    'start: rts\n'
+                                    '.import "sprites.asm", "spr"\n',
+                     'sprites.asm': 'draw: rts\n'
+                                    '.import "plot.asm", "util"\n',
                      'plot.asm':    'plot: rts\n',
-                     'other.asm':   '.import "game.py"\njsr spr_util_plot\n'}
+                     'other.asm':   '.import "game.py"\n' # the labels file is Python, which another program can import
+                                    'jsr spr_util_plot\n'}
             for name, text in files.items():
                 with open(os.path.join(directory, name), 'w') as f:
                     f.write(text)
@@ -266,13 +312,15 @@ class TestMain(unittest.TestCase):
                 self.assertEqual(f.read(), expected)
             context = assemble.assembleFile(os.path.join(directory, 'other.asm'))
             self.assertEqual(context.errors, [])
-            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10})
+            self.assertEqual(context.memory, {0x1000: 0x20, 0x1001: 0x02, 0x1002: 0x10}) # jsr spr_util_plot, at $1002
 
     def testLabelCollision(self):
         """Two labels that are written with the same name, e.g. spr_draw and spr.draw, are an error,
         and the labels file and the VICE monitor commands aren't written."""
         with tempfile.TemporaryDirectory() as directory:
-            files = {'test.asm': 'spr_draw: nop\n.import "sprites.asm", "spr"\n', 'sprites.asm': 'draw: rts\n'}
+            files = {'test.asm':    'spr_draw: nop\n'
+                                    '.import "sprites.asm", "spr"\n',
+                     'sprites.asm': 'draw: rts\n'}
             for name, text in files.items():
                 with open(os.path.join(directory, name), 'w') as f:
                     f.write(text)
@@ -288,7 +336,10 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile, labelsFile = (os.path.join(directory, name) for name in ['test.asm', 'test.prg', 'test.py'])
             with open(asmFile, 'w') as f:
-                f.write('start: ldx #5\n_loop: dex\nbne _loop\nrts\n')
+                f.write('start: ldx #5\n'
+                        '_loop: dex\n'
+                        'bne _loop\n'
+                        'rts\n')
             code, output, errors = self._main([asmFile, '-o', prgFile, '-l', labelsFile])
             self.assertEqual(code, 0, errors)
             code, output, errors = self._main(['-d', prgFile, '-l', labelsFile])
@@ -304,9 +355,14 @@ class TestMain(unittest.TestCase):
             asmFile, prgFile, labelsFile, sourceFile = (os.path.join(directory, name)
                                                         for name in ['test.asm', 'test.prg', 'test.py', 'source.asm'])
             with open(asmFile, 'w') as f:
-                f.write('start: jsr spr.draw\nrts\n.import "sprites.asm", "spr"\n')
+                f.write('start: jsr spr.draw\n'
+                        'rts\n'
+                        '.import "sprites.asm", "spr"\n')
             with open(os.path.join(directory, 'sprites.asm'), 'w') as f:
-                f.write('draw: ldx #5\n_loop: dex\nbne _loop\nrts\n')
+                f.write('draw: ldx #5\n'
+                        '_loop: dex\n'
+                        'bne _loop\n'
+                        'rts\n')
             code, output, errors = self._main([asmFile, '-o', prgFile, '-l', labelsFile])
             self.assertEqual(code, 0, errors)
             code, output, errors = self._main(['-d', prgFile, '-l', labelsFile, '-o', sourceFile])
@@ -323,10 +379,11 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile = os.path.join(directory, 'test.asm')
             with open(asmFile, 'w') as f:
-                f.write('.print "hi"\n.warning "careful"\n')
+                f.write('.print "hi"\n'
+                        '.warning "careful"\n')
             output = subprocess.run([sys.executable, '-m', 'nopa.main', asmFile], cwd=root,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
-        lines = [line.split('/')[-1] for line in output.splitlines()]
+        lines = [line.split('/')[-1] for line in output.splitlines()] # without the folder
         self.assertEqual(lines[:2], ['hi', 'test.asm:2: warning: careful'])
 
     def testMissingSource(self):
@@ -349,10 +406,10 @@ class TestMain(unittest.TestCase):
     def testMemoryUseOutput(self):
         """The whole output: the range, the page counts, and a map of 16 lines with 16 pages each."""
         for memory, used, pages, changed in [
-            ([],                               'None',                    '0 full, 0 partial', {}),
-            ([0x0000],                         '$0000-$0000 (1 bytes)',   '0 full, 1 partial', {0: '+...............'}),
-            ([0xffff],                         '$ffff-$ffff (1 bytes)',   '0 full, 1 partial', {15: '...............+'}),
-            ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}),
+            ([],       'None',                  '0 full, 0 partial', {}),
+            ([0x0000], '$0000-$0000 (1 bytes)', '0 full, 1 partial', {0: '+...............'}),
+            ([0xffff], '$ffff-$ffff (1 bytes)', '0 full, 1 partial', {15: '...............+'}),
+            ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}), # gaps counted: page $10 full, $11 empty, $12 partly used
         ]:
             with self.subTest(used=used):
                 context = Context({})
@@ -374,7 +431,8 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.prg')
             with open(asmFile, 'w') as f:
-                f.write('stz $d020\nrts\n')
+                f.write('stz $d020\n'
+                        'rts\n')
             for arguments in [[], ['--cpu', '6502']]:
                 with self.subTest(arguments=arguments):
                     self.assertEqual(self._main([asmFile] + arguments)[0], 1) # the 6502 has no stz
@@ -391,7 +449,8 @@ class TestMain(unittest.TestCase):
             self.assertNotIn('stz', output)
             self.assertNotIn('.cpu', output)
             with open(asmFile, 'w') as f:
-                f.write('rmb3 $12\nrts\n')
+                f.write('rmb3 $12\n'
+                        'rts\n')
             self.assertEqual(self._main([asmFile, '--cpu', '65C02'])[0], 1) # the 65C02 has no rmb3
             code, output, errors = self._main([asmFile, '-o', prgFile, '--cpu', 'R65C02'])
             self.assertEqual(code, 0, errors)
@@ -400,7 +459,8 @@ class TestMain(unittest.TestCase):
             self.assertIn('.cpu CPU_R65C02', [line.strip() for line in output.splitlines()])
             self.assertIn('rmb3 $12', [line.split(';')[0].strip() for line in output.splitlines()])
             with open(asmFile, 'w') as f:
-                f.write('wai\nrts\n')
+                f.write('wai\n'
+                        'rts\n')
             self.assertEqual(self._main([asmFile, '--cpu', 'R65C02'])[0], 1) # the R65C02 has no wai
             code, output, errors = self._main([asmFile, '-o', prgFile, '--cpu', 'W65C02'])
             self.assertEqual(code, 0, errors)
@@ -435,7 +495,8 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             badFile, importFile = os.path.join(directory, 'bad.asm'), os.path.join(directory, 'import.asm')
             with open(badFile, 'wb') as f:
-                f.write(b'nop\n; caf\xe9\n')
+                f.write(b'nop\n'
+                        b'; caf\xe9\n')
             with open(importFile, 'w') as f:
                 f.write('.import "bad.asm"\n')
             for asmFile in [badFile, importFile]:

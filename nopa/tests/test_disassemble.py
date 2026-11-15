@@ -38,7 +38,7 @@ class TestDisassemble(unittest.TestCase):
         """Disassemble for the cpu, and return the lines after the header, with single spaces, and without the monitor comments."""
         lines = disassemble(bytes(data), start, cpu=cpu).splitlines()
         org = next(index for index, line in enumerate(lines) if '.org' in line)
-        return [' '.join(line.split(';')[0].split()) for line in lines[org + 2:]]
+        return [' '.join(line.split(';')[0].split()) for line in lines[org + 2:]] # after the .org line, and the blank line after it
 
     def testRoundtrip(self):
         """asm -> prg -> asm -> prg -> asm gives the same .prg and the same source, for code and data."""
@@ -47,13 +47,41 @@ class TestDisassemble(unittest.TestCase):
             for source in [
                 '',                                                   # nothing stored
                 '.byte 1, 2, 3\n',                                    # only data
-                '.word $1234, 0\n.text "ABC"\n.string "DEF"\n',       # data from other directives
-                '.bytefill 16\n.bytefill 20, lambda x: $ff\n',        # fills
-                '.org $2000\n.byte 1\n.org $2010\n.byte 2\n',         # a gap in the memory
-                '.align 16\n.byte 1\n.align 16\nrts\n',               # code after a gap
-                'lda $02\nlda $1234\nlda #$12\nlda $02,x\nldx $02,y\nlda ($02,x)\nlda ($02),y\nrts\n', # operands
-                'start: ldx #3\n_loop: dex\nbne _loop\njsr sub\njmp start\n.byte 1, 2\nsub: rts\n', # labels, code and data
-                '.python\n    def delay(n):\n        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n.end\n@delay(3)\n@delay(5)\nrts\n', # a generator
+                '.word $1234, 0\n'
+                '.text "ABC"\n'
+                '.string "DEF"\n',                                    # data from other directives
+                '.bytefill 16\n'
+                '.bytefill 20, lambda x: $ff\n',                      # fills
+                '.org $2000\n'
+                '.byte 1\n'
+                '.org $2010\n'
+                '.byte 2\n',                                          # a gap in the memory
+                '.align 16\n'
+                '.byte 1\n'
+                '.align 16\n'
+                'rts\n',                                              # code after a gap
+                'lda $02\n'
+                'lda $1234\n'
+                'lda #$12\n'
+                'lda $02,x\n'
+                'ldx $02,y\n'
+                'lda ($02,x)\n'
+                'lda ($02),y\n'
+                'rts\n',                                              # operands
+                'start: ldx #3\n'
+                '_loop: dex\n'
+                'bne _loop\n'
+                'jsr sub\n'
+                'jmp start\n'
+                '.byte 1, 2\n'
+                'sub: rts\n',                                         # labels, code and data
+                '.python\n'
+                '    def delay(n):\n'
+                '        return f"ldx #{n}\\n_loop: dex\\nbne _loop\\n"\n'
+                '.end\n'
+                '@delay(3)\n'
+                '@delay(5)\n'
+                'rts\n',                                              # a generator
             ]:
                 with self.subTest(source=source):
                     with open(name + '.asm', 'w') as f:
@@ -76,9 +104,12 @@ class TestDisassemble(unittest.TestCase):
                     if not (found := theCpu.instructionForOpcode(opcode)):
                         continue
                     instruction, mode = found
+                    # a branch to itself, a zero page address and a branch to itself, or an operand of the mode's size
                     operands = (['_'] if mode is AddressMode.RELATIVE else ['$12', '_'] if mode is AddressMode.ZERO_PAGE_RELATIVE
                                 else ['$1234'] if mode.size == 3 else ['$12'])
-                    source = f'.cpu CPU_{theCpu.name}\n{instruction.mnemonic} {mode.syntax(*operands)}\nrts\n'
+                    source = (f'.cpu CPU_{theCpu.name}\n'
+                              f'{instruction.mnemonic} {mode.syntax(*operands)}\n'
+                              'rts\n')
                     with self.subTest(source=source):
                         with open(asmFile, 'w') as f:
                             f.write(source)
@@ -86,7 +117,7 @@ class TestDisassemble(unittest.TestCase):
                         self._disassemble(prgFile, asmFile, theCpu)
                         self.assertEqual(self._assemble(asmFile, prgFile), prg)
                         if instruction.mnemonic != 'brk': # brk is treated as data
-                            self.assertIn(instruction.mnemonic, [line.partition(' ')[0] for line in self._lines(prg[2:], cpu=theCpu)])
+                            self.assertIn(instruction.mnemonic, [line.partition(' ')[0] for line in self._lines(prg[2:], cpu=theCpu)]) # prg[2:]: without the load address
 
     def testLabels(self):
         """Branch, jmp and jsr destinations in the code get labels."""
@@ -168,7 +199,10 @@ class TestDisassemble(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             labelsFile = os.path.join(directory, 'labels.py')
             with open(labelsFile, 'w') as f:
-                f.write('start = 0x1000\nstart_loop = 0x1000\nirq = 0x1040\nNAME = "text"\n')
+                f.write('start = 0x1000\n'
+                        'start_loop = 0x1000\n'
+                        'irq = 0x1040\n'
+                        'NAME = "text"\n')
             self.assertEqual(readLabels(labelsFile), {0x1000: 'start', 0x1040: 'irq'})
 
     def testFindCode(self):
@@ -176,7 +210,7 @@ class TestDisassemble(unittest.TestCase):
         basic = [0x0b, 0x08, 0x0a, 0x00, 0x9e, *b'2061', 0x00, 0x00, 0x00] # 10 SYS2061
         self.assertEqual(self._lines(basic + [0xee, 0x20, 0xd0, 0x60], 0x0801),
             ['.byte $0b, $08, $0a, $00, $9e, $32, $30, $36, $31, $00, $00, $00', '', 'inc $d020', 'rts'])
-        self.assertEqual(self._lines([0x60, 0x02, 0xee, 0x20, 0xd0, 0x40]),
+        self.assertEqual(self._lines([0x60, 0x02, 0xee, 0x20, 0xd0, 0x40]), # an interrupt handler after data, which nothing jumps to
             ['rts', '', '.byte $02', '', 'inc $d020', 'rti'])
         self.assertEqual(self._lines([0x80, 0x01, 0x02, 0x60], cpu=cpu.CPU_65C02),   # bra always branches, like jmp
             ['bra l1003', '', '.byte $02', '', 'l1003:', 'rts'])
@@ -186,13 +220,13 @@ class TestDisassemble(unittest.TestCase):
     def testData(self):
         """Bytes that aren't code are data, in rows of up to 16 bytes, and 16 or more of the same byte are a .bytefill."""
         for data, expected in [
-            ([0x60, *range(1, 19)],                 ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']),
-            ([0xea, 0x02, 0xea],                    ['.byte $ea, $02, $ea']),                 # runs into an unknown opcode, and the end
-            ([0x4c, 0x04, 0x10, 0x60, 0x02],        ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']), # jumps to an unknown opcode
-            ([0xea, 0x00, 0x60],                    ['.byte $ea, $00', '', 'rts']),           # runs into brk
-            ([0x60, *[0]*16, *[0xff]*35],           ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']),
-            ([0x60, *[0]*15],                       ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),
-            ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']), # absolute below $100 would assemble as zero page, but lda has no zero page,y
+            ([0x60, *range(1, 19)],          ['rts', '', '.byte ' + ', '.join(f'${b:02x}' for b in range(1, 17)), '.byte $11, $12']), # rows of 16
+            ([0xea, 0x02, 0xea],             ['.byte $ea, $02, $ea']),                                    # runs into an unknown opcode, and the end
+            ([0x4c, 0x04, 0x10, 0x60, 0x02], ['.byte $4c, $04, $10', '', 'rts', '', '.byte $02']),        # jumps to an unknown opcode
+            ([0xea, 0x00, 0x60],             ['.byte $ea, $00', '', 'rts']),                              # runs into brk
+            ([0x60, *[0]*16, *[0xff]*35],    ['rts', '', '.bytefill 16', '.bytefill 35, lambda x: $ff']), # 16 or more of the same byte
+            ([0x60, *[0]*15],                ['rts', '', '.byte ' + ', '.join(['$00'] * 15)]),            # 15: not enough for a .bytefill
+            ([0xad, 0x10, 0x00, 0xb9, 0x10, 0x00, 0x60], ['.byte $ad, $10, $00', 'lda $0010,y', 'rts']),  # absolute below $100 would assemble as zero page, but lda has no zero page,y
         ]:
             with self.subTest(data=data[:6]):
                 self.assertEqual(self._lines(data), expected)
@@ -210,7 +244,7 @@ class TestDisassemble(unittest.TestCase):
         returned, and nothing is saved."""
         with tempfile.TemporaryDirectory() as directory:
             for fileName, data, org in [('a.prg', [0x00, 0xc0, 0x60], '.org $c000'),
-                                        ('a.bin', [0x60], '.org $1000')]:
+                                        ('a.bin', [0x60],             '.org $1000')]:
                 with open(os.path.join(directory, fileName), 'wb') as f:
                     f.write(bytes(data))
                 source = disassembleFile(os.path.join(directory, fileName))

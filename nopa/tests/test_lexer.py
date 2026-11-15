@@ -62,51 +62,53 @@ class TestLexer(unittest.TestCase):
 
     def testUnclosedQuote(self):
         """A missing end quote doesn't crash, and the other lines are still tokenized."""
-        strings = [t.string for t in tokenize('nop\n.text "abc\nrts')]
+        strings = [t.string for t in tokenize('nop\n'
+                                              '.text "abc\n'
+                                              'rts')]
         self.assertEqual(strings[:2], ['nop', '\n'])
         self.assertEqual(strings[-2:], ['rts', '\n'])
 
     def testSplitByComma(self):
         """Tokens are split at the commas that are not inside brackets."""
         parts = splitByComma(tokenize('a=0, a<len([1, 2]), {"x": (3, 4)}')[:-1])
-        self.assertEqual([join(part) for part in parts], ['a=0', 'a<len([1,2])', '{f"x":(3,4)}'])
+        self.assertEqual([join(part) for part in parts], ['a=0', 'a<len([1,2])', '{f"x":(3,4)}']) # strings become f-strings
 
     def testScanner(self):
         """Each token is the longest match, whichever characters are next to it."""
         for line, expected in [
-            ('t-$10',         ['t', '-', '0x10']),
-            ('-$10',          ['-', '0x10']),
-            ('2*%11',         ['2', '*', '0b11']),
-            ('$20/$10',       ['0x20', '/', '0x10']),
-            ('~$10',          ['~', '0x10']),
-            ('2**$4',         ['2', '**', '0x4']),
-            ('16//$4',        ['16', '//', '0x4']),
-            ('7%$10',         ['7', '%', '0x10']),
-            ('%101%2',        ['0b101', '%', '2']),
-            ('a<<2',          ['a', '<<', '2']),
-            ('a<=2',          ['a', '<=', '2']),
-            ('a==-1',         ['a', '==', '-', '1']),
-            ('a!=b',          ['a', '!=', 'b']),
-            ('x=.5',          ['x', '=', '.', '5']),
-            ('a<.5',          ['a', '<', '.', '5']),
-            ('1.5',           ['1.5']),
-            ('1e3',           ['1e3']),
-            ('1.5e-3',        ['1.5e-3']),
-            ('1e-_x',         ['1e', '-', '_x']),
-            ('a-1',           ['a', '-', '1']),
-            ('.byte 1 ; c',   ['.', 'byte', '1']),
-            ('; c',           []),             # a line with only a comment
-            ('.byte %10, 0b10', ['.', 'byte', '0b10', ',', '0b10']),
-            ('.byte $10, 0x10', ['.', 'byte', '0x10', ',', '0x10']),
-            ('.byte 10',      ['.', 'byte', '10']),
-            ('l:nop',         ['l', ':', 'nop']),
-            ('"a;b" ; c',     ['f"a;b"']),
-            ('"a\\"b"',       ['f"a\\"b"']),
-            ("'a;b'",         ["'a;b'"]),
-            ('r"a"',          ['r"a"']),
-            ('f"a"',          ['f"a"']),
-            ('x = "abc',      ['x = "abc']),   # no closing quote: one token, reported as invalid syntax
-            ("x = 'abc",      ["x = 'abc"]),
+            ('t-$10',           ['t', '-', '0x10']),
+            ('-$10',            ['-', '0x10']),
+            ('2*%11',           ['2', '*', '0b11']),
+            ('$20/$10',         ['0x20', '/', '0x10']),
+            ('~$10',            ['~', '0x10']),
+            ('2**$4',           ['2', '**', '0x4']),
+            ('16//$4',          ['16', '//', '0x4']),
+            ('7%$10',           ['7', '%', '0x10']),
+            ('%101%2',          ['0b101', '%', '2']),                # binary 101, then modulo
+            ('a<<2',            ['a', '<<', '2']),
+            ('a<=2',            ['a', '<=', '2']),
+            ('a==-1',           ['a', '==', '-', '1']),
+            ('a!=b',            ['a', '!=', 'b']),
+            ('x=.5',            ['x', '=', '.', '5']),               # .5 is two tokens, joined again as .5
+            ('a<.5',            ['a', '<', '.', '5']),
+            ('1.5',             ['1.5']),
+            ('1e3',             ['1e3']),
+            ('1.5e-3',          ['1.5e-3']),
+            ('1e-_x',           ['1e', '-', '_x']),                  # an exponent needs digits
+            ('a-1',             ['a', '-', '1']),
+            ('.byte 1 ; c',     ['.', 'byte', '1']),
+            ('; c',             []),                                 # a line with only a comment
+            ('.byte %10, 0b10', ['.', 'byte', '0b10', ',', '0b10']), # the same binary number
+            ('.byte $10, 0x10', ['.', 'byte', '0x10', ',', '0x10']), # the same hex number
+            ('.byte 10',        ['.', 'byte', '10']),
+            ('l:nop',           ['l', ':', 'nop']),
+            ('"a;b" ; c',       ['f"a;b"']),                         # a ; in a string is no comment, and double quotes make an f-string
+            ('"a\\"b"',         ['f"a\\"b"']),
+            ("'a;b'",           ["'a;b'"]),                          # single quotes: a plain string
+            ('r"a"',            ['r"a"']),                           # a string with a prefix keeps it
+            ('f"a"',            ['f"a"']),
+            ('x = "abc',        ['x = "abc']),                       # no closing quote: one token, reported as invalid syntax
+            ("x = 'abc",        ["x = 'abc"]),
         ]:
             with self.subTest(line=line):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(line))[:-1] if t.string != '\n'], expected)
@@ -136,19 +138,28 @@ class TestLexer(unittest.TestCase):
     def testLocalLabelNames(self):
         """A local label is named global_local, after the last global label. Before any global label, or in all capitals, it isn't changed."""
         for source, expected in [
-            ('a: nop\n_b: bne _b',  ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
-            ('a:\nc:\n_b: nop',     ['a', ':', 'c', ':', 'c_b', ':', 'nop']),
-            ('_b: nop',             ['_b', ':', 'nop']),
-            ('g: nop\n_B: bne _B',  ['g', ':', 'nop', '_B', ':', 'bne', '_B']),
+            ('a: nop\n'
+             '_b: bne _b', ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
+            ('a:\n'
+             'c:\n'
+             '_b: nop',    ['a', ':', 'c', ':', 'c_b', ':', 'nop']),   # after the last global label
+            ('_b: nop',    ['_b', ':', 'nop']),                        # no global label before it
+            ('g: nop\n'
+             '_B: bne _B', ['g', ':', 'nop', '_B', ':', 'bne', '_B']), # all capitals: a constant, not a local label
         ]:
             with self.subTest(source=source):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(source))[:-1] if t.string != '\n'], expected)
 
     def testPythonBlock(self):
         """A .python block becomes one .python line with the code as a string, keeping the line count."""
-        strings = [t.string for t in tokenize('nop\n.python\n    def f(x):\n        return x; # a;b\n.end\nrts')]
+        strings = [t.string for t in tokenize('nop\n'
+                                              '.python\n'
+                                              '    def f(x):\n'
+                                              '        return x; # a;b\n'
+                                              '.end\n'
+                                              'rts')]
         self.assertEqual(strings[:5], ['nop', '\n', '.', 'python', repr('def f(x):\n    return x; # a;b')])
-        self.assertEqual(strings[5:], ['\n'] * 4 + ['rts', '\n'])
+        self.assertEqual(strings[5:], ['\n'] * 4 + ['rts', '\n']) # one for each line of the block: .python, the 2 lines of code and .end
 
     def testTokenizeMissingFile(self):
         """A missing file raises FileNotFoundError, for the caller to handle."""

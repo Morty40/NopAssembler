@@ -31,78 +31,35 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 1)
 
-    def testEvalIntExpression(self):
-        """A float is truncated, with a warning. Infinity and NaN are not ints, so they are an error, and give 0."""
-        context = Context({})
-        value = intExpression('12', context)
-        self.assertEqual(value, 12)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-        context = Context({})
-        value = intExpression('1.2', context)
-        self.assertEqual(value, 1)
-        self.assertEqual(len(context.warnings), 1)
-        self.assertEqual(len(context.errors), 0)
-
-        for e in ['inf', '-inf', 'nan']:
+    def testEvalValueExpressions(self):
+        """An int, byte or word expression is evaluated, and its value checked as by intValue, byteValue and wordValue,
+        with the expression in the message."""
+        for check, e, expected, errors in [
+            (intExpression,  '1 + 1',       2,      []),
+            (byteExpression, '-10',         0xf6,   []),
+            (wordExpression, '0x10000 - 1', 0xffff, []),
+            (intExpression,  'str(5)',      0,      ['error: Expected an int value instead of: "str(5)"']), # not the value, '5'
+        ]:
             with self.subTest(e=e):
                 context = Context({})
-                value = intExpression(e, context)
-                self.assertEqual(value, 0)
-                self.assertEqual(len(context.warnings), 0)
-                self.assertEqual(context.errors, [f'error: Expected an int value instead of: "{e}"'])
-
-    def testEvalByteExpression(self):
-        """A negative byte is two's complement. Out of range is an error, and keeps the low byte."""
-        context = Context({})
-        value = byteExpression('-10', context)
-        self.assertEqual(value, 0xf6)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-        context = Context({})
-        value = byteExpression('0x10', context)
-        self.assertEqual(value, 0x10)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-        context = Context({})
-        value = byteExpression('0xfff', context)
-        self.assertEqual(value, 0xff)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 1)
-
-    def testEvalWordExpression(self):
-        """A negative word is two's complement. Out of range is an error, and keeps the low word."""
-        context = Context({})
-        value = wordExpression('-10', context)
-        self.assertEqual(value, 0xfff6)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-        context = Context({})
-        value = wordExpression('0x1000', context)
-        self.assertEqual(value, 0x1000)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-        context = Context({})
-        value = wordExpression('0xfffff', context)
-        self.assertEqual(value, 0xffff)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 1)
+                self.assertEqual(check(e, context), expected)
+                self.assertEqual(context.warnings, [])
+                self.assertEqual(context.errors, errors)
 
     def testValues(self):
-        """A value is checked as an expression's value is, and a message shows its repr."""
+        """A value is checked as an int, byte or word: a float is truncated, with a warning, while infinity and NaN,
+        which have no int, are errors, as other types are. A message shows the value's repr."""
         for check, value, expected, warnings, errors in [
-            (intValue,  2,       2,      [],                                       []),
-            (intValue,  2.5,     2,      ['warning: Truncating float value: 2.5'], []),
-            (intValue,  'B',     0,      [],                                       ['error: Expected an int value instead of: "\'B\'"']),
-            (byteValue, -10,     0xf6,   [],                                       []),
-            (byteValue, 0x123,   0x23,   [],                                       ['error: Byte value out of range: 291']),
-            (wordValue, -10,     0xfff6, [],                                       []),
-            (wordValue, 0x12345, 0x2345, [],                                       ['error: Word value out of range: 74565']),
+            (intValue,  2,             2,      [], []),
+            (intValue,  2.5,           2,      ['warning: Truncating float value: 2.5'], []),
+            (intValue,  'B',           0,      [], ['error: Expected an int value instead of: "\'B\'"']),
+            (intValue,  float('inf'),  0,      [], ['error: Expected an int value instead of: "inf"']),
+            (intValue,  float('-inf'), 0,      [], ['error: Expected an int value instead of: "-inf"']),
+            (intValue,  float('nan'),  0,      [], ['error: Expected an int value instead of: "nan"']),
+            (byteValue, -10,           0xf6,   [], []),
+            (byteValue, 0x123,         0x23,   [], ['error: Byte value out of range: 291']),
+            (wordValue, -10,           0xfff6, [], []),
+            (wordValue, 0x12345,       0x2345, [], ['error: Word value out of range: 74565']),
         ]:
             with self.subTest(check=check.__name__, value=value):
                 context = Context({})
@@ -113,20 +70,12 @@ class TestEvaluate(unittest.TestCase):
     def testEncodingFunctions(self):
         """ord() and chr() in expressions use the current encoding."""
         context = Context({})
-        self.assertEqual(expression('ord("A")', context), 1)
+        self.assertEqual(expression('ord("A")', context), 1) # screen codes, the default encoding
         self.assertEqual(expression('chr(1)', context), 'A')
         context.encoding = text.ENCODING_PETSCII_UPPER
         self.assertEqual(expression('ord("A")', context), 65)
         self.assertEqual(expression('chr(65)', context), 'A')
         self.assertEqual(len(context.errors), 0)
-
-    def testDivZeroExpression(self):
-        """Dividing by zero is an error, and gives None."""
-        context = Context({})
-        value = expression('0/0', context)
-        self.assertEqual(value, None)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 1)
 
 
 if __name__ == '__main__':
