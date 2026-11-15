@@ -117,6 +117,11 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(len(output.splitlines()), 1)
         self.assertIn('test.asm:1: warning: Truncating float value: 0.5', output)
 
+        anyErrors, output = self._assemble('.bytefill 3, lambda x: [0.5, 1.5, 300][x]\n') # the values after the warning are still checked
+        self.assertEqual(len(output.splitlines()), 2)
+        self.assertIn('test.asm:1: warning: Truncating float value: 0.5', output)
+        self.assertIn('test.asm:1: error: Byte value out of range: 300', output)
+
     def testFillValueError(self):
         """A fill value that is out of range or not an int is one error, and not one for each value."""
         for source, message in [
