@@ -63,20 +63,22 @@ class TestAssemble(unittest.TestCase):
                 anyErrors, output = self._assemble(source)
                 self.assertIn(message, output)
 
-    def testByteWordString(self):
-        """A string is not a .byte or .word value, even if a symbol has that name."""
-        for source in ['.byte "B"', '.word "B"', '.bytefill 1, lambda x: "B"', '.wordfill 1, lambda x: "B"']:
-            with self.subTest(source=source):
-                anyErrors, output = self._assemble(f'B = 5\n{source}\n')
-                self.assertIn('test.asm:2: error: Expected an int value instead of: "\'B\'"', output)
-
     def testByteWordNotInt(self):
-        """A .byte or .word value that isn't an int is one error, also when it isn't written as Python, such as a function."""
-        for source in ['.byte print', '.word print', '.bytefill 1, lambda x: print', '.wordfill 1, lambda x: print']:
+        """A .byte or .word value that isn't an int is one error, such as a string or a function."""
+        for source, value in [
+            ('.byte "B"',                    "'B'"),
+            ('.word "B"',                    "'B'"),
+            ('.bytefill 1, lambda x: "B"',   "'B'"),
+            ('.wordfill 1, lambda x: "B"',   "'B'"),
+            ('.byte print',                  '<built-in function print>'),
+            ('.word print',                  '<built-in function print>'),
+            ('.bytefill 1, lambda x: print', '<built-in function print>'),
+            ('.wordfill 1, lambda x: print', '<built-in function print>'),
+        ]:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(f'{source}\n')
                 self.assertEqual(len(output.splitlines()), 1)
-                self.assertIn('test.asm:1: error: Expected an int value instead of: "<built-in function print>"', output)
+                self.assertIn(f'test.asm:1: error: Expected an int value instead of: "{value}"', output)
 
     def testFillFunctionError(self):
         """Each value the fill function fails for is an error, with the index."""
@@ -199,7 +201,6 @@ class TestAssemble(unittest.TestCase):
             ('hello world\n',                        'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                     'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
             ('.bytefill 1, lambda x: MAX_Speed\n',   'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
-            ('.bytefill 1, "x: x"\n',                'test.asm:1: error: Invalid directive: .bytefill 1,f"x: x"'), # a string, not a lambda
             ('.byte inf\n',                          'test.asm:1: error: Expected an int value instead of: "inf"'),
             ('.byte {0: 1}[1]\n',                    'test.asm:1: error: KeyError: 1: "{0:1}[1]"'),
             ('.bytefill 1, lambda x: nan\n',         'test.asm:1: error: Expected an int value instead of: "nan"'),

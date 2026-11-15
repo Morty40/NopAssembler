@@ -51,7 +51,7 @@ class TestDirectives(unittest.TestCase):
         self.assertTrue(_matches(bytefill, [3]))             # optional argument
         self.assertTrue(_matches(bytefill, [3, lambda x: x]))
         self.assertTrue(_matches(bytefill, [3, abs]))        # any callable for Callable, also a built-in function
-        self.assertFalse(_matches(bytefill, [3, 'x: x']))    # a string is not a function
+        self.assertFalse(_matches(bytefill, [3, 'a']))       # a string is not a function
         self.assertTrue(_matches(bytefill, [3, None]))       # one of the types in an optional argument
         self.assertFalse(_matches(bytefill, [3, 5]))         # none of them
         self.assertTrue(_matches(byte, []))                  # any number of any type
