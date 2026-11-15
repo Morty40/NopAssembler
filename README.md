@@ -1198,7 +1198,7 @@ Warnings do not stop the output from being written. They are given when:
 - a float value is truncated to an integer
 - `jmp (address)` has its address on a page boundary, on the 6502
 
-`.bytefill` and `.wordfill` report a warning only for the first value that has one, such as the first truncated float, and an error only for the first value that has one. After an error the rest of the values are zero, so the size stays the same, and when the function fails, the error names the index, e.g. `List index out of range, at index 2`.
+When the function of a `.bytefill` or `.wordfill` fails for a value, the error names the index, e.g. `List index out of range, at index 2`, and the value is zero, so the size stays the same.
 
 
 ## Security

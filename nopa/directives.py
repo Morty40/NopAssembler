@@ -3,7 +3,7 @@
 
 A directive's parameters declare the arguments it accepts, and their type
 annotations the types, e.g. def org(context, address: int). Parameters
-without an annotation accept any type, and Callable accepts any function.
+without an annotation accept any type, and Callable accepts any callable.
 """
 
 import inspect
@@ -155,27 +155,19 @@ def wordfill(context, n: int, function: Callable | None = None):
 
 
 def _fill(context, n: int, function: Callable | None, store, checkValue):
-    """Store n values, using the store function, each checked by checkValue. If the function fails, with
-    the index in the error, or gives a wrong value, the error is reported once, and the rest are zeros,
-    so the size stays the same. A warning, e.g. for a truncated float, is reported once too."""
+    """Store n values, using the store function, each checked by checkValue. A value the function fails
+    for is an error, with the index, and zero, so the size stays the same."""
     if n < 0:
         context.reportError(f'Count must not be negative: {n}')
         n = 0 # nothing stored
     f = function if function is not None else lambda x: 0
-    warned = False
     for x in range(0, n):
-        errors, warnings = len(context.errors), len(context.warnings)
         try:
             value = f(x)
         except Exception as exception:
             context.reportError(f'{evaluate.exceptionMessage(exception)}, at index {x}')
             value = 0
         store(checkValue(value, context))
-        if len(context.errors) > errors: # an error for this value, so the rest are zeros, without more errors
-            f = lambda x: 0
-        if warned:
-            del context.warnings[warnings:] # only the first value with a warning reports it
-        warned = warned or len(context.warnings) > warnings
 
 
 @directive('org')
