@@ -763,7 +763,7 @@ Stores a bit pattern, 8 bits per byte. `0` and space are 0 bits, `1` and `#` are
 ```
 .bytefill n[, function]
 ```
-Stores `n` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the function for `x`, a lambda or a function from a `.python` block:
+Stores `n` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the function for `x`, such as a lambda, or a function from a `.python` block or an imported `.py` file, e.g. `util.double`:
 
 ```
             .bytefill 4                 ; 00 00 00 00
