@@ -77,6 +77,7 @@ class TestDirectives(unittest.TestCase):
             ('.bytefill 3, lambda x: x+N\nN = 1\n',      [1, 2, 3]), # x is the index, and N is assigned later
             ('.wordfill 3\n',                            [0, 0, 0, 0, 0, 0]),
             ('.wordfill 3, lambda x: x+N\nN = 1\n',      [1, 0, 2, 0, 3, 0]),
+            ('.bytefill 2, lambda x: int(cos(x*pi))\n',  [1, 0xff]), # with the math functions
             ('.python\n'
              'def double(x):\n'
              '    return x * 2\n'

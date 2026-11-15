@@ -2,7 +2,6 @@
 """Evaluation of Python expressions, with the assembler symbols as variables."""
 
 import builtins
-import types
 
 from .context import Context
 
@@ -48,12 +47,3 @@ def wordExpression(e: str, context: Context) -> int:
     if value < -32768 or value > 65535:
         context.reportError(f'Word value out of range: {value}')
     return value & 0xffff
-
-
-def lambdaExpression(e: str, context: Context):
-    """Evaluate a lambda written without the keyword, e.g. "x: x * 2"."""
-    value = expression(f'lambda {e}', context)
-    if not isinstance(value, types.FunctionType):
-        context.reportError(f'Expected a function instead of: "{e}"')
-        value = lambda x: x
-    return value

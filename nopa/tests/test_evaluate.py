@@ -2,11 +2,10 @@
 """Tests of the expression evaluation."""
 
 import unittest
-import types
 
 from ..context import Context
 from .. import text
-from ..evaluate import byteExpression, expression, intExpression, lambdaExpression, wordExpression
+from ..evaluate import byteExpression, expression, intExpression, wordExpression
 
 
 class TestEvaluate(unittest.TestCase):
@@ -85,25 +84,6 @@ class TestEvaluate(unittest.TestCase):
         self.assertEqual(value, 0xffff)
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 1)
-
-    def testEvalLambdaExpression(self):
-        """The text after "lambda" becomes a function, with the symbols and the math functions available."""
-        context = Context({'k': 1})
-        value = lambdaExpression('x: x + k + round(cos(0))', context)
-        self.assertEqual(isinstance(value, types.FunctionType), True)
-        self.assertEqual(value(1), 3)
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 0)
-
-    def testEvalLambdaExpressionError(self):
-        """Text that isn't a function is an error, and gives the identity function."""
-        context = Context({})
-        value = lambdaExpression('1', context) # not a lambda: "lambda 1" is invalid syntax
-        self.assertEqual(isinstance(value, types.FunctionType), True)
-        self.assertEqual(value(5), 5) # falls back to the identity function
-        self.assertEqual(len(context.warnings), 0)
-        self.assertEqual(len(context.errors), 2) # the syntax error, and the expected function
-        self.assertEqual(context.errors[-1], 'error: Expected a function instead of: "1"')
 
     def testEncodingFunctions(self):
         """ord() and chr() in expressions use the current encoding."""
