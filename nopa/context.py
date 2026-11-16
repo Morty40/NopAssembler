@@ -242,8 +242,13 @@ class Context:
 
     @property
     def currentAddress(self) -> int:
-        """The current address, where the next byte is stored: the symbol _, which the source reads and assigns."""
-        return self.symbols['_']
+        """The current address, where the next byte is stored: the symbol _, which the source reads and assigns.
+        Python code can assign it any value, so one that isn't an int is an error, and the address becomes 0."""
+        address = self.symbols['_']
+        if type(address) is not int:
+            self.reportError(f'Current address must be an int, not {type(address).__name__}')
+            address = self.symbols['_'] = 0
+        return address
 
     @currentAddress.setter
     def currentAddress(self, address: int):

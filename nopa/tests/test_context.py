@@ -20,6 +20,10 @@ class TestContext(unittest.TestCase):
         self.assertEqual(context.currentAddress, 0x1000)
         context.currentAddress = 0x2000
         self.assertEqual(context.symbols['_'], 0x2000)
+        context.symbols['_'] = 'a'                               # e.g. from Python code
+        self.assertEqual(context.currentAddress, 0)
+        self.assertEqual(context.errors, ['error: Current address must be an int, not str'])
+        self.assertEqual(context.symbols['_'], 0)
 
     def testReadPointerStack(self):
         """The read pointer stack, including the empty stack cases."""

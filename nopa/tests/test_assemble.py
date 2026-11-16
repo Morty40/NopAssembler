@@ -182,7 +182,8 @@ class TestAssemble(unittest.TestCase):
                 self.assertIn(message, output)
 
     def testMemoryMessages(self):
-        """Storing outside memory, or over bytes already stored."""
+        """Storing outside memory, or over bytes already stored. A current address that isn't an int, which Python
+        code can assign, is an error where it is used, and the address becomes 0."""
         self._assertMessages([
             ('.org $1000\n'
              '.byte 1\n'
@@ -190,6 +191,17 @@ class TestAssemble(unittest.TestCase):
              '.byte 2\n',    'test.asm:4: warning: $1000 is overwritten ($01 to $02)'),
             ('.org $ffff\n'
              '.byte 1, 2\n', 'test.asm:2: error: Destination memory address out of range: $10000'),
+            ('.for _ in ["a"]\n'
+             '.byte 1\n'
+             '.end\n',       'test.asm:2: error: Current address must be an int, not str'),
+            ('.python\n'
+             '_ = 1.5\n'
+             '.end\n'
+             '.byte 1\n',    'test.asm:4: error: Current address must be an int, not float'),
+            ('.python\n'
+             '_ = None\n'
+             '.end\n'
+             '.align 2\n',   'test.asm:4: error: Current address must be an int, not NoneType'),
         ])
 
     def testCPUMessages(self):
