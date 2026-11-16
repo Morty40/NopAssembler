@@ -13,7 +13,7 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 - generators: Python functions that return assembly code, with their own local labels for each call, and built-in ones such as `@ldax()` and `@pushRegisters()`
 - local labels, which can also be used from anywhere by their full name, such as `start_loop`
 - constants, and zero page variables with `zp(size)`, e.g. `pointer = zp(2)`
-- `.repeat`, `.for` and `.if` blocks, conditions with `ref()` and `has()`, and `.optional` code that is only assembled when it is used
+- `.repeat` and `.if` blocks, `.for` loops over any Python iterable, such as `.for i in range(8)`, conditions with `ref()` and `has()`, and `.optional` code that is only assembled when it is used
 - named sections with `.section`, to store code and data in separate areas of memory
 - data with `.byte`, `.word`, `.text`, `.string` and `.bits`, with text in PETSCII, screen codes or your own encoding
 - tables with `.bytefill` and `.wordfill`, of zeros or the values of a function of the index: a lambda, such as `lambda x: x*3`, a built-in, or a function or method from Python code

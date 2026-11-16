@@ -852,7 +852,7 @@ copy:       txa
             sta vector+1
             jmp (vector)
 
-.for i=0, i<40, i+=1
+.for i in range(40)
             lda source + i
             sta target + i
 .end
@@ -1002,21 +1002,26 @@ Assembles the lines up to `.end` `count` times. With a count of 0, the lines are
 
 #### .for, .end
 ```
-.for initial, condition, step
+.for target in iterable
 ...
 .end
 ```
-Assembles the lines up to `.end` while the condition is true. The initial and step are Python statements, run before the first and after each round, and the condition is a Python expression. If the condition is false at the start, the lines are skipped.
+Assembles the lines up to `.end` for each value of the iterable, as Python's `for` does, with the value assigned to the target. The iterable is any Python expression, such as `range(8)`, a list, a string or a generator, and the target is a name, or names to unpack each value into. If there are no values, the lines are skipped.
 
 ```
-            .for row=0, row<4, row+=1
-            .for column=0, column<4, column+=1
+            .for row in range(4)
+            .for column in range(4)
             .byte row * 16 + column
             .end
             .end
+
+            .for x, y in [(24, 50), (320, 229)]
+            .word x
+            .byte y
+            .end
 ```
 
-A loop that has not ended after 65536 rounds, e.g. because its condition is never false, is an error.
+After the loop, the target keeps its last value. A loop that has not ended after 65536 rounds, e.g. over an endless iterator, is an error.
 
 ### Conditions
 
@@ -1288,7 +1293,7 @@ When the function of a `.bytefill` or `.wordfill` fails for a value, the error n
 
 ## Security
 
-Assembling a source file runs Python code: expressions, generators, `.python` blocks, `.for` statements and imported `.py` files are all executed, with the same access to files, network and system as any Python program. Only assemble source files you trust, just as you would only run Python scripts you trust.
+Assembling a source file runs Python code: expressions, generators, `.python` blocks, `.for` loops and imported `.py` files are all executed, with the same access to files, network and system as any Python program. Only assemble source files you trust, just as you would only run Python scripts you trust.
 
 
 ## Development
