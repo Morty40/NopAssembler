@@ -184,7 +184,7 @@ def _fill(context, n: int, function: Callable | None, store, checkValue):
 @directive('org')
 def org(context, address: int):
     """Set the current address."""
-    context.symbols['_'] = address
+    context.currentAddress = address
 
 
 @directive('section')
@@ -195,9 +195,9 @@ def section(context, name: str, address: int | None = None):
     elif name not in context.sections and address is None:
         context.reportError(f'New section needs an address: "{name}"')
     if context.currentSection is not None:
-        context.sections[context.currentSection] = context.symbols['_']
+        context.sections[context.currentSection] = context.currentAddress
     context.currentSection = name
-    context.symbols['_'] = context.sections.setdefault(name, address or 0)
+    context.currentAddress = context.sections.setdefault(name, address or 0)
 
 
 @directive('align')
@@ -206,10 +206,10 @@ def align(context, n: int):
     if n <= 0:
         context.reportError(f'Alignment must be positive: {n}')
         n = 1 # no alignment
-    _ = context.symbols['_']
-    mod = _ % n
+    address = context.currentAddress
+    mod = address % n
     if mod > 0:
-        context.symbols['_'] = _ - mod + n
+        context.currentAddress = address - mod + n
 
 
 @directive('print')
@@ -240,7 +240,7 @@ def assertion(context, condition, message: str = 'Assertion failed'):
 @directive('break')
 def setBreakpoint(context, condition: str | None = None):
     """Set a VICE breakpoint at the current address, with an optional condition in VICE's format, e.g. "RL > $40"."""
-    context.breakpoints.append((context.symbols['_'], condition))
+    context.breakpoints.append((context.currentAddress, condition))
 
 
 BLOCK_DIRECTIVES = ('repeat', 'for', 'if', 'optional') # the directives that start a block

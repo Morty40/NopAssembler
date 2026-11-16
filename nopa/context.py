@@ -240,9 +240,18 @@ class Context:
         self.symbols[name] = value
         return True
 
+    @property
+    def currentAddress(self) -> int:
+        """The current address, where the next byte is stored: the symbol _, which the source reads and assigns."""
+        return self.symbols['_']
+
+    @currentAddress.setter
+    def currentAddress(self, address: int):
+        self.symbols['_'] = address
+
     def store(self, value: int):
         """Store a byte at the current address, and advance the address."""
-        currentLocation = self.symbols['_']
+        currentLocation = self.currentAddress
 
         if currentLocation >= 0 and currentLocation <= 0xffff:
 
@@ -252,7 +261,7 @@ class Context:
 
             # store value in memory, and advance to next memory location
             self.memory[currentLocation] = value
-            self.symbols['_'] += 1
+            self.currentAddress += 1
 
         else:
             self.reportError(f'Destination memory address out of range: ${currentLocation:x}')

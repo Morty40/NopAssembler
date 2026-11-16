@@ -83,8 +83,8 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
 
     for _ in range(MAX_PASSES):
         # a new context each pass, but symbols are kept from the last pass
-        symbols['_'] = DEFAULT_ORIGIN
         context = Context(symbols)
+        context.currentAddress = DEFAULT_ORIGIN
         context.path = path
         context.cpu = cpu
         context.lastReferences = lastReferences
@@ -128,7 +128,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                     label = context.namespacedName(label) # the rules above are for the name as written, the rest for its full name
                     if label in context.labels:
                         context.reportError(f'Label was already defined: "{label}"')
-                    context.setSymbol(label, context.symbols['_'])
+                    context.setSymbol(label, context.currentAddress)
                     context.labels.add(label)
                     lineTokens = lineTokens[2:]
 
