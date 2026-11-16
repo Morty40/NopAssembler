@@ -279,6 +279,11 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
+    constants = [node.id for node in ast.walk(target[0]) if isinstance(node, ast.Name) and node.id.isupper()]
+    if constants:
+        context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
+        _skipBlock(context, chunks, 'for')
+        return
     errors = len(context.errors)
     values = evaluate.expression(iterable, context)
     iterator = None
