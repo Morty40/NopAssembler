@@ -764,19 +764,14 @@ class TestDirectives(unittest.TestCase):
             ('.for i in range(N)\n'
              '.byte i\n'
              '.end\n'
-             'N = 2\n', [0, 1]),
-            ('.for _ in range(3)\n'
-             '.byte 7\n'
-             '.end\n',  [7, 7, 7]),                 # _ isn't assigned, so the lines are only repeated
-            ('.for _ in range(2)\n'
-             '.word _\n'
-             '.end\n',  [0x00, 0x10, 0x02, 0x10]),  # _ is still the current address
-            ('.for _, b in [(1, 2), (3, 4)]\n'
-             '.byte b\n'
-             '.end\n',  [2, 4]),                    # only b is assigned    # N is assigned later
+             'N = 2\n', [0, 1]),                    # N is assigned later
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
+        memory = self._memory('.for _ in [$2000]\n'
+                              '.end\n'
+                              '.byte 7\n')
+        self.assertEqual(memory, {0x2000: 7}) # _ is assigned, as any name, so here it sets the current address
 
     def testRepeat(self):
         """.repeat blocks, with the count as an expression."""

@@ -319,11 +319,9 @@ def _isNames(node) -> bool:
 
 
 def _assign(symbols, target, value):
-    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2). A name _ isn't
-    assigned, as in Python it is a value that isn't used, and in nopa it is the current address."""
+    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2)."""
     if isinstance(target, ast.Name):
-        if target.id != '_':
-            symbols[target.id] = value
+        symbols[target.id] = value
         return
     expected = len(target.elts)
     try:

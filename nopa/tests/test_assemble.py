@@ -313,9 +313,6 @@ class TestAssemble(unittest.TestCase):
             ('.for a, b in [(1,)]\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "a,b"']),
-            ('.for _, b in [(1,)]\n'
-             '.byte b\n'
-             '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "_,b"']),   # _ counts too
             ('.for a, b in [(1, 2), 3]\n'
              '.byte a\n'
              '.end\n', ['test.asm:3: error: Cannot unpack non-iterable int object: "a,b"']),             # the second value
