@@ -6,7 +6,9 @@ annotations the types, e.g. def org(context, address: int). Parameters
 without an annotation accept any type, and Callable accepts any callable.
 """
 
+import ast
 import inspect
+import itertools
 import os
 import typing
 from collections.abc import Callable
@@ -19,7 +21,7 @@ from .cpu import CPU
 
 
 DIRECTIVES: dict[str, Callable[..., object]] = {} # directive name: function
-_rawDirectives: set[str] = set() # directives that get their arguments as tokens, e.g. .for a=0, a<10, a+=1
+_rawDirectives: set[str] = set() # directives that get their arguments as tokens, e.g. .for i in range(8)
 
 
 def directive(name: str, raw: bool = False):
@@ -242,7 +244,7 @@ def setBreakpoint(context, condition: str | None = None):
 
 
 BLOCK_DIRECTIVES = ('repeat', 'for', 'if', 'optional') # the directives that start a block
-MAX_ITERATIONS = 0x10000 # a .for loop that runs longer is an error, e.g. a condition that is never false
+MAX_ITERATIONS = 0x10000 # a .for loop that runs longer is an error, e.g. over an endless iterator
 
 
 @directive('repeat', raw=True)
@@ -264,23 +266,86 @@ def repeat(context, tokens: list, chunks: dict):
 
 @directive('for', raw=True)
 def forLoop(context, tokens: list, chunks: dict):
-    """Start a for loop: .for initial, condition, step, e.g. .for a=0, a<10, a+=1.
+    """Start a for loop, as in Python: .for target in iterable, e.g. .for i in range(8).
 
-    The initial and step are Python statements. While the condition is true,
-    the lines up to .end are assembled. If it is false at the start, the
-    loop is skipped.
+    The lines up to .end are assembled for each value of the iterable, with the value assigned to the
+    target: a name, or names to unpack each value into, e.g. .for name, value in colors.items().
+    With no values, or after an error, the loop is skipped.
     """
-    parts = [lexer.join(part) for part in lexer.splitByComma(tokens)]
-    if len(parts) != 3:
-        context.reportError(f'Expected .for initial, condition, step: .for {lexer.join(tokens)}')
+    text = lexer.join(tokens)
+    loop = _parseFor(text)
+    if loop is None:
+        context.reportError(f'Expected .for target in iterable: .for {text}')
         return
-    initial, condition, step = parts
-    if not _execute(context, initial):
-        return
-    if evaluate.expression(condition, context):
-        context.blockStack.append( ('for', condition, step, 0, context.readPointer()) )
+    target, iterable = loop
+    errors = len(context.errors)
+    values = evaluate.expression(iterable, context)
+    iterator = None
+    if len(context.errors) == errors: # else the iterable failed, and is reported
+        try:
+            iterator = iter(values)
+        except TypeError as exception:
+            context.reportError(f'{evaluate.exceptionMessage(exception)}: "{iterable}"')
+    if iterator is not None and _assignNext(context, target, iterator):
+        context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
         _skipBlock(context, chunks, 'for')
+
+
+def _parseFor(text: str) -> tuple | None:
+    """The target, as its syntax tree and its text, and the iterable of the text after .for, as Python parses it,
+    e.g. "a, b" and "pairs" for "a, b in pairs", or None if it isn't a for loop with names as the target."""
+    code = f'for {text}: pass'
+    try:
+        loop = ast.parse(code).body[0]
+    except SyntaxError:
+        return None
+    if not isinstance(loop, ast.For) or not _isNames(loop.target):
+        return None
+    return (loop.target, ast.get_source_segment(code, loop.target)), ast.get_source_segment(code, loop.iter)
+
+
+def _isNames(node) -> bool:
+    """A target of names: a name, or a tuple or list of names, also nested, e.g. a, (b, c)."""
+    if isinstance(node, ast.Name):
+        return True
+    return isinstance(node, (ast.Tuple, ast.List)) and all(_isNames(element) for element in node.elts)
+
+
+def _assign(symbols, target, value):
+    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2)."""
+    if isinstance(target, ast.Name):
+        symbols[target.id] = value
+        return
+    expected = len(target.elts)
+    try:
+        values = list(itertools.islice(iter(value), expected + 1)) # one more than expected, to know there are too many
+    except TypeError:
+        raise TypeError(f'cannot unpack non-iterable {type(value).__name__} object')
+    if len(values) > expected:
+        raise ValueError(f'too many values to unpack (expected {expected})')
+    if len(values) < expected:
+        raise ValueError(f'not enough values to unpack (expected {expected}, got {len(values)})')
+    for name, item in zip(target.elts, values):
+        _assign(symbols, name, item)
+
+
+def _assignNext(context, target: tuple, iterator) -> bool:
+    """Assign the next value of a for loop to its target. Returns False after the last value, or after an error."""
+    node, text = target
+    try:
+        value = next(iterator)
+    except StopIteration:
+        return False
+    except Exception as exception: # e.g. in a Python generator
+        context.reportError(evaluate.exceptionMessage(exception))
+        return False
+    try:
+        _assign(context.namespaceSymbols(), node, value)
+    except (TypeError, ValueError) as exception:
+        context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
+        return False
+    return True
 
 
 def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> str | None:
@@ -331,15 +396,13 @@ def _endRepeat(context, count: int, readPointer: tuple):
         context.jumpReadPointer(readPointer)
 
 
-def _endFor(context, condition: str, step: str, iterations: int, readPointer: tuple):
-    """Execute the step, and jump back while the condition is true."""
-    if not _execute(context, step):
-        return
+def _endFor(context, target: tuple, iterator, iterations: int, readPointer: tuple):
+    """Assign the next value, and jump back while there are values left."""
     if iterations + 1 >= MAX_ITERATIONS:
         context.reportError(f'For loop did not end after {MAX_ITERATIONS} iterations')
         return
-    if evaluate.expression(condition, context):
-        context.blockStack.append( ('for', condition, step, iterations + 1, readPointer) )
+    if _assignNext(context, target, iterator):
+        context.blockStack.append( ('for', target, iterator, iterations + 1, readPointer) )
         context.jumpReadPointer(readPointer)
 
 
