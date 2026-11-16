@@ -723,15 +723,15 @@ class TestDirectives(unittest.TestCase):
              '.end\n',  [0, 1, 2, 3]),
             ('.for a in []\n'
              '.byte $ee\n'
-             '.end\n',  []),        # no values, so the loop is skipped
+             '.end\n',  []),                        # no values, so the loop is skipped
             ('.for a in []\n'
              'skipped: .for b in range(2)\n'
              '.byte $ee\n'
              '.end\n'
-             '.end\n',  []),        # with a label and a nested loop
+             '.end\n',  []),                        # with a label and a nested loop
             ('.for a in range(3, 0, -1)\n'
              '.byte a\n'
-             '.end\n',  [3, 2, 1]), # counting down
+             '.end\n',  [3, 2, 1]),                 # counting down
             ('.for row in range(2)\n'
              '.for column in range(3)\n'
              '.byte row*16 + column\n'
@@ -740,19 +740,19 @@ class TestDirectives(unittest.TestCase):
              [0x00, 0x01, 0x02, 0x10, 0x11, 0x12]), # nested loops
             ('.for a, b in [(1, 2), (3, 4)]\n'
              '.byte a + b\n'
-             '.end\n',  [3, 7]),    # names unpacked from each value
+             '.end\n',  [3, 7]),                    # names unpacked from each value
             ('.for (a, b) in [(5, 6)]\n'
              '.byte a, b\n'
-             '.end\n',  [5, 6]),    # in parentheses
+             '.end\n',  [5, 6]),                    # in parentheses
             ('.for name, value in {"x": 8, "y": 9}.items()\n'
              '.byte value\n'
-             '.end\n',  [8, 9]),    # any iterable: a dict's items
+             '.end\n',  [8, 9]),                    # any iterable: a dict's items
             ('.for c in "AB"\n'
              '.byte ord(c)\n'
-             '.end\n',  [1, 2]),    # a string, in screen codes
+             '.end\n',  [1, 2]),                    # a string, in screen codes
             ('.for i in [x * 2 for x in range(3)]\n'
              '.byte i\n'
-             '.end\n',  [0, 2, 4]), # an in inside the iterable
+             '.end\n',  [0, 2, 4]),                 # an in inside the iterable
             ('.python\n'
              'def evens(n):\n'
              '    for i in range(n):\n'
@@ -760,11 +760,20 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.for e in evens(3)\n'
              '.byte e\n'
-             '.end\n',  [0, 2, 4]), # a Python generator
+             '.end\n',  [0, 2, 4]),                 # a Python generator
             ('.for i in range(N)\n'
              '.byte i\n'
              '.end\n'
-             'N = 2\n', [0, 1]),    # N is assigned later
+             'N = 2\n', [0, 1]),
+            ('.for _ in range(3)\n'
+             '.byte 7\n'
+             '.end\n',  [7, 7, 7]),                 # _ isn't assigned, so the lines are only repeated
+            ('.for _ in range(2)\n'
+             '.word _\n'
+             '.end\n',  [0x00, 0x10, 0x02, 0x10]),  # _ is still the current address
+            ('.for _, b in [(1, 2), (3, 4)]\n'
+             '.byte b\n'
+             '.end\n',  [2, 4]),                    # only b is assigned    # N is assigned later
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)

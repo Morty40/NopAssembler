@@ -276,6 +276,7 @@ def forLoop(context, tokens: list, chunks: dict):
     loop = _parseFor(text)
     if loop is None:
         context.reportError(f'Expected .for target in iterable: .for {text}')
+        _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
     errors = len(context.errors)
@@ -313,9 +314,11 @@ def _isNames(node) -> bool:
 
 
 def _assign(symbols, target, value):
-    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2)."""
+    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2). A name _ isn't
+    assigned, as in Python it is a value that isn't used, and in nopa it is the current address."""
     if isinstance(target, ast.Name):
-        symbols[target.id] = value
+        if target.id != '_':
+            symbols[target.id] = value
         return
     expected = len(target.elts)
     try:
