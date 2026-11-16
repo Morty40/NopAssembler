@@ -475,6 +475,13 @@ The symbol `_` on its own is the current address. Assigning to it moves the curr
             _ = $2000       ; same as .org $2000
 ```
 
+In Python, `_` is the usual name for a value that isn't used, as in `for _ in range(8)`. In Nop Assembler, `_` is the current address in Python code too, so Python code that assigns `_` moves the current address, whether that is meant or not:
+
+- a `.for` loop with `_` in its target, such as `.for _ in range(8)` or `.for _, color in palette`
+- a `for` loop or an assignment in a `.python` block, or at the top level of a `.py` file imported without a namespace, such as `for _ in range(8):` or `row, _ = divmod(n, 40)`
+
+There, use another name, such as `i` or `unused`, and `.repeat 8` for lines that only repeat. `_` is fine where Python makes it a local name: in a function, such as a generator, in a lambda or a list comprehension, and in a `.py` file imported into a namespace, which has names of its own.
+
 #### Label names
 
 A global label starts with a letter, and a local label with `_`. After that come letters, digits and underscores: `drawSprite`, `level2`, `player_x`, `_loop`, `_0`. Names are case sensitive, so `Loop` and `loop` are two labels. Capitals are fine as long as the name has a lower case letter too: `Level1`, `screenX`, `_Loop`.
@@ -1023,17 +1030,7 @@ Assembles the lines up to `.end` for each value of the iterable, as Python's `fo
 
 After the loop, the target keeps its last value. A loop that has not ended after 65536 rounds, e.g. over an endless iterator, is an error.
 
-**The name `_` in a loop.** In Python, `_` is the usual name for a value that isn't used, as in `for _ in range(8)`, a loop that only repeats. In Nop Assembler, `_` is the [current address](https://github.com/Morty40/NopAssembler#labels), so `.for` doesn't assign it: `.for _ in range(8)` repeats the lines 8 times, like `.repeat 8`, and inside the loop `_` is still the current address. When unpacking, `_` skips a value, as in Python: `.for _, color in palette` assigns only `color`, but each value must still have two parts.
-
-```
-            .for _ in range(3)
-            .word _                 ; $1000, $1002 and $1004: the address of each word
-            .end
-```
-
-So to use the value in the loop, give it a name of its own, such as `i`.
-
-Python code is different. In a `.python` block, or at the top level of an imported `.py` file, `_` is the current address too, but a Python `for _ in` loop there does assign it, and so moves the current address. Use another name for the loop variable there. Inside a function or a list comprehension, `_` is a local name, which is fine.
+As in Python, every name in the target is assigned, also `_`, which is the [current address](https://github.com/Morty40/NopAssembler#labels). So `.for _ in range(8)` moves the current address in each round: use `.repeat 8` for lines that only repeat, and another name, such as `unused`, for a value that isn't used.
 
 ### Conditions
 
