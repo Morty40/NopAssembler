@@ -299,7 +299,7 @@ def _parseFor(text: str) -> tuple | None:
     code = f'for {text}: pass'
     try:
         loop = ast.parse(code).body[0]
-    except SyntaxError:
+    except (SyntaxError, ValueError): # ValueError for a null byte, before Python 3.12
         return None
     if not isinstance(loop, ast.For) or not _isNames(loop.target):
         return None

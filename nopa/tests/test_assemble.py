@@ -285,7 +285,10 @@ class TestAssemble(unittest.TestCase):
              '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a']),
             ('.for a=0, a<2, a+=1\n'
              '.byte a\n'
-             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a=0,a<2,a+=1']),    # C-style
+             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a=0,a<2,a+=1']),      # C-style
+            ('.for a in range(2)\x00\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a in range(2)\x00']), # Python 3.11 raises ValueError
             ('.for a in nothing\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "nothing"']),
@@ -303,10 +306,10 @@ class TestAssemble(unittest.TestCase):
              '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "a,b"']),
             ('.for _, b in [(1,)]\n'
              '.byte b\n'
-             '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "_,b"']), # _ counts too
+             '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "_,b"']),   # _ counts too
             ('.for a, b in [(1, 2), 3]\n'
              '.byte a\n'
-             '.end\n', ['test.asm:3: error: Cannot unpack non-iterable int object: "a,b"']),           # the second value
+             '.end\n', ['test.asm:3: error: Cannot unpack non-iterable int object: "a,b"']),             # the second value
         ]:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)
