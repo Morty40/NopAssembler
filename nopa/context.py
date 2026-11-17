@@ -5,6 +5,7 @@ import builtins
 import dis
 import functools
 import math
+import reprlib
 import types
 
 from . import cpu
@@ -245,8 +246,9 @@ class Context:
         address becomes 0."""
         address = self.symbols.get('_') # None if Python code deleted it
         if type(address) is not int:
-            self.reportError(f'Current address must be an int, not {type(address).__name__}: {address!r}')
             self.symbols['_'] = 0
+            value = reprlib.repr(address) # shortened, and safe for a value whose repr() fails
+            self.reportError(f'Current address must be an int, not {type(address).__name__}: {value}')
 
     @property
     def currentAddress(self) -> int:

@@ -752,6 +752,17 @@ class TestDirectives(unittest.TestCase):
                 memory, errors = self._assemble(source, files)
                 self.assertEqual(errors, expected)
                 self.assertEqual(memory, {0: 1} if '.byte' in source else {}) # a .byte stores at 0, the address after the error
+        memory, errors = self._assemble('.python\n'
+                                        'class Unprintable:\n'
+                                        '    def __repr__(self):\n'
+                                        '        raise ValueError\n'
+                                        '_ = Unprintable()\n'
+                                        '.end\n'
+                                        '.byte 1\n')
+        self.assertEqual(len(errors), 1)                                # a value that can't be shown is still one error
+        self.assertRegex(errors[0], r'^test.asm:1: error: Current address must be an int, not Unprintable: '
+                                    r'<Unprintable instance at 0x[0-9a-f]+>$')
+        self.assertEqual(memory, {0: 1})
 
     def testFor(self):
         """.for loops, as in Python: the lines up to .end are assembled for each value of the iterable, with the value
