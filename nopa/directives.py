@@ -278,11 +278,6 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
-    constants = [name for name in target[1] if name.isupper()] # target[1]: the names the target assigns
-    if constants:
-        context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
-        _skipBlock(context, chunks, 'for')
-        return
     # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error
     iterator = evaluate.expression(f'iter(({iterable}))', context)
     if iterator is not None and _assignNext(context, target, iterator):

@@ -276,8 +276,8 @@ class TestAssemble(unittest.TestCase):
         ])
 
     def testForMessages(self):
-        """A .for that isn't a for loop, a target in capitals, which are for constants, an iterable that fails or isn't
-        iterable, or a value that doesn't unpack into the names, is one error, and the lines up to .end are skipped.
+        """A .for that isn't a for loop, an iterable that fails or isn't iterable, or a value that doesn't unpack into
+        the names, is one error, and the lines up to .end are skipped.
         A value after the first is assigned, and reported, at the .end."""
         for source, expected in [
             ('.for a\n'
@@ -289,15 +289,6 @@ class TestAssemble(unittest.TestCase):
             ('.for a in range(2)\x00\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a in range(2)\x00']), # Python 3.11 raises ValueError
-            ('.for MAX in range(3)\n'
-             '.byte MAX\n'
-             '.end\n', ['test.asm:1: error: Capitals are for constants, not loop variables: "MAX"']),
-            ('.for a, B in [(1, 2)]\n'
-             '.byte a\n'
-             '.end\n', ['test.asm:1: error: Capitals are for constants, not loop variables: "B"']),
-            ('MAX = 5\n'
-             '.for MAX in range(3)\n'
-             '.end\n', ['test.asm:2: error: Capitals are for constants, not loop variables: "MAX"']),    # at the .for, not at MAX = 5
             ('.for a in nothing\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "iter((nothing))"']),
