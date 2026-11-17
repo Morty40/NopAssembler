@@ -329,10 +329,10 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     return True
 
 
-def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> str | None:
-    """Skip lines, and continue after the matching .end, or .else if stopAtElse.
+def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> list | None:
+    """Skip lines, and continue after the matching .end, or .elif or .else if stopAtElse.
 
-    Returns 'end' or 'else', where it continues, or None if there is none.
+    Returns the line where it continues, without a label, e.g. the tokens of .elif a>5, or None if there is none.
     """
     fileName, lineIndex = context.readPointer()
     lines = chunks[fileName]
@@ -346,9 +346,9 @@ def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> st
                 depth += 1
             elif line[1].string == 'end' and depth > 0:
                 depth -= 1
-            elif line[1].string == 'end' or (line[1].string == 'else' and stopAtElse and depth == 0):
-                context.jumpReadPointer( (fileName, index) ) # then advances past the .end or .else
-                return line[1].string
+            elif line[1].string == 'end' or (line[1].string in ('elif', 'else') and stopAtElse and depth == 0):
+                context.jumpReadPointer( (fileName, index) ) # then advances past the .end, .elif or .else
+                return line
     context.reportError(f'{name.capitalize()} without matching end')
     return None
 
@@ -391,26 +391,42 @@ def _endFor(context, target: tuple, iterator, iterations: int, readPointer: tupl
 def ifBlock(context, tokens: list, chunks: dict):
     """Start an if block: .if condition, e.g. .if a>5.
 
-    If the condition is true, the lines up to .else or .end are assembled,
-    otherwise the lines from .else to .end, if there is an .else.
+    The lines up to the first .elif, .else or .end are assembled if the condition is true. Otherwise those
+    of the first .elif with a true condition, as in Python, or else the lines from .else to .end.
     """
-    if evaluate.expression(lexer.join(tokens), context):
-        context.blockStack.append( ('if', False, context.readPointer()) )
-    elif _skipBlock(context, chunks, 'if', stopAtElse=True) == 'else':
-        context.blockStack.append( ('if', True, context.readPointer()) ) # in the .else lines
+    while not evaluate.expression(lexer.join(tokens), context):
+        line = _skipBlock(context, chunks, 'if', stopAtElse=True)
+        if line is None or line[1].string == 'end':
+            return
+        if line[1].string == 'else':
+            context.blockStack.append( ('if', True, context.readPointer()) ) # in the .else lines
+            return
+        tokens = line[2:] # the condition of the .elif
+    context.blockStack.append( ('if', False, context.readPointer()) )
+
+
+@directive('elif', raw=True)
+def elifBlock(context, tokens: list, chunks: dict):
+    """Skip the lines from .elif to .end, as an earlier condition was true. Its condition isn't evaluated."""
+    _skipBranches(context, chunks, 'elif')
 
 
 @directive('else', raw=True)
 def elseBlock(context, tokens: list, chunks: dict):
-    """Skip the lines from .else to .end, as the condition of the .if was true."""
+    """Skip the lines from .else to .end, as an earlier condition was true."""
+    _skipBranches(context, chunks, 'else')
+
+
+def _skipBranches(context, chunks: dict, name: str):
+    """Skip the rest of an if block, from an .elif or .else to the .end, after the branch that was assembled."""
     if len(context.blockStack) == 0 or context.blockStack[-1][0] != 'if':
-        context.reportError('Else without matching if')
+        context.reportError(f'{name.capitalize()} without matching if')
         return
-    if context.blockStack[-1][1]: # already in the .else lines
-        context.reportError('Else already used for this if')
+    if context.blockStack[-1][1]: # in the .else lines
+        context.reportError(f'{name.capitalize()} after else')
         return
     context.blockStack.pop()
-    _skipBlock(context, chunks, 'else')
+    _skipBlock(context, chunks, name)
 
 
 def _globalLabels(lines: list) -> set:
