@@ -1060,17 +1060,24 @@ Assembles the lines up to `.elif`, `.else` or `.end` if the Python expression `c
             .else
             nop
             .end
+```
 
-            .if SPEED == 1
-            inc xpos
-            .elif SPEED == 2
-            inc xpos
-            inc xpos
+A chain of `.elif` picks one of several choices, such as the timing of the three video chips of the C64, with an `.else` that catches a misspelled choice:
+
+```
+VIDEO = "PAL"                           ; or "NTSC" or "OLD_NTSC"
+
+            .if VIDEO == "PAL"          ; 6569
+LINES = 312
+CYCLES = 63
+            .elif VIDEO == "NTSC"       ; 6567R8
+LINES = 263
+CYCLES = 65
+            .elif VIDEO == "OLD_NTSC"   ; 6567R56A
+LINES = 262
+CYCLES = 64
             .else
-            lda xpos
-            clc
-            adc #SPEED
-            sta xpos
+            .error "Unknown VIDEO: {VIDEO}"
             .end
 ```
 
@@ -1124,13 +1131,16 @@ irq:
             .end
 ```
 
-The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A:
+The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A, and all 65C02s can set the bits of A with `tsb`. As only the first true condition counts, `smb3` is used where both are available:
 
 ```
 flags = zp(1)
 
             .if has("smb3 $12")           ; 2 bytes, 5 cycles
             smb3 flags
+            .elif has("tsb $12")          ; 4 bytes, 7 cycles
+            lda #%00001000
+            tsb flags
             .else                         ; 6 bytes, 8 cycles
             lda flags
             ora #%00001000
