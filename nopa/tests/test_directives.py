@@ -716,16 +716,16 @@ class TestDirectives(unittest.TestCase):
 
     def testCurrentAddressType(self):
         """A current address that isn't an int, which Python code can assign, is an error at the line with the code,
-        and the address becomes 0. Code that assigns it elsewhere, such as in a generator, is found where the
-        address is used."""
+        and the address becomes 0, but a float is truncated, as other values are. Code that assigns it elsewhere,
+        such as in a generator, is found where the address is used."""
         for source, files, expected in [
             ('.for _ in ["a"]\n'
              '.byte 1\n'
              '.end\n',     {},                         ['test.asm:1: error: Current address must be an int, not str: \'a\'']),
             ('.python\n'
-             '_ = 1.5\n'
+             '_ = float("inf")\n'
              '.end\n'
-             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 1.5']),
+             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: inf']), # no int
             ('.import "util.py"\n'
              '.align 2\n', {'util.py': '_ = None\n'}, ['test.asm:1: error: Current address must be an int, not NoneType: None']),
             ('.python\n'
@@ -733,11 +733,11 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not NoneType: None']), # deleted
             ('.python\n'
-             '_ = 2.5\n'
+             '_ = None\n'
              '1 / 0\n'
              '.end\n'
-             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 2.5',
-                                                        'test.asm:1: error: Failed to execute python code: "_ = 2.5\n1 / 0" '
+             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not NoneType: None',
+                                                        'test.asm:1: error: Failed to execute python code: "_ = None\n1 / 0" '
                                                         '(ZeroDivisionError: division by zero)']), # also when the code fails
             ('.python\n'
              'def move():\n'
@@ -763,6 +763,10 @@ class TestDirectives(unittest.TestCase):
         self.assertRegex(errors[0], r'^test.asm:1: error: Current address must be an int, not Unprintable: '
                                     r'<Unprintable instance at 0x[0-9a-f]+>$')
         self.assertEqual(memory, {0: 1})
+        self.assertEqual(self._memory('.python\n'
+                                      '_ = 0x4000 / 2\n'
+                                      '.end\n'
+                                      '.byte 1\n'), {0x2000: 1})     # a float, from /, is truncated
 
     def testFor(self):
         """.for loops, as in Python: the lines up to .end are assembled for each value of the iterable, with the value

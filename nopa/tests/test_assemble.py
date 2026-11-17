@@ -182,7 +182,8 @@ class TestAssemble(unittest.TestCase):
                 self.assertIn(message, output)
 
     def testMemoryMessages(self):
-        """Storing outside memory, or over bytes already stored."""
+        """Storing outside memory, or over bytes already stored, or at a current address with a fraction, which is
+        truncated, as other values are."""
         self._assertMessages([
             ('.org $1000\n'
              '.byte 1\n'
@@ -190,6 +191,9 @@ class TestAssemble(unittest.TestCase):
              '.byte 2\n',    'test.asm:4: warning: $1000 is overwritten ($01 to $02)'),
             ('.org $ffff\n'
              '.byte 1, 2\n', 'test.asm:2: error: Destination memory address out of range: $10000'),
+            ('.python\n'
+             '_ = 4096.5\n'
+             '.end\n',       'test.asm:1: warning: Truncating float value: 4096.5'),
         ])
 
     def testCPUMessages(self):
