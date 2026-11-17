@@ -351,6 +351,7 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     except (TypeError, ValueError) as exception:
         context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
         return False
+    context.checkCurrentAddress() # at the .for, or the .end, if the target has _
     return True
 
 
@@ -489,6 +490,7 @@ def _runPython(context, code: str, variables: dict | None = None, fileName: str 
     if variables is None:
         context.noteReferences(compiled)
         exec(compiled, context.namespaceSymbols())
+        context.checkCurrentAddress() # at the line with the code, if it assigned _
     else:
         exec(compiled, variables)
 

@@ -714,6 +714,34 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
+    def testCurrentAddressType(self):
+        """A current address that isn't an int, which Python code can assign, is an error at the line with the code,
+        and the address becomes 0. Code that assigns it elsewhere, such as in a generator, is found where the
+        address is used."""
+        for source, files, expected in [
+            ('.for _ in ["a"]\n'
+             '.byte 1\n'
+             '.end\n',     {},                         ['test.asm:1: error: Current address must be an int, not str: \'a\'']),
+            ('.python\n'
+             '_ = 1.5\n'
+             '.end\n'
+             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 1.5']),
+            ('.import "util.py"\n'
+             '.align 2\n', {'util.py': '_ = None\n'}, ['test.asm:1: error: Current address must be an int, not NoneType: None']),
+            ('.python\n'
+             'def move():\n'
+             '    global _\n'
+             '    _ = "b"\n'
+             '    return ""\n'
+             '.end\n'
+             '@move()\n'
+             '.byte 1\n',  {},                         ['test.asm:8: error: Current address must be an int, not str: \'b\'']),
+        ]:
+            with self.subTest(source=source):
+                memory, errors = self._assemble(source, files)
+                self.assertEqual(errors, expected)
+                self.assertEqual(memory, {0: 1} if '.byte' in source else {}) # a .byte stores at 0, the address after the error
+
     def testFor(self):
         """.for loops, as in Python: the lines up to .end are assembled for each value of the iterable, with the value
         assigned to the target, a name or names. Names given later in the source work, as in other expressions."""

@@ -240,15 +240,20 @@ class Context:
         self.symbols[name] = value
         return True
 
+    def checkCurrentAddress(self):
+        """Python code can assign the current address any value, so one that isn't an int is an error, and the
+        address becomes 0."""
+        address = self.symbols['_']
+        if type(address) is not int:
+            self.reportError(f'Current address must be an int, not {type(address).__name__}: {address!r}')
+            self.symbols['_'] = 0
+
     @property
     def currentAddress(self) -> int:
         """The current address, where the next byte is stored: the symbol _, which the source reads and assigns.
-        Python code can assign it any value, so one that isn't an int is an error, and the address becomes 0."""
-        address = self.symbols['_']
-        if type(address) is not int:
-            self.reportError(f'Current address must be an int, not {type(address).__name__}')
-            address = self.symbols['_'] = 0
-        return address
+        It is checked here too, for Python code that assigns it where it isn't checked, such as in a generator."""
+        self.checkCurrentAddress()
+        return self.symbols['_']
 
     @currentAddress.setter
     def currentAddress(self, address: int):
