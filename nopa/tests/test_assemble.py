@@ -300,10 +300,10 @@ class TestAssemble(unittest.TestCase):
              '.end\n', ['test.asm:2: error: Capitals are for constants, not loop variables: "MAX"']),    # at the .for, not at MAX = 5
             ('.for a in nothing\n'
              '.byte a\n'
-             '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "iter(nothing)"']),
+             '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "iter((nothing))"']),
             ('.for a in 5\n'
              '.byte a\n'
-             '.end\n', ['test.asm:1: error: \'int\' object is not iterable: "iter(5)"']),
+             '.end\n', ['test.asm:1: error: \'int\' object is not iterable: "iter((5))"']),
             ('.for a, b in [1]\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Cannot unpack non-iterable int object: "a,b"']),

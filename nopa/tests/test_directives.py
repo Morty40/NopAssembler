@@ -753,6 +753,9 @@ class TestDirectives(unittest.TestCase):
             ('.for (a, b) in [(5, 6)]\n'
              '.byte a, b\n'
              '.end\n',  [5, 6]),                    # in parentheses
+            ('.for a in 1, 2, 3\n'
+             '.byte a\n'
+             '.end\n',  [1, 2, 3]),                 # a tuple without parentheses
             ('.for first, *rest in [(1, 2, 3)]\n'
              '.byte first, len(rest)\n'
              '.end\n',  [1, 2]),                    # the rest, as in Python

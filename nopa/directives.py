@@ -283,7 +283,8 @@ def forLoop(context, tokens: list, chunks: dict):
         context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
         _skipBlock(context, chunks, 'for')
         return
-    iterator = evaluate.expression(f'iter({iterable})', context) # None after an error, also if it isn't iterable
+    # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error
+    iterator = evaluate.expression(f'iter(({iterable}))', context)
     if iterator is not None and _assignNext(context, target, iterator):
         context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
