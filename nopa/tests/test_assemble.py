@@ -313,6 +313,9 @@ class TestAssemble(unittest.TestCase):
             ('.for a, b in [(1, 2), 3]\n'
              '.byte a\n'
              '.end\n', ['test.asm:3: error: Cannot unpack non-iterable int object: "a,b"']),             # the second value
+            ('.for a in ({0: 1}[x] for x in [0, 1])\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:3: error: KeyError: 1: "a"']),                                        # in the iterable
         ]:
             with self.subTest(source=source):
                 anyErrors, output = self._assemble(source)

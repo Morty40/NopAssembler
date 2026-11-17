@@ -278,8 +278,7 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
-    targetText, names, assignment = target
-    constants = [name for name in names if name.isupper()]
+    constants = [name for name in target[1] if name.isupper()] # target[1]: the names the target assigns
     if constants:
         context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
         _skipBlock(context, chunks, 'for')
@@ -329,7 +328,7 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     except StopIteration:
         return False
     except Exception as exception: # e.g. in a Python generator
-        context.reportError(evaluate.exceptionMessage(exception))
+        context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
         return False
     # The assignment runs in its own variables, with only the value, not in the symbols: the value then needs
     # no name among the symbols, where it could clash with one, and a failed assignment changes no symbols.
