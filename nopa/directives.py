@@ -278,7 +278,8 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
-    constants = [name for name in target[1] if name.isupper()]
+    targetText, names, assignment = target
+    constants = [name for name in names if name.isupper()]
     if constants:
         context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
         _skipBlock(context, chunks, 'for')
@@ -395,7 +396,7 @@ def _endRepeat(context, count: int, readPointer: tuple):
 
 def _endFor(context, target: tuple, iterator, iterations: int, readPointer: tuple):
     """Assign the next value, and jump back while there are values left."""
-    if iterations + 1 >= MAX_ITERATIONS:
+    if iterations + 1 > MAX_ITERATIONS:
         context.reportError(f'For loop did not end after {MAX_ITERATIONS} iterations')
         return
     if _assignNext(context, target, iterator):
