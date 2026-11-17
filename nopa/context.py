@@ -243,9 +243,13 @@ class Context:
 
     def checkCurrentAddress(self):
         """Python code can assign the current address any value, so one that isn't an int is an error, and the
-        address becomes 0."""
+        address becomes 0. A float is truncated, as evaluate.intValue() does with other values, e.g. from /."""
         address = self.symbols.get('_') # None if Python code deleted it
-        if type(address) is not int:
+        if type(address) is float and math.isfinite(address):
+            if not address.is_integer():
+                self.reportWarning(f'Truncating float value: {address}')
+            self.symbols['_'] = int(address)
+        elif type(address) is not int:
             self.symbols['_'] = 0
             value = reprlib.repr(address) # shortened, and safe for a value whose repr() fails
             self.reportError(f'Current address must be an int, not {type(address).__name__}: {value}')
