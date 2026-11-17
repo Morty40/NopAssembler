@@ -484,20 +484,13 @@ def _runPython(context, code: str, variables: dict | None = None, fileName: str 
         exec(compiled, variables)
 
 
-def _execute(context, code: str) -> bool:
-    """Execute Python code. Returns False after reporting an error."""
-    try:
-        _runPython(context, code)
-        return True
-    except Exception as exception:
-        context.reportError(f'Failed to execute python code: "{code}" ({type(exception).__name__}: {exception})')
-        return False
-
-
 @directive('python')
 def python(context, code: str):
     """Execute Python code."""
-    _execute(context, code)
+    try:
+        _runPython(context, code)
+    except Exception as exception:
+        context.reportError(f'Failed to execute python code: "{code}" ({type(exception).__name__}: {exception})')
 
 
 def _namespaceModule(context, namespace: str) -> Namespace | None:

@@ -1034,7 +1034,7 @@ Assembles the lines up to `.end` for each value of the iterable, as Python's `fo
             .end
 ```
 
-After the loop, the target keeps its last value. A loop that has not ended after 65536 rounds, e.g. over an endless iterator, is an error.
+After the loop, the target keeps its last value. A loop that has not ended after 65536 rounds, e.g. over an endless iterator, is an error. A name in the target can't be all capitals, such as `MAX`, as those are [constants](https://github.com/Morty40/NopAssembler#constants), which don't change.
 
 As in Python, every name in the target is assigned, also `_`, which is the [current address](https://github.com/Morty40/NopAssembler#labels). So `.for _ in range(8)` moves the current address in each round: use `.repeat 8` for lines that only repeat, and another name, such as `unused`, for a value that isn't used.
 
