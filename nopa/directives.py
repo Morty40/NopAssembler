@@ -329,8 +329,8 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     return True
 
 
-def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> list | None:
-    """Skip lines, and continue after the matching .end, or .elif or .else if stopAtElse.
+def _skipBlock(context, chunks: dict, name: str, stopAtBranch: bool = False) -> list | None:
+    """Skip lines, and continue after the matching .end, or .elif or .else if stopAtBranch.
 
     Returns the line where it continues, without a label, e.g. the tokens of .elif a>5, or None if there is none.
     """
@@ -346,7 +346,7 @@ def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> li
                 depth += 1
             elif line[1].string == 'end' and depth > 0:
                 depth -= 1
-            elif line[1].string == 'end' or (line[1].string in ('elif', 'else') and stopAtElse and depth == 0):
+            elif line[1].string == 'end' or (line[1].string in ('elif', 'else') and stopAtBranch and depth == 0):
                 context.jumpReadPointer( (fileName, index) ) # then advances past the .end, .elif or .else
                 return line
     context.reportError(f'{name.capitalize()} without matching end')
@@ -395,7 +395,7 @@ def ifBlock(context, tokens: list, chunks: dict):
     of the first .elif with a true condition, as in Python, or else the lines from .else to .end.
     """
     while not evaluate.expression(lexer.join(tokens), context):
-        line = _skipBlock(context, chunks, 'if', stopAtElse=True)
+        line = _skipBlock(context, chunks, 'if', stopAtBranch=True)
         if line is None or line[1].string == 'end':
             return
         if line[1].string == 'else':

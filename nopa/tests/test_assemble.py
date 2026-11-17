@@ -251,6 +251,9 @@ class TestAssemble(unittest.TestCase):
              '.else\n'
              '.elif 1\n'
              '.end\n',                 'test.asm:3: error: Elif after else'),
+            ('.if 0\n'
+             '.elif nothing\n'
+             '.end\n',                 'test.asm:2: error: Name \'nothing\' is not defined: "nothing"'),            # at the .elif
             ('.repeat "i", 2\n'
              '.end\n',                 'test.asm:1: error: Expected .repeat count'),                                 # the count must be a number
             ('.for a\n',               'test.asm:1: error: Expected .for target in iterable: .for a'),
