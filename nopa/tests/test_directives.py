@@ -729,6 +729,10 @@ class TestDirectives(unittest.TestCase):
             ('.import "util.py"\n'
              '.align 2\n', {'util.py': '_ = None\n'}, ['test.asm:1: error: Current address must be an int, not NoneType: None']),
             ('.python\n'
+             'del _\n'
+             '.end\n'
+             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not NoneType: None']), # deleted
+            ('.python\n'
              'def move():\n'
              '    global _\n'
              '    _ = "b"\n'

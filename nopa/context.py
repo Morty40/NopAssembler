@@ -243,7 +243,7 @@ class Context:
     def checkCurrentAddress(self):
         """Python code can assign the current address any value, so one that isn't an int is an error, and the
         address becomes 0."""
-        address = self.symbols['_']
+        address = self.symbols.get('_') # None if Python code deleted it
         if type(address) is not int:
             self.reportError(f'Current address must be an int, not {type(address).__name__}: {address!r}')
             self.symbols['_'] = 0
