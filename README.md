@@ -1131,7 +1131,7 @@ irq:
             .end
 ```
 
-The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A, and all 65C02s can set the bits of A with `tsb`. As only the first true condition counts, `smb3` is used where both are available:
+The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A, and all 65C02s can set the bits of A in memory with `tsb`. As only the first true condition counts, `smb3` is used where both are available:
 
 ```
 flags = zp(1)
