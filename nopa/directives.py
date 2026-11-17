@@ -283,14 +283,7 @@ def forLoop(context, tokens: list, chunks: dict):
         context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
         _skipBlock(context, chunks, 'for')
         return
-    errors = len(context.errors)
-    values = evaluate.expression(iterable, context)
-    iterator = None
-    if len(context.errors) == errors: # else the iterable failed, and is reported
-        try:
-            iterator = iter(values)
-        except TypeError as exception:
-            context.reportError(f'{evaluate.exceptionMessage(exception)}: "{iterable}"')
+    iterator = evaluate.expression(f'iter({iterable})', context) # None after an error, also if it isn't iterable
     if iterator is not None and _assignNext(context, target, iterator):
         context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
@@ -323,20 +316,15 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     """Assign the next value of a for loop to its target, as Python does, e.g. a, *b = (1, 2, 3). Returns False
     after the last value, or after an error."""
     text, names, assignment = target
-    try:
-        value = next(iterator)
-    except StopIteration:
-        return False
-    except Exception as exception: # e.g. in a Python generator
-        context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
-        return False
     # The assignment runs in its own variables, with only the value, not in the symbols: the value then needs
     # no name among the symbols, where it could clash with one, and a failed assignment changes no symbols.
     # A target name value also works, as in value, b = value, as Python reads the value before assigning.
-    variables = {'value': value}
     try:
+        variables = {'value': next(iterator)}
         exec(assignment, variables)
-    except Exception as exception: # e.g. a value that doesn't unpack into the names, with Python's message
+    except StopIteration: # after the last value
+        return False
+    except Exception as exception: # e.g. in a Python generator, or a value that doesn't unpack into the names
         context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
         return False
     symbols = context.namespaceSymbols() # so a name in a namespace gets its full name, e.g. spr.i
