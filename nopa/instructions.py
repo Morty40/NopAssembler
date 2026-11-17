@@ -9,7 +9,7 @@ from .cpu import CPU_6502, AddressMode, isMnemonic, lo, hi
 
 def _branchOffset(destination: int, size: int, context: Context) -> int:
     """The offset of a branch to the destination, as a signed byte, counted from the address after the instruction."""
-    dist = destination - context.symbols['_'] - size
+    dist = destination - context.currentAddress - size
     if dist < -128 or dist > 127: # branch is out of range (signed byte)
         context.reportError(f'Branch destination out of range [-128..127]: {dist}')
         dist = 0
@@ -30,11 +30,11 @@ def has(text: str, context: Context) -> bool:
     if not context.cpu.isMnemonic(mnemonic):
         return False
 
-    saved = context.memory, context.errors, context.warnings, context.symbols['_'], set(context.references)
+    saved = context.memory, context.errors, context.warnings, context.currentAddress, set(context.references)
     context.memory, context.errors, context.warnings = {}, [], []
     assemble(tokens, context)
     assembles = not context.errors
-    context.memory, context.errors, context.warnings, context.symbols['_'], context.references = saved
+    context.memory, context.errors, context.warnings, context.currentAddress, context.references = saved
     return assembles
 
 

@@ -6,6 +6,7 @@ annotations the types, e.g. def org(context, address: int). Parameters
 without an annotation accept any type, and Callable accepts any callable.
 """
 
+import ast
 import inspect
 import os
 import typing
@@ -19,7 +20,7 @@ from .cpu import CPU
 
 
 DIRECTIVES: dict[str, Callable[..., object]] = {} # directive name: function
-_rawDirectives: set[str] = set() # directives that get their arguments as tokens, e.g. .for a=0, a<10, a+=1
+_rawDirectives: set[str] = set() # directives that get their arguments as tokens, e.g. .for i in range(8)
 
 
 def directive(name: str, raw: bool = False):
@@ -182,7 +183,7 @@ def _fill(context, n: int, function: Callable | None, store, checkValue):
 @directive('org')
 def org(context, address: int):
     """Set the current address."""
-    context.symbols['_'] = address
+    context.currentAddress = address
 
 
 @directive('section')
@@ -193,9 +194,9 @@ def section(context, name: str, address: int | None = None):
     elif name not in context.sections and address is None:
         context.reportError(f'New section needs an address: "{name}"')
     if context.currentSection is not None:
-        context.sections[context.currentSection] = context.symbols['_']
+        context.sections[context.currentSection] = context.currentAddress
     context.currentSection = name
-    context.symbols['_'] = context.sections.setdefault(name, address or 0)
+    context.currentAddress = context.sections.setdefault(name, address or 0)
 
 
 @directive('align')
@@ -204,10 +205,10 @@ def align(context, n: int):
     if n <= 0:
         context.reportError(f'Alignment must be positive: {n}')
         n = 1 # no alignment
-    _ = context.symbols['_']
-    mod = _ % n
+    address = context.currentAddress
+    mod = address % n
     if mod > 0:
-        context.symbols['_'] = _ - mod + n
+        context.currentAddress = address - mod + n
 
 
 @directive('print')
@@ -238,11 +239,11 @@ def assertion(context, condition, message: str = 'Assertion failed'):
 @directive('break')
 def setBreakpoint(context, condition: str | None = None):
     """Set a VICE breakpoint at the current address, with an optional condition in VICE's format, e.g. "RL > $40"."""
-    context.breakpoints.append((context.symbols['_'], condition))
+    context.breakpoints.append((context.currentAddress, condition))
 
 
 BLOCK_DIRECTIVES = ('repeat', 'for', 'if', 'optional') # the directives that start a block
-MAX_ITERATIONS = 0x10000 # a .for loop that runs longer is an error, e.g. a condition that is never false
+MAX_ITERATIONS = 0x10000 # a .for loop that runs longer is an error, e.g. over an endless iterator
 
 
 @directive('repeat', raw=True)
@@ -264,23 +265,68 @@ def repeat(context, tokens: list, chunks: dict):
 
 @directive('for', raw=True)
 def forLoop(context, tokens: list, chunks: dict):
-    """Start a for loop: .for initial, condition, step, e.g. .for a=0, a<10, a+=1.
+    """Start a for loop, as in Python: .for target in iterable, e.g. .for i in range(8).
 
-    The initial and step are Python statements. While the condition is true,
-    the lines up to .end are assembled. If it is false at the start, the
-    loop is skipped.
+    The lines up to .end are assembled for each value of the iterable, with the value assigned to the
+    target: a name, or names to unpack each value into, e.g. .for name, value in colors.items().
+    With no values, or after an error, the loop is skipped.
     """
-    parts = [lexer.join(part) for part in lexer.splitByComma(tokens)]
-    if len(parts) != 3:
-        context.reportError(f'Expected .for initial, condition, step: .for {lexer.join(tokens)}')
+    text = lexer.join(tokens)
+    loop = _parseFor(text)
+    if loop is None:
+        context.reportError(f'Expected .for target in iterable: .for {text}')
+        _skipBlock(context, chunks, 'for')
         return
-    initial, condition, step = parts
-    if not _execute(context, initial):
-        return
-    if evaluate.expression(condition, context):
-        context.blockStack.append( ('for', condition, step, 0, context.readPointer()) )
+    target, iterable = loop
+    # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error
+    iterator = evaluate.expression(f'iter(({iterable}))', context)
+    if iterator is not None and _assignNext(context, target, iterator):
+        context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
         _skipBlock(context, chunks, 'for')
+
+
+def _parseFor(text: str) -> tuple | None:
+    """The target and the iterable of the text after .for, as Python parses it, e.g. "a, b" and "pairs" for
+    "a, b in pairs", or None if it isn't a for loop. The target is its text, the names it assigns, and the
+    code that assigns it the variable value."""
+    # Python's parser finds where the target ends and the iterable starts, also with an in inside the
+    # iterable, e.g. "i in [x for x in data]", and rejects what isn't a for loop, e.g. the C-style "i=0, i<8, i+=1"
+    code = f'for {text}: pass'
+    try:
+        loop = ast.parse(code).body[0]
+    except (SyntaxError, ValueError): # ValueError for a null byte, before Python 3.12
+        return None
+    if not isinstance(loop, ast.For):
+        return None
+    targetText = ast.get_source_segment(code, loop.target)
+    # the names the target assigns, also nested or starred, e.g. a, b and c in "a, (b, *c)": Store, as opposed
+    # to names it only reads, such as i in "table[i]"
+    names = [node.id for node in ast.walk(loop.target) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)]
+    # compiled once, and run for each value: Python's own assignment, which unpacks the value into the target
+    assignment = compile(f'{targetText} = value', '<for>', 'exec')
+    return (targetText, names, assignment), ast.get_source_segment(code, loop.iter)
+
+
+def _assignNext(context, target: tuple, iterator) -> bool:
+    """Assign the next value of a for loop to its target, as Python does, e.g. a, *b = (1, 2, 3). Returns False
+    after the last value, or after an error."""
+    text, names, assignment = target
+    # The assignment runs in its own variables, with only the value, not in the symbols: the value then needs
+    # no name among the symbols, where it could clash with one, and a failed assignment changes no symbols.
+    # A target name value also works, as in value, b = value, as Python reads the value before assigning.
+    try:
+        variables = {'value': next(iterator)}
+        exec(assignment, variables)
+    except StopIteration: # after the last value
+        return False
+    except Exception as exception: # e.g. in a Python generator, or a value that doesn't unpack into the names
+        context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
+        return False
+    symbols = context.namespaceSymbols() # so a name in a namespace gets its full name, e.g. spr.i
+    for name in names:
+        symbols[name] = variables[name]
+    return True
 
 
 def _skipBlock(context, chunks: dict, name: str, stopAtElse: bool = False) -> str | None:
@@ -331,15 +377,13 @@ def _endRepeat(context, count: int, readPointer: tuple):
         context.jumpReadPointer(readPointer)
 
 
-def _endFor(context, condition: str, step: str, iterations: int, readPointer: tuple):
-    """Execute the step, and jump back while the condition is true."""
-    if not _execute(context, step):
-        return
-    if iterations + 1 >= MAX_ITERATIONS:
+def _endFor(context, target: tuple, iterator, iterations: int, readPointer: tuple):
+    """Assign the next value, and jump back while there are values left."""
+    if iterations + 1 > MAX_ITERATIONS:
         context.reportError(f'For loop did not end after {MAX_ITERATIONS} iterations')
         return
-    if evaluate.expression(condition, context):
-        context.blockStack.append( ('for', condition, step, iterations + 1, readPointer) )
+    if _assignNext(context, target, iterator):
+        context.blockStack.append( ('for', target, iterator, iterations + 1, readPointer) )
         context.jumpReadPointer(readPointer)
 
 
@@ -424,20 +468,13 @@ def _runPython(context, code: str, variables: dict | None = None, fileName: str 
         exec(compiled, variables)
 
 
-def _execute(context, code: str) -> bool:
-    """Execute Python code. Returns False after reporting an error."""
-    try:
-        _runPython(context, code)
-        return True
-    except Exception as exception:
-        context.reportError(f'Failed to execute python code: "{code}" ({type(exception).__name__}: {exception})')
-        return False
-
-
 @directive('python')
 def python(context, code: str):
     """Execute Python code."""
-    _execute(context, code)
+    try:
+        _runPython(context, code)
+    except Exception as exception:
+        context.reportError(f'Failed to execute python code: "{code}" ({type(exception).__name__}: {exception})')
 
 
 def _namespaceModule(context, namespace: str) -> Namespace | None:

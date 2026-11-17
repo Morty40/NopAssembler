@@ -134,10 +134,10 @@ class TestAssemble(unittest.TestCase):
                           'test.asm:1: warning: Truncating float value: 1.5'])
 
     def testForLoopLimit(self):
-        """A .for loop whose condition is never false is an error, not a hang."""
+        """A .for loop over an endless iterable is an error, not a hang."""
         from unittest import mock
         with mock.patch.object(directives, 'MAX_ITERATIONS', 100): # the real limit takes seconds
-            anyErrors, output = self._assemble('.for a=0, a>=0, a+=1\n'
+            anyErrors, output = self._assemble('.for a in iter(int, 1)\n' # int() is never 1, so it never ends
                                                '.end\n')
         self.assertIn('test.asm:2: error: For loop did not end after 100 iterations', output)
 
@@ -242,15 +242,17 @@ class TestAssemble(unittest.TestCase):
     def testBlockMessages(self):
         """Blocks that are not opened or closed correctly."""
         self._assertMessages([
-            ('.end\n',          'test.asm:1: error: End without matching repeat, for or if'),
-            ('.else\n',         'test.asm:1: error: Else without matching if'),
+            ('.end\n',                 'test.asm:1: error: End without matching repeat, for or if'),
+            ('.else\n',                'test.asm:1: error: Else without matching if'),
             ('.if 1\n'
-             '.else\n',         'test.asm:2: error: Else without matching end'),
+             '.else\n',                'test.asm:2: error: Else without matching end'),
             ('.repeat "i", 2\n'
-             '.end\n',          'test.asm:1: error: Expected .repeat count'),     # the count must be a number
-            ('.for a=0, a<1\n', 'test.asm:1: error: Expected .for initial, condition, step'),
+             '.end\n',                 'test.asm:1: error: Expected .repeat count'),                                 # the count must be a number
+            ('.for a\n',               'test.asm:1: error: Expected .for target in iterable: .for a'),
+            ('.for a=0, a<4, a+=1\n',  'test.asm:1: error: Expected .for target in iterable: .for a=0,a<4,a+=1'),    # not C-style
+            ('.for a+1 in range(2)\n', 'test.asm:1: error: Expected .for target in iterable: .for a+1 in range(2)'), # not a name
             ('.python\n'
-             'x = 1\n',         'test.asm:1: error: Invalid directive: .python'), # no .end
+             'x = 1\n',                'test.asm:1: error: Invalid directive: .python'),                             # no .end
         ])
 
     def testElseUsedTwice(self):
@@ -264,18 +266,51 @@ class TestAssemble(unittest.TestCase):
         self.assertIn('test.asm:3: error: Else already used for this if', errors[0])
 
     def testPythonMessages(self):
-        """Python code that fails, in .for, .python and .import."""
+        """Python code that fails, in .python and .import."""
         self._assertMessages([
-            ('.for a=, a<1, a+=1\n'
-             '.end\n',                 'test.asm:1: error: Failed to execute python code: "a="'),
-            ('.for a=0, a<1, b+=1\n'
-             '.end\n',                 'test.asm:2: error: Failed to execute python code: "b+=1"'),
             ('.python\n'
              '1/0\n'
              '.end\n',                 'test.asm:1: error: Failed to execute python code: "1/0" (ZeroDivisionError: division by zero)'),
             ('.python "1/0"\n',        'test.asm:1: error: Invalid syntax'), # only python blocks
             ('.import "nothere.py"\n', 'test.asm:1: error: Failed to execute python code: "nothere.py" (FileNotFoundError: '),
         ])
+
+    def testForMessages(self):
+        """A .for that isn't a for loop, an iterable that fails or isn't iterable, or a value that doesn't unpack into
+        the names, is one error, and the lines up to .end are skipped.
+        A value after the first is assigned, and reported, at the .end."""
+        for source, expected in [
+            ('.for a\n'
+             '.byte 1\n'
+             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a']),
+            ('.for a=0, a<2, a+=1\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a=0,a<2,a+=1']),      # C-style
+            ('.for a in range(2)\x00\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a in range(2)\x00']), # Python 3.11 raises ValueError
+            ('.for a in nothing\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "iter((nothing))"']),
+            ('.for a in 5\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: \'int\' object is not iterable: "iter((5))"']),
+            ('.for a, b in [1]\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Cannot unpack non-iterable int object: "a,b"']),
+            ('.for a, b in [(1,)]\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "a,b"']),
+            ('.for a, b in [(1, 2), 3]\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:3: error: Cannot unpack non-iterable int object: "a,b"']),             # the second value
+            ('.for a in ({0: 1}[x] for x in [0, 1])\n'
+             '.byte a\n'
+             '.end\n', ['test.asm:3: error: KeyError: 1: "a"']),                                        # in the iterable
+        ]:
+            with self.subTest(source=source):
+                anyErrors, output = self._assemble(source)
+                self.assertEqual([line[line.index('test.asm'):] for line in output.splitlines()], expected)
 
     def testFileMessages(self):
         """Files that are not found."""
@@ -289,7 +324,7 @@ class TestAssemble(unittest.TestCase):
         self._assertMessages([
             ('.repeat 2\n'
              'nop\n',  'test.asm:1: error: Repeat without matching end'),
-            ('.for a=0, a<2, a+=1\n'
+            ('.for a in range(2)\n'
              'nop\n',  'test.asm:1: error: For without matching end'),
             ('.if 1\n'
              'nop\n',  'test.asm:1: error: If without matching end'),

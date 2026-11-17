@@ -214,7 +214,7 @@ class TestDirectives(unittest.TestCase):
                            '    return v * 2\n'
                            '.end\n'
                            '.byte twice(3)\n'),
-            'for.asm':    ('.for i=0, i<3, i+=1\n'
+            'for.asm':    ('.for i in range(3)\n'
                            '.byte i\n'
                            '.end\n'),
         }
@@ -227,7 +227,7 @@ class TestDirectives(unittest.TestCase):
             ('.import "python.asm", "spr"\n'
              '.byte spr.twice(4)\n',          [6, 8]),       # twice is spr.twice
             ('.import "for.asm", "spr"\n'
-             '.byte spr.i\n',                 [0, 1, 2, 3]), # i is spr.i
+             '.byte spr.i\n',                 [0, 1, 2, 2]), # i is spr.i, 2 after the loop, as in Python
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected, files)
@@ -705,7 +705,7 @@ class TestDirectives(unittest.TestCase):
             ('.if a>5 and not a>10\n'
              '.byte 7\n'
              '.end\n', [7]),    # Python keywords in the condition
-            ('.for i=0, i<4, i+=1\n'
+            ('.for i in range(4)\n'
              '.if i % 2 == 0\n'
              '.byte i\n'
              '.end\n'
@@ -714,38 +714,79 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
+    def testCurrentAddressType(self):
+        """A current address that isn't an int, which Python code can assign, is an error where it is used, and the
+        address becomes 0."""
+        memory, errors = self._assemble('.for _ in ["a"]\n'
+                                        '.byte 1\n'
+                                        '.end\n')
+        self.assertEqual(errors, ['test.asm:2: error: Current address must be an int, not str'])
+        self.assertEqual(memory, {0: 1})
+
     def testFor(self):
-        """.for loops, with an initial statement, a condition and a step."""
+        """.for loops, as in Python: the lines up to .end are assembled for each value of the iterable, with the value
+        assigned to the target, a name or names. Names given later in the source work, as in other expressions."""
         for source, expected in [
-            ('.for a=0, a<4, a+=1\n'
+            ('.for a in range(4)\n'
              '.byte a\n'
-             '.end\n', [0, 1, 2, 3]),
-            ('.for a=10, a<10, a+=1\n'
+             '.end\n',  [0, 1, 2, 3]),
+            ('.for a in []\n'
              '.byte $ee\n'
-             '.end\n', []),                         # false at the start, so the loop is skipped
-            ('.for a=0, a<0, a+=1\n'
-             'skipped: .for b=0, b<2, b+=1\n'
+             '.end\n',  []),                        # no values, so the loop is skipped
+            ('.for a in []\n'
+             'skipped: .for b in range(2)\n'
              '.byte $ee\n'
              '.end\n'
-             '.end\n', []),                         # with a label and a nested loop
-            ('.for a=3, a>0, a-=1\n'
+             '.end\n',  []),                        # with a label and a nested loop
+            ('.for a in range(3, 0, -1)\n'
              '.byte a\n'
-             '.end\n', [3, 2, 1]),                  # counting down
-            ('.for row=0, row<2, row+=1\n'
-             '.for column=0, column<3, column+=1\n'
+             '.end\n',  [3, 2, 1]),                 # counting down
+            ('.for row in range(2)\n'
+             '.for column in range(3)\n'
              '.byte row*16 + column\n'
              '.end\n'
              '.end\n',
              [0x00, 0x01, 0x02, 0x10, 0x11, 0x12]), # nested loops
-            ('.for a=1, a<100, a*=2\n'
+            ('.for a, b in [(1, 2), (3, 4)]\n'
+             '.byte a + b\n'
+             '.end\n',  [3, 7]),                    # names unpacked from each value
+            ('.for (a, b) in [(5, 6)]\n'
+             '.byte a, b\n'
+             '.end\n',  [5, 6]),                    # in parentheses
+            ('.for a in 1, 2, 3\n'
              '.byte a\n'
-             '.end\n', [1, 2, 4, 8, 16, 32, 64]),   # any Python statement as the step
-            ('.for i=0, i<len([5, 6]), i+=1\n'
+             '.end\n',  [1, 2, 3]),                 # a tuple without parentheses
+            ('.for first, *rest in [(1, 2, 3)]\n'
+             '.byte first, len(rest)\n'
+             '.end\n',  [1, 2]),                    # the rest, as in Python
+            ('.for name, value in {"x": 8, "y": 9}.items()\n'
+             '.byte value\n'
+             '.end\n',  [8, 9]),                    # any iterable: a dict's items
+            ('.for c in "AB"\n'
+             '.byte ord(c)\n'
+             '.end\n',  [1, 2]),                    # a string, in screen codes
+            ('.for i in [x * 2 for x in range(3)]\n'
              '.byte i\n'
-             '.end\n', [0, 1]),                     # commas inside brackets
+             '.end\n',  [0, 2, 4]),                 # an in inside the iterable
+            ('.python\n'
+             'def evens(n):\n'
+             '    for i in range(n):\n'
+             '        yield i * 2\n'
+             '.end\n'
+             '.for e in evens(3)\n'
+             '.byte e\n'
+             '.end\n',  [0, 2, 4]),                 # a Python generator
+            ('.for i in range(N)\n'
+             '.byte i\n'
+             '.end\n'
+             'N = 2\n', [0, 1]),                    # N is assigned later
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)
+        memory = self._memory('.for _ in [$2000]\n'
+                              '.end\n'
+                              '.byte 7\n')
+        self.assertEqual(memory, {0x2000: 7}) # _ is assigned, as any name, so here it sets the current address
 
     def testRepeat(self):
         """.repeat blocks, with the count as an expression."""
@@ -771,12 +812,12 @@ class TestDirectives(unittest.TestCase):
              '.byte 3\n'
              '.end\n', [3, 3]),             # the count is an expression
             ('.repeat 2\n'
-             '.for a=0, a<2, a+=1\n'
+             '.for a in range(2)\n'
              '.byte a\n'
              '.end\n'
              '.end\n', [0, 1, 0, 1]),       # a for loop inside
             ('.repeat 0\n'
-             '.for a=0, a<2, a+=1\n'
+             '.for a in range(2)\n'
              '.byte $ff\n'
              '.end\n'
              '.end\n', []),                 # skipped, with a for loop inside
