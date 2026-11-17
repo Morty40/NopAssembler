@@ -489,8 +489,10 @@ def _runPython(context, code: str, variables: dict | None = None, fileName: str 
     compiled = compile(code, fileName, 'exec')
     if variables is None:
         context.noteReferences(compiled)
-        exec(compiled, context.namespaceSymbols())
-        context.checkCurrentAddress() # at the line with the code, if it assigned _
+        try:
+            exec(compiled, context.namespaceSymbols())
+        finally:
+            context.checkCurrentAddress() # at the line with the code, if it assigned _, also if it then failed
     else:
         exec(compiled, variables)
 

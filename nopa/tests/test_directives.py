@@ -733,6 +733,13 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not NoneType: None']), # deleted
             ('.python\n'
+             '_ = 2.5\n'
+             '1 / 0\n'
+             '.end\n'
+             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 2.5',
+                                                        'test.asm:1: error: Failed to execute python code: "_ = 2.5\n1 / 0" '
+                                                        '(ZeroDivisionError: division by zero)']), # also when the code fails
+            ('.python\n'
              'def move():\n'
              '    global _\n'
              '    _ = "b"\n'
