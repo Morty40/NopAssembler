@@ -589,7 +589,7 @@ Besides the Python built-ins, these are available:
 | `ord(char)`, `chr(value)` | convert between a character and its value, in the current text encoding |
 | `zp(size)` | allocate zero page bytes, see [zero page variables](https://github.com/Morty40/NopAssembler#zero-page-variables) |
 | `ref("label")` | true if the label was referenced in the last pass, see below |
-| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-else-end) |
+| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-elif-else-end) |
 | `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](https://github.com/Morty40/NopAssembler#symbol-types) |
 | `ENCODING_...` | the text encodings, see `.encoding` |
 | `CPU_6502`, `CPU_65C02`, `CPU_R65C02`, `CPU_W65C02` | the cpus, see `.cpu` |
@@ -1042,21 +1042,35 @@ As in Python, every name in the target is assigned, also `_`, which is the [curr
 
 ### Conditions
 
-#### .if, .else, .end
+#### .if, .elif, .else, .end
 ```
 .if condition
+...
+.elif condition
 ...
 .else
 ...
 .end
 ```
-Assembles the lines up to `.else` if the Python expression `condition` is true, and the lines from `.else` to `.end` if it is false. The `.else` part is optional. The lines that are not assembled can define the same labels.
+Assembles the lines up to `.elif`, `.else` or `.end` if the Python expression `condition` is true. Otherwise, as in Python, the lines of the first `.elif` with a true condition are assembled, or else the lines from `.else` to `.end`. The `.elif` and `.else` parts are optional, and there can be more than one `.elif`. The lines that are not assembled can define the same labels.
 
 ```
             .if DEBUG
             inc $d020
             .else
             nop
+            .end
+
+            .if SPEED == 1
+            inc xpos
+            .elif SPEED == 2
+            inc xpos
+            inc xpos
+            .else
+            lda xpos
+            clc
+            adc #SPEED
+            sta xpos
             .end
 ```
 
