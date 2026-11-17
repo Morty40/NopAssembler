@@ -8,7 +8,6 @@ without an annotation accept any type, and Callable accepts any callable.
 
 import ast
 import inspect
-import itertools
 import os
 import typing
 from collections.abc import Callable
@@ -279,7 +278,7 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
-    constants = [node.id for node in ast.walk(target[0]) if isinstance(node, ast.Name) and node.id.isupper()]
+    constants = [name for name in target[1] if name.isupper()]
     if constants:
         context.reportError(f'Capitals are for constants, not loop variables: "{constants[0]}"')
         _skipBlock(context, chunks, 'for')
@@ -299,46 +298,31 @@ def forLoop(context, tokens: list, chunks: dict):
 
 
 def _parseFor(text: str) -> tuple | None:
-    """The target, as its syntax tree and its text, and the iterable of the text after .for, as Python parses it,
-    e.g. "a, b" and "pairs" for "a, b in pairs", or None if it isn't a for loop with names as the target."""
+    """The target and the iterable of the text after .for, as Python parses it, e.g. "a, b" and "pairs" for
+    "a, b in pairs", or None if it isn't a for loop. The target is its text, the names it assigns, and the
+    code that assigns it the variable value."""
+    # Python's parser finds where the target ends and the iterable starts, also with an in inside the
+    # iterable, e.g. "i in [x for x in data]", and rejects what isn't a for loop, e.g. the C-style "i=0, i<8, i+=1"
     code = f'for {text}: pass'
     try:
         loop = ast.parse(code).body[0]
     except (SyntaxError, ValueError): # ValueError for a null byte, before Python 3.12
         return None
-    if not isinstance(loop, ast.For) or not _isNames(loop.target):
+    if not isinstance(loop, ast.For):
         return None
-    return (loop.target, ast.get_source_segment(code, loop.target)), ast.get_source_segment(code, loop.iter)
-
-
-def _isNames(node) -> bool:
-    """A target of names: a name, or a tuple or list of names, also nested, e.g. a, (b, c)."""
-    if isinstance(node, ast.Name):
-        return True
-    return isinstance(node, (ast.Tuple, ast.List)) and all(_isNames(element) for element in node.elts)
-
-
-def _assign(symbols, target, value):
-    """Assign the value to the target's names, unpacking it as Python does, e.g. a, b = (1, 2)."""
-    if isinstance(target, ast.Name):
-        symbols[target.id] = value
-        return
-    expected = len(target.elts)
-    try:
-        values = list(itertools.islice(iter(value), expected + 1)) # one more than expected, to know there are too many
-    except TypeError:
-        raise TypeError(f'cannot unpack non-iterable {type(value).__name__} object')
-    if len(values) > expected:
-        raise ValueError(f'too many values to unpack (expected {expected})')
-    if len(values) < expected:
-        raise ValueError(f'not enough values to unpack (expected {expected}, got {len(values)})')
-    for name, item in zip(target.elts, values):
-        _assign(symbols, name, item)
+    targetText = ast.get_source_segment(code, loop.target)
+    # the names the target assigns, also nested or starred, e.g. a, b and c in "a, (b, *c)": Store, as opposed
+    # to names it only reads, such as i in "table[i]"
+    names = [node.id for node in ast.walk(loop.target) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)]
+    # compiled once, and run for each value: Python's own assignment, which unpacks the value into the target
+    assignment = compile(f'{targetText} = value', '<for>', 'exec')
+    return (targetText, names, assignment), ast.get_source_segment(code, loop.iter)
 
 
 def _assignNext(context, target: tuple, iterator) -> bool:
-    """Assign the next value of a for loop to its target. Returns False after the last value, or after an error."""
-    node, text = target
+    """Assign the next value of a for loop to its target, as Python does, e.g. a, *b = (1, 2, 3). Returns False
+    after the last value, or after an error."""
+    text, names, assignment = target
     try:
         value = next(iterator)
     except StopIteration:
@@ -346,11 +330,18 @@ def _assignNext(context, target: tuple, iterator) -> bool:
     except Exception as exception: # e.g. in a Python generator
         context.reportError(evaluate.exceptionMessage(exception))
         return False
+    # The assignment runs in its own variables, with only the value, not in the symbols: the value then needs
+    # no name among the symbols, where it could clash with one, and a failed assignment changes no symbols.
+    # A target name value also works, as in value, b = value, as Python reads the value before assigning.
+    variables = {'value': value}
     try:
-        _assign(context.namespaceSymbols(), node, value)
-    except (TypeError, ValueError) as exception:
+        exec(assignment, variables)
+    except Exception as exception: # e.g. a value that doesn't unpack into the names, with Python's message
         context.reportError(f'{evaluate.exceptionMessage(exception)}: "{text}"')
         return False
+    symbols = context.namespaceSymbols() # so a name in a namespace gets its full name, e.g. spr.i
+    for name in names:
+        symbols[name] = variables[name]
     return True
 
 

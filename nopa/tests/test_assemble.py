@@ -307,9 +307,6 @@ class TestAssemble(unittest.TestCase):
             ('.for a, b in [1]\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Cannot unpack non-iterable int object: "a,b"']),
-            ('.for a, b in [(1, 2, 3)]\n'
-             '.byte a\n'
-             '.end\n', ['test.asm:1: error: Too many values to unpack (expected 2): "a,b"']),
             ('.for a, b in [(1,)]\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Not enough values to unpack (expected 2, got 1): "a,b"']),

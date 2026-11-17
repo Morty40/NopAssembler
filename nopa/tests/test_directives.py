@@ -753,6 +753,9 @@ class TestDirectives(unittest.TestCase):
             ('.for (a, b) in [(5, 6)]\n'
              '.byte a, b\n'
              '.end\n',  [5, 6]),                    # in parentheses
+            ('.for first, *rest in [(1, 2, 3)]\n'
+             '.byte first, len(rest)\n'
+             '.end\n',  [1, 2]),                    # the rest, as in Python
             ('.for name, value in {"x": 8, "y": 9}.items()\n'
              '.byte value\n'
              '.end\n',  [8, 9]),                    # any iterable: a dict's items
