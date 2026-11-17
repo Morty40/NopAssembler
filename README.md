@@ -482,6 +482,8 @@ In Python, `_` is the usual name for a value that isn't used, as in `for _ in ra
 
 There, use another name, such as `i` or `unused`, and `.repeat 8` for lines that only repeat. `_` is fine where Python makes it a local name: in a function, such as a generator, in a lambda or a list comprehension, and in a `.py` file imported into a namespace, which has names of its own.
 
+The current address must be an `int`. Anything else that Python code assigns, such as a float, is an error where the address is next used, and the address becomes 0. In Python, `/` always gives a float, even for `0x4000 / 2`, so divide with `//` instead: `_ = base // 2`.
+
 #### Label names
 
 A global label starts with a letter, and a local label with `_`. After that come letters, digits and underscores: `drawSprite`, `level2`, `player_x`, `_loop`, `_0`. Names are case sensitive, so `Loop` and `loop` are two labels. Capitals are fine as long as the name has a lower case letter too: `Level1`, `screenX`, `_Loop`.
@@ -1013,7 +1015,7 @@ Assembles the lines up to `.end` `count` times. With a count of 0, the lines are
 ...
 .end
 ```
-Assembles the lines up to `.end` for each value of the iterable, as Python's `for` does, with the value assigned to the target. The iterable is any Python expression, such as `range(8)`, a list, a string or a generator, and the target is a name, or names to unpack each value into. If there are no values, the lines are skipped.
+Assembles the lines up to `.end` for each value of the iterable, as Python's `for` does, with the value assigned to the target. The iterable is any Python expression, such as `range(8)`, a list, a string or a generator, and the target is a name, or names to unpack each value into, where a name with `*` gets the rest of the values as a list, as in Python. If there are no values, the lines are skipped.
 
 ```
             .for row in range(4)
@@ -1025,6 +1027,10 @@ Assembles the lines up to `.end` for each value of the iterable, as Python's `fo
             .for x, y in [(24, 50), (320, 229)]
             .word x
             .byte y
+            .end
+
+            .for first, *rest in [(3, 10, 20, 30)]
+            .byte first, len(rest) ; 3 and 3, with rest as [10, 20, 30]
             .end
 ```
 
