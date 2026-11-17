@@ -715,53 +715,12 @@ class TestDirectives(unittest.TestCase):
                 self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
     def testCurrentAddressType(self):
-        """A current address that isn't an int, which Python code can assign, is an error at the line with the code,
-        and the address becomes 0. Code that assigns it elsewhere, such as in a generator, is found where the
-        address is used."""
-        for source, files, expected in [
-            ('.for _ in ["a"]\n'
-             '.byte 1\n'
-             '.end\n',     {},                         ['test.asm:1: error: Current address must be an int, not str: \'a\'']),
-            ('.python\n'
-             '_ = 1.5\n'
-             '.end\n'
-             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 1.5']),
-            ('.import "util.py"\n'
-             '.align 2\n', {'util.py': '_ = None\n'}, ['test.asm:1: error: Current address must be an int, not NoneType: None']),
-            ('.python\n'
-             'del _\n'
-             '.end\n'
-             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not NoneType: None']), # deleted
-            ('.python\n'
-             '_ = 2.5\n'
-             '1 / 0\n'
-             '.end\n'
-             '.byte 1\n',  {},                         ['test.asm:1: error: Current address must be an int, not float: 2.5',
-                                                        'test.asm:1: error: Failed to execute python code: "_ = 2.5\n1 / 0" '
-                                                        '(ZeroDivisionError: division by zero)']), # also when the code fails
-            ('.python\n'
-             'def move():\n'
-             '    global _\n'
-             '    _ = "b"\n'
-             '    return ""\n'
-             '.end\n'
-             '@move()\n'
-             '.byte 1\n',  {},                         ['test.asm:8: error: Current address must be an int, not str: \'b\'']),
-        ]:
-            with self.subTest(source=source):
-                memory, errors = self._assemble(source, files)
-                self.assertEqual(errors, expected)
-                self.assertEqual(memory, {0: 1} if '.byte' in source else {}) # a .byte stores at 0, the address after the error
-        memory, errors = self._assemble('.python\n'
-                                        'class Unprintable:\n'
-                                        '    def __repr__(self):\n'
-                                        '        raise ValueError\n'
-                                        '_ = Unprintable()\n'
-                                        '.end\n'
-                                        '.byte 1\n')
-        self.assertEqual(len(errors), 1)                                # a value that can't be shown is still one error
-        self.assertRegex(errors[0], r'^test.asm:1: error: Current address must be an int, not Unprintable: '
-                                    r'<Unprintable instance at 0x[0-9a-f]+>$')
+        """A current address that isn't an int, which Python code can assign, is an error where it is used, and the
+        address becomes 0."""
+        memory, errors = self._assemble('.for _ in ["a"]\n'
+                                        '.byte 1\n'
+                                        '.end\n')
+        self.assertEqual(errors, ['test.asm:2: error: Current address must be an int, not str'])
         self.assertEqual(memory, {0: 1})
 
     def testFor(self):

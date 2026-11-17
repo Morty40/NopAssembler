@@ -5,7 +5,6 @@ import builtins
 import dis
 import functools
 import math
-import reprlib
 import types
 
 from . import cpu
@@ -241,21 +240,15 @@ class Context:
         self.symbols[name] = value
         return True
 
-    def checkCurrentAddress(self):
-        """Python code can assign the current address any value, so one that isn't an int is an error, and the
-        address becomes 0."""
-        address = self.symbols.get('_') # None if Python code deleted it
-        if type(address) is not int:
-            self.symbols['_'] = 0
-            value = reprlib.repr(address) # shortened, and safe for a value whose repr() fails
-            self.reportError(f'Current address must be an int, not {type(address).__name__}: {value}')
-
     @property
     def currentAddress(self) -> int:
         """The current address, where the next byte is stored: the symbol _, which the source reads and assigns.
-        It is checked here too, for Python code that assigns it where it isn't checked, such as in a generator."""
-        self.checkCurrentAddress()
-        return self.symbols['_']
+        Python code can assign it any value, so one that isn't an int is an error, and the address becomes 0."""
+        address = self.symbols.get('_')
+        if type(address) is not int:
+            self.reportError(f'Current address must be an int, not {type(address).__name__}')
+            address = self.symbols['_'] = 0
+        return address
 
     @currentAddress.setter
     def currentAddress(self, address: int):
