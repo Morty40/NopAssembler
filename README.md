@@ -589,7 +589,7 @@ Besides the Python built-ins, these are available:
 | `ord(char)`, `chr(value)` | convert between a character and its value, in the current text encoding |
 | `zp(size)` | allocate zero page bytes, see [zero page variables](https://github.com/Morty40/NopAssembler#zero-page-variables) |
 | `ref("label")` | true if the label was referenced in the last pass, see below |
-| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-else-end) |
+| `has("instruction")` | true if the instruction would assemble on the current cpu, see [.if](https://github.com/Morty40/NopAssembler#if-elif-else-end) |
 | `sin`, `cos`, `pi`, `floor`, ... | everything from Python's `math` module, protected by the [symbol types](https://github.com/Morty40/NopAssembler#symbol-types) |
 | `ENCODING_...` | the text encodings, see `.encoding` |
 | `CPU_6502`, `CPU_65C02`, `CPU_R65C02`, `CPU_W65C02` | the cpus, see `.cpu` |
@@ -1042,21 +1042,42 @@ As in Python, every name in the target is assigned, also `_`, which is the [curr
 
 ### Conditions
 
-#### .if, .else, .end
+#### .if, .elif, .else, .end
 ```
 .if condition
+...
+.elif condition
 ...
 .else
 ...
 .end
 ```
-Assembles the lines up to `.else` if the Python expression `condition` is true, and the lines from `.else` to `.end` if it is false. The `.else` part is optional. The lines that are not assembled can define the same labels.
+Assembles the lines up to `.elif`, `.else` or `.end` if the Python expression `condition` is true. Otherwise, as in Python, the lines of the first `.elif` with a true condition are assembled, or else the lines from `.else` to `.end`. The `.elif` and `.else` parts are optional, and there can be more than one `.elif`. The lines that are not assembled can define the same labels.
 
 ```
             .if DEBUG
             inc $d020
             .else
             nop
+            .end
+```
+
+A chain of `.elif` picks one of several choices, such as the timing of the three video chips of the C64, with an `.else` that catches a misspelled choice:
+
+```
+VIDEO = "PAL"                           ; or "NTSC" or "OLD_NTSC"
+
+            .if VIDEO == "PAL"          ; 6569
+LINES = 312
+CYCLES = 63
+            .elif VIDEO == "NTSC"       ; 6567R8
+LINES = 263
+CYCLES = 65
+            .elif VIDEO == "OLD_NTSC"   ; 6567R56A
+LINES = 262
+CYCLES = 64
+            .else
+            .error "Unknown VIDEO: {VIDEO}"
             .end
 ```
 
@@ -1110,13 +1131,16 @@ irq:
             .end
 ```
 
-The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A:
+The Rockwell and WDC 65C02s can set a single bit in zero page, without changing A, and all 65C02s can set the bits of A in memory with `tsb`. As only the first true condition counts, `smb3` is used where both are available:
 
 ```
 flags = zp(1)
 
             .if has("smb3 $12")           ; 2 bytes, 5 cycles
             smb3 flags
+            .elif has("tsb $12")          ; 4 bytes, 7 cycles
+            lda #%00001000
+            tsb flags
             .else                         ; 6 bytes, 8 cycles
             lda flags
             ora #%00001000

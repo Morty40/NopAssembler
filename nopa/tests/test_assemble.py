@@ -246,6 +246,14 @@ class TestAssemble(unittest.TestCase):
             ('.else\n',                'test.asm:1: error: Else without matching if'),
             ('.if 1\n'
              '.else\n',                'test.asm:2: error: Else without matching end'),
+            ('.elif 1\n',              'test.asm:1: error: Elif without matching if'),
+            ('.if 0\n'
+             '.else\n'
+             '.elif 1\n'
+             '.end\n',                 'test.asm:3: error: Elif after else'),
+            ('.if 0\n'
+             '.elif nothing\n'
+             '.end\n',                 'test.asm:2: error: Name \'nothing\' is not defined: "nothing"'),            # at the .elif
             ('.repeat "i", 2\n'
              '.end\n',                 'test.asm:1: error: Expected .repeat count'),                                 # the count must be a number
             ('.for a\n',               'test.asm:1: error: Expected .for target in iterable: .for a'),
@@ -263,7 +271,7 @@ class TestAssemble(unittest.TestCase):
                                          '.end\n'
                                          '.byte 1\n').errors
         self.assertEqual(len(errors), 1, errors)
-        self.assertIn('test.asm:3: error: Else already used for this if', errors[0])
+        self.assertIn('test.asm:3: error: Else after else', errors[0])
 
     def testPythonMessages(self):
         """Python code that fails, in .python and .import."""

@@ -714,6 +714,62 @@ class TestDirectives(unittest.TestCase):
             with self.subTest(source=source):
                 self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
 
+    def testElif(self):
+        """.elif in .if blocks: only the first branch with a true condition is assembled, or else the .else lines."""
+        for source, expected in [
+            ('.if a<5\n'
+             '.byte $ee\n'
+             '.elif a>5\n'
+             '.byte 1\n'
+             '.end\n', [1]),    # the .elif is true
+            ('.if a>5\n'
+             '.byte 2\n'
+             '.elif a>5\n'
+             '.byte $ee\n'
+             '.end\n', [2]),    # only the first true branch
+            ('.if a<5\n'
+             '.byte $ee\n'
+             '.elif a<6\n'
+             '.byte $ee\n'
+             '.end\n', []),     # none is true
+            ('.if a<5\n'
+             '.byte $ee\n'
+             '.elif a<6\n'
+             '.byte $ee\n'
+             '.else\n'
+             '.byte 3\n'
+             '.end\n', [3]),    # none is true, with else
+            ('.if a<5\n'
+             '.elif a<6\n'
+             '.elif a==7\n'
+             '.byte 4\n'
+             '.elif a>5\n'
+             '.byte $ee\n'
+             '.else\n'
+             '.byte $ee\n'
+             '.end\n', [4]),    # more than one .elif
+            ('.if a<5\n'
+             '.if a>5\n'
+             '.byte $ee\n'
+             '.elif a>5\n'
+             '.byte $ee\n'
+             '.end\n'
+             '.elif a>5\n'
+             '.if a<5\n'
+             '.byte $ee\n'
+             '.elif a>5\n'
+             '.byte 5\n'
+             '.end\n'
+             '.end\n', [5]),    # nested
+            ('.if a>5\n'
+             '.byte 6\n'
+             '.elif nothing\n'
+             '.byte $ee\n'
+             '.end\n', [6]),    # after a true branch, the condition isn't evaluated, as in Python
+        ]:
+            with self.subTest(source=source):
+                self._assertBytes(f'a = 7\n{source}', expected) # a is 7 in every condition
+
     def testCurrentAddressType(self):
         """A current address that isn't an int, which Python code can assign, is an error where it is used, and the
         address becomes 0."""
