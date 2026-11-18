@@ -23,8 +23,8 @@ def assemble(tokens: list, context: Context, chunks: dict) -> bool:
 
     context.advanceReadPointer()
 
-    (fileName, lineIndex) = context.readPointer()
-    generatorId = f"{fileName}:{lineIndex} @{generator}"
+    (filename, lineIndex) = context.readPointer()
+    generatorId = f"{filename}:{lineIndex} @{generator}"
     # local labels are named after the generator and its call count, e.g. _loop in the 2nd @ldax() is ldax2_loop
     match = re.match(r'[A-Za-z_][\w.]*', generator)
     name = match.group().split('.')[-1] if match else 'gen'

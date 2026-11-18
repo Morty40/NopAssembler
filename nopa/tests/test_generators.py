@@ -53,8 +53,8 @@ class TestGenerators(unittest.TestCase):
     def testNotStringContinues(self):
         """After a generator that doesn't return a string, the next line is assembled, and the call still counts for the names of the labels."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write('.python\n'
                         'def f(n):\n'
                         '    return n or "_x: nop\\n"\n'
@@ -62,7 +62,7 @@ class TestGenerators(unittest.TestCase):
                         '@f(1)\n' # 1 is not a string: an error
                         '@f(0)\n' # the second call, so its label is f2_x
                         'nop\n')
-            context = assembleFile(fileName)
+            context = assembleFile(filename)
         self.assertEqual(len(context.errors), 1, context.errors)
         self.assertIn('Generator must return a string, not int', context.errors[0])
         self.assertIn('f2_x', context.labels)
@@ -71,10 +71,10 @@ class TestGenerators(unittest.TestCase):
     def _memory(self, source: str) -> list:
         """Assemble source without errors, and return the bytes in memory, by address."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write(source)
-            context = assembleFile(fileName)
+            context = assembleFile(filename)
         self.assertEqual(context.errors, [])
         return [context.memory[address] for address in sorted(context.memory)]
 

@@ -72,9 +72,9 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
     if target:
         imports += sorted(glob.glob(os.path.join(root, 'imports/target', target, '*.py')))
 
-    for fileName in imports:
-        with open(fileName) as f:
-            exec(compile(f.read(), fileName, 'exec'), symbols) # the file name shows in tracebacks
+    for filename in imports:
+        with open(filename) as f:
+            exec(compile(f.read(), filename, 'exec'), symbols) # the file name shows in tracebacks
 
     lastMemory: dict[int, int] = {}
     lastReferences: set[str] = set()
@@ -106,12 +106,12 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
             readPointer = context.readPointer()
             if readPointer is None: break
 
-            fileName, lineIndex = readPointer
+            filename, lineIndex = readPointer
 
-            if not fileName in chunks:
-                chunks[fileName] = list(lexer.splitByNewline(lexer.tokenizeFile(fileName)))
+            if not filename in chunks:
+                chunks[filename] = list(lexer.splitByNewline(lexer.tokenizeFile(filename)))
 
-            allChunks = chunks[fileName]
+            allChunks = chunks[filename]
 
             if lineIndex < len(allChunks):
 

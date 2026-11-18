@@ -155,7 +155,7 @@ class NamespaceSymbols(dict):
 class Context:
     """The state of one assemble pass.
 
-    The read pointer stack has a (fileName, lineIndex) for each file
+    The read pointer stack has a (filename, lineIndex) for each file
     being assembled. The top is the current line, and an imported file
     or generator is pushed on top of the file that uses it. Each also has
     the namespace it is in, that the names it defines are prefixed with,
@@ -277,7 +277,7 @@ class Context:
         self.store((value >> 8) & 0xff)
 
     def readPointer(self):
-        """Return the current (fileName, lineIndex), or None when done."""
+        """Return the current (filename, lineIndex), or None when done."""
         return self.readPointerStack[-1] if self.readPointerStack else None
 
     def jumpReadPointer(self, readPointer: tuple):
@@ -318,8 +318,8 @@ class Context:
     def advanceReadPointer(self):
         """Move to the next line, and return the new read pointer."""
         if self.readPointerStack:
-            fileName, lineIndex = self.readPointerStack[-1]
-            self.readPointerStack[-1] = (fileName, lineIndex + 1)
+            filename, lineIndex = self.readPointerStack[-1]
+            self.readPointerStack[-1] = (filename, lineIndex + 1)
             return self.readPointerStack[-1]
 
     def _formattedReadPointer(self):

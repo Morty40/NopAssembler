@@ -19,11 +19,11 @@ class TestAssemble(unittest.TestCase):
     def _assemble(self, source: str):
         """Assemble source, and return (anyErrors, printed output and messages)."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write(source)
             with contextlib.redirect_stdout(io.StringIO()) as output:
-                context = assembleFile(fileName)
+                context = assembleFile(filename)
         messages = ''.join(f'{message}\n' for message in context.printed + context.warnings + context.errors)
         return len(context.errors) > 0, output.getvalue() + messages
 
@@ -170,6 +170,7 @@ class TestAssemble(unittest.TestCase):
                                      ('.binary "data.bin", 1, 2\n',               [2, 3]),
                                      ('.binary "data.bin", length=2\n',           [1, 2]),
                                      ('.binary "data.bin", offset=1, length=2\n', [2, 3]),
+                                     ('.binary filename="data.bin", length=1\n',  [1]),    # the names in the README
                                      ('options = {"offset": 3}\n'
                                       '.binary "data.bin", **options\n',          [4, 5])]:
                 with self.subTest(source=source):
@@ -313,10 +314,10 @@ class TestAssemble(unittest.TestCase):
              '.end\n', ['test.asm:1: error: Expected .for target in iterable: .for a in range(2)\x00']), # Python 3.11 raises ValueError
             ('.for a in nothing\n'
              '.byte a\n'
-             '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "iter((nothing))"']),
+             '.end\n', ['test.asm:1: error: Name \'nothing\' is not defined: "nothing"']),
             ('.for a in 5\n'
              '.byte a\n'
-             '.end\n', ['test.asm:1: error: \'int\' object is not iterable: "iter((5))"']),
+             '.end\n', ['test.asm:1: error: \'int\' object is not iterable: "5"']),
             ('.for a, b in [1]\n'
              '.byte a\n'
              '.end\n', ['test.asm:1: error: Cannot unpack non-iterable int object: "a,b"']),
@@ -362,10 +363,10 @@ class TestAssemble(unittest.TestCase):
     def _memory(self, source: str, target: str | None = None) -> list:
         """Assemble source for the target without errors, and return the bytes in memory, by address."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write(source)
-            context = assembleFile(fileName, target=target)
+            context = assembleFile(filename, target=target)
         self.assertEqual(context.errors, [])
         return [context.memory[address] for address in sorted(context.memory)]
 
@@ -926,8 +927,8 @@ class TestAssemble(unittest.TestCase):
                         '.byte 2\n'
                         '.section "data"\n'
                         '.byte 4\n')
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write('.section "data", $2000\n'
                         '.section "code", $1000\n'
                         '.byte 1\n'
@@ -936,7 +937,7 @@ class TestAssemble(unittest.TestCase):
                         '.byte 3\n'
                         '.section "data"\n'
                         '.byte 5\n')
-            context = assembleFile(fileName)
+            context = assembleFile(filename)
         self.assertEqual(context.errors, [])
         self.assertEqual(context.memory, {0x1000: 1, 0x1001: 2, 0x1002: 3, 0x2000: 4, 0x2001: 5})
 
@@ -996,25 +997,25 @@ class TestAssemble(unittest.TestCase):
     def testBreak(self):
         """.break collects a breakpoint at the current address, with an optional VICE condition."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write('nop\n'
                         '.break\n'
                         'nop\n'
                         '.break "RL > $40 && A == $00"\n'
                         'later: rts\n'
                         '.break 5\n')
-            context = assembleFile(fileName)
+            context = assembleFile(filename)
         self.assertEqual(context.breakpoints, [(0x1001, None), (0x1002, 'RL > $40 && A == $00')])
         self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5']) # without the folder
 
     def _assembleForTarget(self, source: str, target: str | None = None) -> Context:
         """Assemble source for the target, and return the context."""
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'test.asm')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'test.asm')
+            with open(filename, 'w') as f:
                 f.write(source)
-            return assembleFile(fileName, target=target)
+            return assembleFile(filename, target=target)
 
     def testNoTarget(self):
         """Without a target only the generic 6502 imports are available, and no BASIC."""
@@ -1067,10 +1068,10 @@ class TestAssemble(unittest.TestCase):
         def assembleWithDefines(source: str, defines: dict) -> Context:
             """Assemble source with the defines, and return the context."""
             with tempfile.TemporaryDirectory() as directory:
-                fileName = os.path.join(directory, 'test.asm')
-                with open(fileName, 'w') as f:
+                filename = os.path.join(directory, 'test.asm')
+                with open(filename, 'w') as f:
                     f.write(source)
-                return assembleFile(fileName, defines=defines)
+                return assembleFile(filename, defines=defines)
         context = assembleWithDefines('.byte PAL, size\n'
                                       'size = 2\n'
                                       '.if DEBUG\n'
@@ -1233,15 +1234,15 @@ class TestAssemble(unittest.TestCase):
         from unittest import mock
         import traceback
         with tempfile.TemporaryDirectory() as directory:
-            fileName = os.path.join(directory, 'broken.py')
-            with open(fileName, 'w') as f:
+            filename = os.path.join(directory, 'broken.py')
+            with open(filename, 'w') as f:
                 f.write('1/0\n')
-            with mock.patch('glob.glob', return_value=[fileName]): # instead of the imports folder
+            with mock.patch('glob.glob', return_value=[filename]): # instead of the imports folder
                 try:
                     self._assemble('nop\n')
                     self.fail('ZeroDivisionError not raised')
                 except ZeroDivisionError as exception: # not assertRaises, which drops the traceback
-                    self.assertEqual(traceback.extract_tb(exception.__traceback__)[-1].filename, fileName)
+                    self.assertEqual(traceback.extract_tb(exception.__traceback__)[-1].filename, filename)
 
 
 class TestMusic(unittest.TestCase):
@@ -1264,24 +1265,24 @@ class TestMusic(unittest.TestCase):
                              songs, startSong, speed, name, author, released)
         if version >= 2:
             header += struct.pack('>HBBBB', flags, startPage, pageLength, secondSid, thirdSid)
-        fileName = os.path.join(self.directory, f'{len(os.listdir(self.directory))}.sid')
-        with open(fileName, 'wb') as f:
+        filename = os.path.join(self.directory, f'{len(os.listdir(self.directory))}.sid')
+        with open(filename, 'wb') as f:
             f.write(header[:dataOffset] + data) # a smaller data offset cuts the header short
-        return fileName
+        return filename
 
-    def _load(self, fileName: str):
+    def _load(self, filename: str):
         """Load the file, and return the Music, or None, and the errors."""
         try:
-            return self._Music.load(fileName), []
+            return self._Music.load(filename), []
         except ValueError as exception:
             return None, [str(exception)]
 
     def _assemble(self, source: str, target: str = 'c64') -> Context:
         """Assemble source in the temporary folder, and return the context."""
-        fileName = os.path.join(self.directory, 'test.asm')
-        with open(fileName, 'w') as f:
+        filename = os.path.join(self.directory, 'test.asm')
+        with open(filename, 'w') as f:
             f.write(source)
-        return assembleFile(fileName, target=target)
+        return assembleFile(filename, target=target)
 
     def testImportMusic(self):
         """@importMusic stores the music where .org says, and defines the addresses with the prefix."""
@@ -1393,7 +1394,7 @@ class TestMusic(unittest.TestCase):
 
     def testInvalid(self):
         """Invalid files report an error, and return None."""
-        for name, fileName, error in [
+        for name, filename, error in [
             ('not found',          os.path.join(self.directory, 'missing.sid'),                             'File not found'),
             ('magic id',           self._sidFile(magicId=b'MSID'),                                          'Not a valid sid file'),
             ('short header',       self._sidFile(dataOffset=0x20, data=b''),                                'Not a valid sid file'),
@@ -1409,7 +1410,7 @@ class TestMusic(unittest.TestCase):
             ('RSID speed',         self._sidFile(magicId=b'RSID', loadAddress=0, playAddress=0, speed=1,
                                                  data=b'\x00\x10\x60'),                                     'RSID speed')]:
             with self.subTest(name=name):
-                music, errors = self._load(fileName)
+                music, errors = self._load(filename)
                 self.assertIsNone(music)
                 self.assertEqual(len(errors), 1, errors)
                 self.assertIn(error, errors[0])

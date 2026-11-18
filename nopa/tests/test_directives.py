@@ -108,6 +108,8 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.bytefill 3, double\n',                   [0, 2, 4]),                # a function defined in Python code
             ('.bytefill 3, abs\n',                      [0, 1, 2]),                # a built-in function
+            ('.bytefill count=3, function=abs\n',       [0, 1, 2]),                # by name
+            ('.wordfill count=2\n',                     [0, 0, 0, 0]),
             ('squares = [1, 4, 9]\n'
              '.byte *squares\n',                        [1, 4, 9]),                # unpacked, as in a Python call
             ('.byte 1, *[2, 3], 4\n',                   [1, 2, 3, 4]),             # among other arguments
@@ -144,6 +146,9 @@ class TestDirectives(unittest.TestCase):
              '.byte 1\n'
              '.align 16\n'
              '.byte 2\n', {0x1000: 1, 0x1010: 2}), # $1000 is already aligned
+            ('.org $1001\n'
+             '.align boundary=$100\n'
+             '.byte 1\n', {0x1100: 1}),             # by name
             ('.org $2000\n'
              '.byte 1\n'
              '_ = $2010\n'
@@ -178,6 +183,7 @@ class TestDirectives(unittest.TestCase):
         """.import assembles a source file, or runs a Python file, found beside the main source file."""
         self._assertBytes('.import "bytes.txt"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'})
         self._assertBytes('.import "bytes.txt", "data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'}) # also into a namespace
+        self._assertBytes('.import filename="bytes.txt", namespace="data"\n', [1, 2, 3], {'bytes.txt': '.byte 1, 2, 3\n'}) # by name
         self._assertBytes('.import "fill.py"\n'
                           '@fill(4, 2)\n', [4, 4], {'fill.py': 'def fill(x, n):\n'
                                                                '    return f".byte {x}\\n" * n\n'})

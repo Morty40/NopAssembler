@@ -243,11 +243,11 @@ class TestDisassemble(unittest.TestCase):
         """A .prg file starts with its address, other files are at the default address. The source is
         returned, and nothing is saved."""
         with tempfile.TemporaryDirectory() as directory:
-            for fileName, data, org in [('a.prg', [0x00, 0xc0, 0x60], '.org $c000'),
+            for filename, data, org in [('a.prg', [0x00, 0xc0, 0x60], '.org $c000'),
                                         ('a.bin', [0x60],             '.org $1000')]:
-                with open(os.path.join(directory, fileName), 'wb') as f:
+                with open(os.path.join(directory, filename), 'wb') as f:
                     f.write(bytes(data))
-                source = disassembleFile(os.path.join(directory, fileName))
+                source = disassembleFile(os.path.join(directory, filename))
                 self.assertIn(org, source)
                 self.assertIn('rts', source)
             self.assertEqual(sorted(os.listdir(directory)), ['a.bin', 'a.prg']) # nothing saved

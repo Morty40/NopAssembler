@@ -33,13 +33,13 @@ _KEYWORDS = ('if', 'else', 'or', 'not', 'in', 'is') # Python keywords that an op
 class Token:
     """A word or symbol from the source, e.g. a mnemonic or a number."""
     string: str
-    fileName: str = ''
+    filename: str = ''
     lineNumber: int = 0
 
     def __repr__(self):
         """The token with its file and line, for debugging."""
         s = self.string.replace('\n', '\\n')
-        return f'{s} ({self.fileName}:{self.lineNumber})'
+        return f'{s} ({self.filename}:{self.lineNumber})'
 
 
 def _fixPrefix(word: str) -> str:
@@ -104,7 +104,7 @@ def splitByComma(tokens: list) -> list:
     return parts
 
 
-def tokenize(text: str, fileName: str='') -> list:
+def tokenize(text: str, filename: str='') -> list:
     """Split source code into tokens, with a newline token after each line.
 
     Comments are removed, $ and % become 0x and 0b, and strings become
@@ -119,7 +119,7 @@ def tokenize(text: str, fileName: str='') -> list:
         if pythonBlock is not None:
             if re.fullmatch(r'\s*\.end\s*(;.*)?', line): # the end of the .python block
                 code = textwrap.dedent('\n'.join(pythonBlock))
-                tokens.append(Token(repr(code), fileName))
+                tokens.append(Token(repr(code), filename))
                 tokens += [Token('\n') for _ in range(len(pythonBlock) + 2)] # .python, the code, and .end
                 pythonBlock = None
             else:
@@ -133,7 +133,7 @@ def tokenize(text: str, fileName: str='') -> list:
         if words[:2] == ['.', 'python'] and len(words) > 2: # Python code is only allowed in a block
             words = [line] # one token, reported as invalid syntax when assembled
         if words == ['.', 'python']: # a block of Python code follows, up to .end
-            tokens += [Token('.', fileName), Token('python', fileName)]
+            tokens += [Token('.', filename), Token('python', filename)]
             pythonBlock = []
             continue
 
@@ -145,7 +145,7 @@ def tokenize(text: str, fileName: str='') -> list:
                             and prev[0] != '.' and not cpu.isMnemonic(prev[1]))
             if not (token.startswith('%') and afterOperand):
                 token = _fixPrefix(token)
-            tokens.append(Token(token, fileName))
+            tokens.append(Token(token, filename))
             prev = [prev[1], token]
         tokens.append(Token('\n'))
     if pythonBlock is not None: # no .end, so the .python line is reported as an invalid directive
@@ -154,16 +154,16 @@ def tokenize(text: str, fileName: str='') -> list:
     return tokens
 
 
-def tokenizeFile(fileName: str) -> list:
+def tokenizeFile(filename: str) -> list:
     """Tokenize a source file, and translate its local labels. Raises OSError if the file can't be read."""
     try:
-        with open(fileName, 'r', encoding='utf-8') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             text = f.read()
     except UnicodeDecodeError as exception:
         line = exception.object.count(b'\n', 0, exception.start) + 1
-        raise OSError(errno.EILSEQ, f'Not valid UTF-8 on line {line}', fileName)
+        raise OSError(errno.EILSEQ, f'Not valid UTF-8 on line {line}', filename)
 
-    tokens = tokenize(text, fileName)
+    tokens = tokenize(text, filename)
     tokens = translateLocalLabels(tokens)
 
     return tokens

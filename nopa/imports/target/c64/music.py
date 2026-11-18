@@ -121,29 +121,29 @@ class _Music:
         return music
 
     @classmethod
-    def load(cls, fileName: str) -> '_Music':
+    def load(cls, filename: str) -> '_Music':
         """Load a SID file, PSID or RSID, without its header. The path is relative to the folder of the main source file.
 
         Raises ValueError if the file is not found or not valid.
         """
         try:
-            with open(_os.path.join(SOURCE_FOLDER, fileName), 'rb') as f:
+            with open(_os.path.join(SOURCE_FOLDER, filename), 'rb') as f:
                 fileData = f.read()
         except FileNotFoundError:
-            raise ValueError(f'File not found: "{fileName}"')
+            raise ValueError(f'File not found: "{filename}"')
         try:
             return cls._parse(fileData)
         except ValueError as exception:
-            raise ValueError(f'Not a valid sid file: "{fileName}": {exception}')
+            raise ValueError(f'Not a valid sid file: "{filename}": {exception}')
 
 
-def importMusic(fileName: str, prefix: str) -> str:
+def importMusic(filename: str, prefix: str) -> str:
     """Store the music from a SID file, and define prefix_LOAD, prefix_INIT and prefix_PLAY."""
-    music = _Music.load(fileName)
-    size = _os.path.getsize(_os.path.join(SOURCE_FOLDER, fileName))
+    music = _Music.load(filename)
+    size = _os.path.getsize(_os.path.join(SOURCE_FOLDER, filename))
     return f"""
     {prefix}_LOAD = {music.loadAddress}
     {prefix}_INIT = {music.initAddress}
     {prefix}_PLAY = {music.playAddress}
-    .binary "{fileName}", {size - len(music.data)}
+    .binary "{filename}", {size - len(music.data)}
     """
