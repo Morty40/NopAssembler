@@ -37,11 +37,11 @@ def directive(name: str, raw: bool = False):
     return register
 
 
-def _matches(function, arguments: list) -> bool:
-    """Check that the arguments fit the function's parameters, and their type annotations."""
+def _matches(function, arguments: list, keywords: dict = {}) -> bool:
+    """Check that the arguments, and keyword arguments, fit the function's parameters, and their type annotations."""
     parameters = inspect.signature(function).parameters
     try:
-        bound = inspect.signature(function).bind(None, *arguments) # None for the context
+        bound = inspect.signature(function).bind(None, *arguments, **keywords) # None for the context
     except TypeError:
         return False
     for name, value in list(bound.arguments.items())[1:]:
@@ -61,7 +61,8 @@ def _fits(value, allowed: tuple) -> bool:
 def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool:
     """Assemble a directive line, e.g. .byte 1, 2.
 
-    The arguments are evaluated as one expression, a tuple if several.
+    The arguments are evaluated as those of a Python call, so they can also be unpacked, e.g. .byte *table,
+    or given by name, e.g. .binary "music.sid", offset=$7e.
     chunks are the tokenized files, for directives that look ahead (.for).
     Returns False if the directive moved the read pointer (.import).
     """
@@ -69,18 +70,16 @@ def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool
     if name in _rawDirectives:
         return DIRECTIVES[name](context, tokens[2:], chunks) is not False
     expression = lexer.join(tokens[2:])
-
-    if not expression.strip():
-        arguments = []
-    else:
-        value = evaluate.expression(expression, context)
-        arguments = [] if value is None else list(value) if type(value) is tuple else [value]
-
+    # a call that returns its arguments, so Python unpacks and names them; an error shows only the source's text
+    call = evaluate.expression(f'(lambda *args, **kwargs: (args, kwargs))({expression})', context, expression)
+    if call is None: # an error in the arguments, already reported
+        return True
     function = DIRECTIVES.get(name)
-    if function is None or not _matches(function, arguments):
+    # not a pair if brackets in the arguments end the call early, e.g. ".byte 1), (2), (3"
+    if function is None or type(call) is not tuple or len(call) != 2 or not _matches(function, *call):
         context.reportError(f'Invalid directive: .{name} {expression}')
         return True
-    return function(context, *arguments) is not False
+    return function(context, *call[0], **call[1]) is not False
 
 
 @directive('byte')
@@ -153,25 +152,25 @@ def bits(context, pattern: str):
 
 
 @directive('bytefill')
-def bytefill(context, n: int, function: Callable | None = None):
-    """Store n bytes: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
-    _fill(context, n, function, context.store, evaluate.byteValue)
+def bytefill(context, count: int, function: Callable | None = None):
+    """Store count bytes: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
+    _fill(context, count, function, context.store, evaluate.byteValue)
 
 
 @directive('wordfill')
-def wordfill(context, n: int, function: Callable | None = None):
-    """Store n words: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
-    _fill(context, n, function, context.storeWord, evaluate.wordValue)
+def wordfill(context, count: int, function: Callable | None = None):
+    """Store count words: zero, or the values of a function of the index, e.g. lambda x: x * 2."""
+    _fill(context, count, function, context.storeWord, evaluate.wordValue)
 
 
-def _fill(context, n: int, function: Callable | None, store, checkValue):
-    """Store n values, using the store function, each checked by checkValue. A value the function fails
+def _fill(context, count: int, function: Callable | None, store, checkValue):
+    """Store count values, using the store function, each checked by checkValue. A value the function fails
     for is an error, with the index, and zero, so the size stays the same."""
-    if n < 0:
-        context.reportError(f'Count must not be negative: {n}')
-        n = 0 # nothing stored
+    if count < 0:
+        context.reportError(f'Count must not be negative: {count}')
+        count = 0 # nothing stored
     f = function if function is not None else lambda x: 0
-    for x in range(0, n):
+    for x in range(0, count):
         try:
             value = f(x)
         except Exception as exception:
@@ -200,15 +199,15 @@ def section(context, name: str, address: int | None = None):
 
 
 @directive('align')
-def align(context, n: int):
-    """Advance the current address to the next multiple of n."""
-    if n <= 0:
-        context.reportError(f'Alignment must be positive: {n}')
-        n = 1 # no alignment
+def align(context, boundary: int):
+    """Advance the current address to the next multiple of boundary."""
+    if boundary <= 0:
+        context.reportError(f'Alignment must be positive: {boundary}')
+        boundary = 1 # no alignment
     address = context.currentAddress
-    mod = address % n
+    mod = address % boundary
     if mod > 0:
-        context.currentAddress = address - mod + n
+        context.currentAddress = address - mod + boundary
 
 
 @directive('print')
@@ -278,8 +277,9 @@ def forLoop(context, tokens: list, chunks: dict):
         _skipBlock(context, chunks, 'for')
         return
     target, iterable = loop
-    # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error
-    iterator = evaluate.expression(f'iter(({iterable}))', context)
+    # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error, which shows
+    # only the iterable
+    iterator = evaluate.expression(f'iter(({iterable}))', context, iterable)
     if iterator is not None and _assignNext(context, target, iterator):
         context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
@@ -334,8 +334,8 @@ def _skipBlock(context, chunks: dict, name: str, stopAtBranch: bool = False) -> 
 
     Returns the line where it continues, without a label, e.g. the tokens of .elif a>5, or None if there is none.
     """
-    fileName, lineIndex = context.readPointer()
-    lines = chunks[fileName]
+    filename, lineIndex = context.readPointer()
+    lines = chunks[filename]
     depth = 0
     for index in range(lineIndex + 1, len(lines)):
         line = lines[index]
@@ -347,7 +347,7 @@ def _skipBlock(context, chunks: dict, name: str, stopAtBranch: bool = False) -> 
             elif line[1].string == 'end' and depth > 0:
                 depth -= 1
             elif line[1].string == 'end' or (line[1].string in ('elif', 'else') and stopAtBranch and depth == 0):
-                context.jumpReadPointer( (fileName, index) ) # then advances past the .end, .elif or .else
+                context.jumpReadPointer( (filename, index) ) # then advances past the .end, .elif or .else
                 return line
     context.reportError(f'{name.capitalize()} without matching end')
     return None
@@ -451,8 +451,8 @@ def optional(context, tokens: list, chunks: dict):
     start = context.readPointer()
     if _skipBlock(context, chunks, 'optional') is None:
         return
-    fileName, end = context.readPointer()
-    labels = {context.namespacedName(label) for label in _globalLabels(chunks[fileName][start[1] + 1:end])}
+    filename, end = context.readPointer()
+    labels = {context.namespacedName(label) for label in _globalLabels(chunks[filename][start[1] + 1:end])}
     if labels & context.lastReferences:
         context.jumpReadPointer(start)
         context.blockStack.append( ('optional', start) )
@@ -466,7 +466,7 @@ def reportOpenBlocks(context):
         context.popReadPointer()
 
 
-def _runPython(context, code: str, variables: dict | None = None, fileName: str = '<string>'):
+def _runPython(context, code: str, variables: dict | None = None, filename: str = '<string>'):
     """Run Python code with the symbols as its variables, as the current namespace sees them, and note
     the names it uses as references, for ref() and .optional: a function that uses a label, e.g. return f,
     refers to it.
@@ -476,7 +476,7 @@ def _runPython(context, code: str, variables: dict | None = None, fileName: str 
     of @namespace.f(label), and the code a generator returns, are noted where they are assembled.
     The file name, if the code is from a file, is where Python reports a syntax error.
     """
-    compiled = compile(code, fileName, 'exec')
+    compiled = compile(code, filename, 'exec')
     if variables is None:
         context.noteReferences(compiled)
         exec(compiled, context.namespaceSymbols())
@@ -504,7 +504,7 @@ def _namespaceModule(context, namespace: str) -> Namespace | None:
     return module if context.setSymbol(name, module) else None
 
 
-def _importPyFile(context, path: str, fileName: str, namespace: str | None):
+def _importPyFile(context, path: str, filename: str, namespace: str | None):
     """Run a .py file with the symbols as its variables, or in the module of a namespace."""
     variables = None # the symbols
     if namespace is not None:
@@ -514,26 +514,26 @@ def _importPyFile(context, path: str, fileName: str, namespace: str | None):
         variables = module.__dict__
     try:
         with open(path) as f:
-            _runPython(context, f.read(), variables, fileName)
+            _runPython(context, f.read(), variables, filename)
     except Exception as exception:
-        context.reportError(f'Failed to execute python code: "{fileName}" ({type(exception).__name__}: {exception})')
+        context.reportError(f'Failed to execute python code: "{filename}" ({type(exception).__name__}: {exception})')
 
 
 @directive('import')
-def importFile(context, fileName: str, namespace: str | None = None):
+def importFile(context, filename: str, namespace: str | None = None):
     """Import a file: a .py file is executed, any other file is assembled as source code.
 
     A file can be imported into a namespace, a name that isn't a Python keyword or built-in, and doesn't
     start with _. A .py file then runs in a module of that name, so its names are used as namespace.name.
     Files imported into the same namespace share its module.
     """
-    path = os.path.join(context.path, fileName)
+    path = os.path.join(context.path, filename)
     if namespace is not None and not lexer.isValidGlobalSymbolName(namespace):
         context.reportError(f'Namespace must be a name that isn\'t a Python keyword or built-in, and doesn\'t start with _: "{namespace}"')
     elif os.path.splitext(path)[1] == ".py":
-        _importPyFile(context, path, fileName, namespace)
+        _importPyFile(context, path, filename, namespace)
     elif not os.path.isfile(path):
-        context.reportError(f'File not found: "{fileName}"')
+        context.reportError(f'File not found: "{filename}"')
     elif namespace is None or _namespaceModule(context, namespace) is not None: # else the name is another type of symbol
         context.advanceReadPointer()
         context.pushReadPointer( (path, 0), namespace )
@@ -541,13 +541,13 @@ def importFile(context, fileName: str, namespace: str | None = None):
 
 
 @directive('binary')
-def binary(context, fileName: str, offset: int = 0, length: int | None = None):
+def binary(context, filename: str, offset: int = 0, length: int | None = None):
     """Store the contents of a binary file, optionally from an offset, and with a length."""
     try:
-        with open(os.path.join(context.path, fileName), 'rb') as f:
+        with open(os.path.join(context.path, filename), 'rb') as f:
             data = f.read()
     except FileNotFoundError:
-        context.reportError(f'File not found: "{fileName}"')
+        context.reportError(f'File not found: "{filename}"')
         return
 
     for b in data[offset:None if length is None else offset+length]:

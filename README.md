@@ -580,6 +580,17 @@ Operands and directive arguments are Python expressions, evaluated with all symb
             .byte len(squares), max(squares)
 ```
 
+The arguments of a directive are those of a Python call, without the parentheses. So a list, a tuple or another iterable can be unpacked into arguments with `*`, and an argument can be given by the name in the directive's syntax, such as `offset` in `.binary "filename"[, offset[, length]]`:
+
+```
+squares = [x * x for x in range(16)]
+            .byte *squares                  ; the 16 squares
+            .byte 0, *squares[1:4], 255     ; 00 01 04 09 ff
+            .binary "music.sid", offset=$7e ; without the header of the SID file
+```
+
+As in Python, a tuple without `*` is one argument, so `.byte point` with `point = (24, 50)` is an error, and `.byte *point` stores 24 and 50.
+
 Besides the Python built-ins, these are available:
 
 | Symbol | Description |
@@ -633,8 +644,8 @@ As a generator is Python, it can read files, and use loops, conditions and data 
 # level.py
 import os
 
-def tileMap(fileName, tiles):
-    with open(os.path.join(SOURCE_FOLDER, fileName)) as f:
+def tileMap(filename, tiles):
+    with open(os.path.join(SOURCE_FOLDER, filename)) as f:
         rows = f.read().splitlines()
     return '\n'.join('.byte ' + ', '.join(str(tiles[char]) for char in row) for row in rows)
 ```
@@ -682,9 +693,9 @@ Sets the current address, where the following code and data is stored. The defau
 
 #### .align
 ```
-.align n
+.align boundary
 ```
-Advances the current address to the next multiple of `n`. Use `.align 256` to place data at the start of a page.
+Advances the current address to the next multiple of `boundary`. Use `.align 256` to place data at the start of a page.
 
 #### .section
 ```
@@ -772,9 +783,9 @@ Stores a bit pattern, 8 bits per byte. A pattern is written with `0` and `1`, or
 
 #### .bytefill
 ```
-.bytefill n[, function]
+.bytefill count[, function]
 ```
-Stores `n` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the function for `x`, such as a lambda, a built-in function, e.g. `abs`, or a function or method from a `.python` block or an imported `.py` file, e.g. `util.double`:
+Stores `count` bytes. Without the second argument the bytes are zero. With it, byte `x` is the value of the function for `x`, such as a lambda, a built-in function, e.g. `abs`, or a function or method from a `.python` block or an imported `.py` file, e.g. `util.double`:
 
 ```
             .bytefill 4                 ; 00 00 00 00
@@ -823,7 +834,7 @@ reversed:   .bytefill 256, reverseBits
 
 #### .wordfill
 ```
-.wordfill n[, function]
+.wordfill count[, function]
 ```
 Like `.bytefill`, but stores 16-bit words.
 
@@ -929,7 +940,7 @@ wait:       bbr7 $fb,wait           ; wait until bit 7 of $fb is set
 
 #### .import
 ```
-.import "file"[, "namespace"]
+.import "filename"[, "namespace"]
 ```
 Imports a file, with the path relative to the folder of the main source file. A `.py` file is executed as Python, so its functions and variables become available to expressions and generators. Any other file is assembled as source code, in place of the `.import` line.
 
@@ -988,7 +999,7 @@ The namespace is a name that isn't a Python keyword or built-in, such as `len`, 
 
 #### .binary
 ```
-.binary "file"[, offset[, length]]
+.binary "filename"[, offset[, length]]
 ```
 Stores the contents of a binary file, with the path relative to the folder of the main source file. With an offset, the bytes before it are skipped, and with a length, only that many bytes are stored:
 ```
