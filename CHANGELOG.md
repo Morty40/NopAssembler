@@ -9,7 +9,7 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 ### Added
 - multi-pass assembler for the 6502, with the stable illegal instructions, and for the 65C02, Rockwell R65C02 and WDC W65C02, chosen with `--cpu` or `.cpu`
 - automatic zero page addressing
-- Python expressions, f-strings and lambdas in operands and directives, and blocks of Python code with `.python`
+- Python expressions, f-strings and lambdas in operands and directives, directive arguments as in a Python call, unpacked with `*` or given by name, such as `.byte *table` or `.binary "music.sid", offset=$7e`, and blocks of Python code with `.python`
 - generators: Python functions that return assembly code, with their own local labels for each call, and built-in ones such as `@ldax()` and `@pushRegisters()`
 - local labels, which can also be used from anywhere by their full name, such as `start_loop`
 - the current address as `_`, such as `jmp _`, which Python code can also read and assign

@@ -229,6 +229,8 @@ class TestAssemble(unittest.TestCase):
             ('point = (24, 50)\n'
              '.byte point\n',                       'test.asm:2: error: Expected an int value instead of: "(24, 50)"'), # one argument, as in Python
             ('.binary "data.bin", size=2\n',       'test.asm:1: error: Invalid directive: .binary f"data.bin",size=2'), # no such parameter
+            ('.byte 1), (2), (3\n',                'test.asm:1: error: Invalid directive: .byte 1),(2),(3'),             # brackets that end the call early
+            ('.byte 1) and (2\n',                  'test.asm:1: error: Invalid directive: .byte 1)and(2'),
         ])
 
     def testReportMessages(self):

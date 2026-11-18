@@ -74,12 +74,12 @@ def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool
     call = evaluate.expression(f'(lambda *args, **kwargs: (args, kwargs))({expression})', context, expression)
     if call is None: # an error in the arguments, already reported
         return True
-    arguments, keywords = call
     function = DIRECTIVES.get(name)
-    if function is None or not _matches(function, arguments, keywords):
+    # not a pair if brackets in the arguments end the call early, e.g. ".byte 1), (2), (3"
+    if function is None or type(call) is not tuple or len(call) != 2 or not _matches(function, *call):
         context.reportError(f'Invalid directive: .{name} {expression}')
         return True
-    return function(context, *arguments, **keywords) is not False
+    return function(context, *call[0], **call[1]) is not False
 
 
 @directive('byte')
