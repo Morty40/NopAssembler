@@ -37,11 +37,11 @@ def directive(name: str, raw: bool = False):
     return register
 
 
-def _matches(function, arguments: list) -> bool:
-    """Check that the arguments fit the function's parameters, and their type annotations."""
+def _matches(function, arguments: list, keywords: dict = {}) -> bool:
+    """Check that the arguments, and keyword arguments, fit the function's parameters, and their type annotations."""
     parameters = inspect.signature(function).parameters
     try:
-        bound = inspect.signature(function).bind(None, *arguments) # None for the context
+        bound = inspect.signature(function).bind(None, *arguments, **keywords) # None for the context
     except TypeError:
         return False
     for name, value in list(bound.arguments.items())[1:]:
@@ -61,7 +61,8 @@ def _fits(value, allowed: tuple) -> bool:
 def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool:
     """Assemble a directive line, e.g. .byte 1, 2.
 
-    The arguments are evaluated as one expression, a tuple if several.
+    The arguments are evaluated as those of a Python call, so they can also be unpacked, e.g. .byte *table,
+    or given by name, e.g. .binary "music.sid", offset=$7e.
     chunks are the tokenized files, for directives that look ahead (.for).
     Returns False if the directive moved the read pointer (.import).
     """
@@ -69,18 +70,16 @@ def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool
     if name in _rawDirectives:
         return DIRECTIVES[name](context, tokens[2:], chunks) is not False
     expression = lexer.join(tokens[2:])
-
-    if not expression.strip():
-        arguments = []
-    else:
-        value = evaluate.expression(expression, context)
-        arguments = [] if value is None else list(value) if type(value) is tuple else [value]
-
+    # a call that returns its arguments, so Python unpacks and names them; an error shows only the source's text
+    call = evaluate.expression(f'(lambda *args, **kwargs: (args, kwargs))({expression})', context, expression)
+    if call is None: # an error in the arguments, already reported
+        return True
+    arguments, keywords = call
     function = DIRECTIVES.get(name)
-    if function is None or not _matches(function, arguments):
+    if function is None or not _matches(function, arguments, keywords):
         context.reportError(f'Invalid directive: .{name} {expression}')
         return True
-    return function(context, *arguments) is not False
+    return function(context, *arguments, **keywords) is not False
 
 
 @directive('byte')

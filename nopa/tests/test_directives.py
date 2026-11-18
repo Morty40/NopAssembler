@@ -108,6 +108,12 @@ class TestDirectives(unittest.TestCase):
              '.end\n'
              '.bytefill 3, double\n',                   [0, 2, 4]),                # a function defined in Python code
             ('.bytefill 3, abs\n',                      [0, 1, 2]),                # a built-in function
+            ('squares = [1, 4, 9]\n'
+             '.byte *squares\n',                        [1, 4, 9]),                # unpacked, as in a Python call
+            ('.byte 1, *[2, 3], 4\n',                   [1, 2, 3, 4]),             # among other arguments
+            ('point = (24, 50)\n'
+             '.byte *point\n',                          [24, 50]),                 # a tuple too
+            ('.word *(x * $100 for x in range(2))\n',  [0, 0, 0, 1]),             # a generator
             ('.python\n'
              'class Table:\n'
              '    def get(self, x):\n'

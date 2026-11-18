@@ -19,15 +19,16 @@ def exceptionMessage(exception: Exception) -> str:
     return f'{message[:1].upper()}{message[1:]}'
 
 
-def expression(e: str, context: Context):
-    """Evaluate a Python expression, or report an error and return None."""
+def expression(e: str, context: Context, text: str | None = None):
+    """Evaluate a Python expression, or report an error and return None. The error shows the text, if given,
+    instead of the expression, e.g. without code around the source's own text."""
     value = None
     try:
         code = compile(e, '<string>', 'eval')
         context.noteReferences(code)
         value = builtins.eval(code, context.namespaceSymbols())
     except Exception as exception:
-        context.reportError(f'{exceptionMessage(exception)}: "{e}"')
+        context.reportError(f'{exceptionMessage(exception)}: "{e if text is None else text}"')
     return value
 
 

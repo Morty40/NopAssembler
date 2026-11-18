@@ -159,14 +159,19 @@ class TestAssemble(unittest.TestCase):
             self.assertEqual((context.memory[0x1000], context.memory[0x1001], context.memory[0x2000]), (0x01, 0x02, 0x60))
 
     def testBinaryOffsetLength(self):
-        """.binary stores the whole file, or from an offset, or from an offset with a length."""
+        """.binary stores the whole file, or from an offset, or from an offset with a length, also as keyword
+        arguments."""
         with tempfile.TemporaryDirectory() as directory:
             with open(os.path.join(directory, 'data.bin'), 'wb') as f:
                 f.write(bytes([1, 2, 3, 4, 5]))
             asmFile = os.path.join(directory, 'data.asm')
-            for source, expected in [('.binary "data.bin"\n',       [1, 2, 3, 4, 5]),
-                                     ('.binary "data.bin", 2\n',    [3, 4, 5]),
-                                     ('.binary "data.bin", 1, 2\n', [2, 3])]:
+            for source, expected in [('.binary "data.bin"\n',                     [1, 2, 3, 4, 5]),
+                                     ('.binary "data.bin", 2\n',                  [3, 4, 5]),
+                                     ('.binary "data.bin", 1, 2\n',               [2, 3]),
+                                     ('.binary "data.bin", length=2\n',           [1, 2]),
+                                     ('.binary "data.bin", offset=1, length=2\n', [2, 3]),
+                                     ('options = {"offset": 3}\n'
+                                      '.binary "data.bin", **options\n',          [4, 5])]:
                 with self.subTest(source=source):
                     with open(asmFile, 'w') as f:
                         f.write(source)
@@ -215,11 +220,14 @@ class TestAssemble(unittest.TestCase):
             ('.align 0\n',                         'test.asm:1: error: Alignment must be positive: 0'),
             ('.bytefill -2\n',                     'test.asm:1: error: Count must not be negative: -2'),
             ('.wordfill -1, lambda x: x\n',        'test.asm:1: error: Count must not be negative: -1'),
-            ('.org undefinedSymbol\n',             'test.asm:1: error: Invalid directive: .org undefinedSymbol'),
+            ('.org undefinedSymbol\n',             'test.asm:1: error: Name \'undefinedSymbol\' is not defined: "undefinedSymbol"'),
             ('hello world\n',                      'test.asm:1: error: Invalid syntax'),
             ('lda #MAX_Speed\n',                   'test.asm:1: error: Name \'MAX_Speed\' is not defined: "MAX_Speed"'), # only the first letter capitalized
             ('.bytefill 1, lambda x: MAX_Speed\n', 'test.asm:1: error: Name \'MAX_Speed\' is not defined, at index 0\n'),
             ('.byte {0: 1}[1]\n',                  'test.asm:1: error: KeyError: 1: "{0:1}[1]"'),
+            ('point = (24, 50)\n'
+             '.byte point\n',                       'test.asm:2: error: Expected an int value instead of: "(24, 50)"'), # one argument, as in Python
+            ('.binary "data.bin", size=2\n',       'test.asm:1: error: Invalid directive: .binary f"data.bin",size=2'), # no such parameter
         ])
 
     def testReportMessages(self):
@@ -229,6 +237,12 @@ class TestAssemble(unittest.TestCase):
             ('.warning "careful"\n', 'test.asm:1: warning: careful'),
             ('.error "stop"\n',      'test.asm:1: error: stop'),
         ])
+
+    def testPrintNone(self):
+        """.print None prints None, as a value like any other."""
+        anyErrors, output = self._assemble('.print None\n')
+        self.assertFalse(anyErrors)
+        self.assertEqual(output, 'None\n')
 
     def testAssertMessages(self):
         """A failed .assert, and an .assert with the wrong arguments."""
