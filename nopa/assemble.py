@@ -19,6 +19,8 @@ MAX_PASSES = 42
 
 DEFAULT_ORIGIN = 0x1000 # the address when there is no .org
 
+MAX_NESTING = 100 # imports and generators nested deeper are an error, e.g. a file that imports itself
+
 TARGETS = ('c128', 'c16', 'c64', 'cx16', 'plus4', 'vic20') # the folders in imports/target
 
 
@@ -105,6 +107,10 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
         while True:
             readPointer = context.readPointer()
             if readPointer is None: break
+            if len(context.readPointerStack) > MAX_NESTING: # at the first line of the file nested too deep
+                context.reportError(f'Imports and generators nested more than {MAX_NESTING} deep')
+                context.popReadPointer() # back to the file that imported it, after the .import
+                continue
 
             filename, lineIndex = readPointer
 

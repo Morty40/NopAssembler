@@ -344,6 +344,18 @@ class TestAssemble(unittest.TestCase):
             ('.binary "nothere.bin"\n', 'test.asm:1: error: File not found: "nothere.bin"'),
         ])
 
+    def testNestingMessages(self):
+        """A file that imports itself, or a generator that calls itself, is an error at the first line nested
+        too deep, and assembly ends."""
+        self._assertMessages([
+            ('.import "test.asm"\n', 'test.asm:1: error: Imports and generators nested more than 100 deep'),
+            ('.python\n'
+             'def again():\n'
+             '    return "@again()"\n'
+             '.end\n'
+             '@again()\n',            ' @again():1: error: Imports and generators nested more than 100 deep'),
+        ])
+
     def testUnclosedBlockMessages(self):
         """A block without .end gives an error at the line that started it."""
         self._assertMessages([
