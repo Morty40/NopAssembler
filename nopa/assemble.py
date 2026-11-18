@@ -108,7 +108,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
 
             filename, lineIndex = readPointer
 
-            if not filename in chunks:
+            if filename not in chunks:
                 chunks[filename] = list(lexer.splitByNewline(lexer.tokenizeFile(filename)))
 
             allChunks = chunks[filename]
@@ -148,7 +148,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                     context.reportError(f'Not an instruction of the {context.cpu.name}: "{lineTokens[0].string}", see .cpu and --cpu')
 
                 elif len(lineTokens) > 0:
-                    context.reportError(f'Invalid syntax')
+                    context.reportError('Invalid syntax')
 
                 if advance:
                     context.advanceReadPointer()
