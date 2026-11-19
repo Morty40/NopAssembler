@@ -14,7 +14,7 @@ from .. import __version__
 from .. import assemble
 from .. import disassemble
 from ..context import Context
-from ..main import binary, main, prg, printMemoryUse, sortedLabels
+from ..main import binary, _byteCount, main, prg, printMemoryUse, sortedLabels
 
 
 class TestMain(unittest.TestCase):
@@ -143,7 +143,7 @@ class TestMain(unittest.TestCase):
             code, output, errors = self._main([asmFile, '-o', prgFile])
             self.assertEqual(code, 0, errors)
             self.assertIn('hi', output.splitlines())
-            self.assertIn('Memory used: $1000-$1001 (2 bytes)', output.splitlines())
+            self.assertIn('Memory: $1000-$1001 (2 bytes)', output.splitlines())
             self.assertEqual(errors, f'{asmFile}:2: warning: careful\n')
             with open(prgFile, 'rb') as f:
                 self.assertEqual(f.read(), bytes([0x00, 0x10, 0xa9, 0x01])) # the load address $1000, and lda #1
@@ -158,7 +158,7 @@ class TestMain(unittest.TestCase):
             code, output, errors = self._main([asmFile, '-o', prgFile])
             self.assertEqual(code, 1)
             self.assertIn('hi', output.splitlines())
-            self.assertNotIn('Memory used', output)
+            self.assertNotIn('Memory:', output)
             self.assertEqual(errors, f'{asmFile}:2: error: stop\n')
             self.assertFalse(os.path.exists(prgFile))
 
@@ -400,15 +400,15 @@ class TestMain(unittest.TestCase):
         context.memory = {address: 0 for address in range(0x1000, 0x1180)} # page $10 full, page $11 partly used
         with contextlib.redirect_stdout(io.StringIO()) as output:
             printMemoryUse(context)
-        self.assertIn('Pages used: 1 full, 1 partial', output.getvalue())
+        self.assertIn('Pages: 1 full, 1 partial', output.getvalue())
         self.assertIn('$1000: #+..............', output.getvalue())
 
     def testMemoryUseOutput(self):
         """The whole output: the range, if any memory is used, the page counts, and a map of 16 lines with 16 pages each."""
         for memory, used, pages, changed in [
             ([],       None,                    '0 full, 0 partial', {}), # no range
-            ([0x0000], '$0000-$0000 (1 bytes)', '0 full, 1 partial', {0: '+...............'}),
-            ([0xffff], '$ffff-$ffff (1 bytes)', '0 full, 1 partial', {15: '...............+'}),
+            ([0x0000], '$0000-$0000 (1 byte)',  '0 full, 1 partial', {0: '+...............'}),
+            ([0xffff], '$ffff-$ffff (1 byte)',  '0 full, 1 partial', {15: '...............+'}),
             ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}), # gaps counted: page $10 full, $11 empty, $12 partly used
         ]:
             with self.subTest(used=used):
@@ -417,7 +417,13 @@ class TestMain(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()) as output:
                     printMemoryUse(context)
                 pageMap = [f'${i:x}000: {changed.get(i, "................")}' for i in range(16)]
-                self.assertEqual(output.getvalue().splitlines(), ([f'Memory used: {used}'] if used else []) + [f'Pages used: {pages}', *pageMap])
+                self.assertEqual(output.getvalue().splitlines(), ([f'Memory: {used}'] if used else []) + [f'Pages: {pages}', *pageMap])
+
+    def testByteCount(self):
+        """A count of bytes, singular for one."""
+        for count, expected in [(0, '0 bytes'), (1, '1 byte'), (2, '2 bytes'), (4100, '4100 bytes')]:
+            with self.subTest(count=count):
+                self.assertEqual(_byteCount(count), expected)
 
     def testMemoryUseSections(self):
         """After the range, the range of each section, in the order they are first used: one range for a section
@@ -437,10 +443,10 @@ class TestMain(unittest.TestCase):
             context = assemble.assembleFile(asmFile)
         with contextlib.redirect_stdout(io.StringIO()) as output:
             printMemoryUse(context)
-        self.assertEqual(output.getvalue().splitlines()[:4], ['Memory used: $1000-$2003 (4100 bytes)',
+        self.assertEqual(output.getvalue().splitlines()[:4], ['Memory: $1000-$2003 (4100 bytes)',
                                                               'Section "code": $1000-$1002 (3 bytes)',
                                                               'Section "data": $2000-$2003 (4 bytes)',
-                                                              'Pages used: 0 full, 2 partial'])
+                                                              'Pages: 0 full, 2 partial'])
 
     def _prgFile(self, directory: str) -> str:
         """Write a .prg file with an rts at $1000, and return its name."""

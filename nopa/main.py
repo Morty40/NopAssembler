@@ -12,24 +12,29 @@ from .cpu import CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
 from .context import Context
 
 
+def _byteCount(count: int) -> str:
+    """The count with byte or bytes, e.g. 1 byte and 2 bytes."""
+    return f'{count} byte' if count == 1 else f'{count} bytes'
+
+
 def printMemoryUse(context: Context):
     """Print the memory range used, the range of each section, and a page map."""
     memory = context.memory
     if memory:
         first, last = min(memory), max(memory)
-        print(f'Memory used: ${first:04x}-${last:04x} ({last - first + 1} bytes)')
+        print(f'Memory: ${first:04x}-${last:04x} ({_byteCount(last - first + 1)})')
 
     for name, section in context.sections.items():
         if name == context.currentSection: # the section active at the end continues to the current address
             section = range(section.start, context.currentAddress)
         if section: # not an empty one
-            print(f'Section "{name}": ${section.start:04x}-${section.stop - 1:04x} ({len(section)} bytes)')
+            print(f'Section "{name}": ${section.start:04x}-${section.stop - 1:04x} ({_byteCount(len(section))})')
 
     pages = [0] * 256 # the number of bytes used in each page
     for address in memory:
         pages[address >> 8] += 1
     full = pages.count(256)
-    print(f'Pages used: {full} full, {256 - full - pages.count(0)} partial')
+    print(f'Pages: {full} full, {256 - full - pages.count(0)} partial')
 
     # one symbol for each page: unused, partly used, or full
     pageMap = ''.join('.' if used == 0 else '#' if used == 256 else '+' for used in pages)
