@@ -256,6 +256,19 @@ class TestAssemble(unittest.TestCase):
                 self.assertIn('test.asm:1: error: Name \'nothing\' is not defined', context.errors[0])
                 self.assertNotIn(1, context.memory.values()) # the .repeat block is skipped
 
+    def testUnderscoreAttributes(self):
+        """An attribute starting with _ after a dot is Python's, also after a global label, e.g. t._x and f.__name__."""
+        anyErrors, output = self._assemble('.python\n'
+                                           'class T:\n'
+                                           '    _x = 5\n'
+                                           't = T()\n'
+                                           '.end\n'
+                                           'start:     .byte t._x\n'
+                                           '           .print start.__class__.__name__\n'
+                                           '_loop:     bne _loop\n') # still a local label
+        self.assertFalse(anyErrors, output)
+        self.assertEqual(output, 'int\n')
+
     def testAssignNone(self):
         """None is a value like any other, so it can be assigned."""
         anyErrors, output = self._assemble('flag = None\n'

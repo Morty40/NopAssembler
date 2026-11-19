@@ -68,8 +68,10 @@ def translateLocalLabels(tokens: list, lastLabel: str='') -> list:
         if len(lineTokens) >= 2 and not lineTokens[0].string.startswith('_') and lineTokens[1].string == ':':
             lastLabel = lineTokens[0].string
 
-        for token in lineTokens:
-            if len(token.string) > 1 and token.string.startswith('_') and not token.string.isupper():
+        for index, token in enumerate(lineTokens):
+            # a local label, e.g. _loop, but not an attribute, e.g. _x in obj._x or __name__ in f.__name__
+            if (len(token.string) > 1 and token.string.startswith('_') and not token.string.isupper()
+                    and (index == 0 or lineTokens[index - 1].string != '.')):
                 token.string = lastLabel + token.string
             newTokens.append(token)
 
