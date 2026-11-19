@@ -71,8 +71,8 @@ def assemble(tokens: list, context: Context, chunks: dict | None = None) -> bool
         return DIRECTIVES[name](context, tokens[2:], chunks) is not False
     expression = lexer.join(tokens[2:])
     # a call that returns its arguments, so Python unpacks and names them; an error shows only the source's text
-    call = evaluate.expression(f'(lambda *args, **kwargs: (args, kwargs))({expression})', context, expression)
-    if call is None: # an error in the arguments, already reported
+    call, ok = evaluate.expression(f'(lambda *args, **kwargs: (args, kwargs))({expression})', context, expression)
+    if not ok: # an error in the arguments, already reported
         return True
     function = DIRECTIVES.get(name)
     # not a pair if brackets in the arguments end the call early, e.g. ".byte 1), (2), (3"
@@ -252,9 +252,11 @@ def repeat(context, tokens: list, chunks: dict):
     With a count of 0, the block is skipped. A .for loop gives a counter variable.
     """
     expression = lexer.join(tokens)
-    count = evaluate.expression(expression, context)
+    count, ok = evaluate.expression(expression, context)
     if type(count) is not int:
-        context.reportError(f'Expected .repeat count: .repeat {expression}')
+        if ok: # else the error is already reported
+            context.reportError(f'Expected .repeat count: .repeat {expression}')
+        _skipBlock(context, chunks, 'repeat')
         return
     if count > 0:
         context.blockStack.append( ('repeat', count, context.readPointer()) )
@@ -279,8 +281,8 @@ def forLoop(context, tokens: list, chunks: dict):
     target, iterable = loop
     # in parentheses, so a tuple without them, e.g. "1, 2, 3", is one argument; None after an error, which shows
     # only the iterable
-    iterator = evaluate.expression(f'iter(({iterable}))', context, iterable)
-    if iterator is not None and _assignNext(context, target, iterator):
+    iterator, ok = evaluate.expression(f'iter(({iterable}))', context, iterable)
+    if ok and _assignNext(context, target, iterator):
         context.blockStack.append( ('for', target, iterator, 0, context.readPointer()) )
     else:
         _skipBlock(context, chunks, 'for')
@@ -394,7 +396,7 @@ def ifBlock(context, tokens: list, chunks: dict):
     The lines up to the first .elif, .else or .end are assembled if the condition is true. Otherwise those
     of the first .elif with a true condition, as in Python, or else the lines from .else to .end.
     """
-    while not evaluate.expression(lexer.join(tokens), context):
+    while not evaluate.expression(lexer.join(tokens), context)[0]: # the condition's value, None after an error
         line = _skipBlock(context, chunks, 'if', stopAtBranch=True)
         if line is None or line[1].string == 'end':
             return

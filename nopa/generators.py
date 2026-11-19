@@ -16,9 +16,10 @@ def assemble(tokens: list, context: Context, chunks: dict) -> bool:
     Returns False, as the read pointer is moved to the generated code.
     """
     generator = lexer.join(tokens[1:])
-    value = evaluate.expression(generator, context)
+    value, ok = evaluate.expression(generator, context)
     if type(value) is not str:
-        context.reportError(f'Generator must return a string, not {type(value).__name__}')
+        if ok: # else the error is already reported
+            context.reportError(f'Generator must return a string, not {type(value).__name__}')
         value = '' # no code to assemble
 
     context.advanceReadPointer()

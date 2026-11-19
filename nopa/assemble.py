@@ -33,8 +33,8 @@ def _assembleAssignment(tokens: list, context: Context):
     """
     symbol = context.namespacedName(tokens[0].string)
     expression = lexer.join(tokens[2:])
-    value = evaluate.expression(expression, context)
-    if value is not None:
+    value, ok = evaluate.expression(expression, context)
+    if ok: # None is a value too
         if symbol.rsplit('.', 1)[-1].isupper(): # the name, without a namespace, e.g. SPEED in spr.SPEED
             if symbol in context.symbols and context.symbols[symbol] != value:
                 context.reportError(f'Constant "{symbol}" cannot be changed from {context.symbols[symbol]} to {value}')

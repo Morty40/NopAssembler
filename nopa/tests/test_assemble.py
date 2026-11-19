@@ -241,6 +241,29 @@ class TestAssemble(unittest.TestCase):
             ('.error "stop"\n',      'test.asm:1: error: stop'),
         ])
 
+    def testOneErrorPerFailure(self):
+        """An expression that fails is one error, and nothing is assembled from it, e.g. no .repeat block."""
+        for source in ['lda nothing\n',
+                       'jsr nothing\n',
+                       'nothing = nothing\n',
+                       '.repeat nothing\n'
+                       '.byte 1\n'
+                       '.end\n',
+                       '@nothing()\n']:
+            with self.subTest(source=source):
+                context = self._assembleForTarget(source)
+                self.assertEqual(len(context.errors), 1, context.errors)
+                self.assertIn('test.asm:1: error: Name \'nothing\' is not defined', context.errors[0])
+                self.assertNotIn(1, context.memory.values()) # the .repeat block is skipped
+
+    def testAssignNone(self):
+        """None is a value like any other, so it can be assigned."""
+        anyErrors, output = self._assemble('flag = None\n'
+                                           '.print flag\n'
+                                           '.print flag is None\n')
+        self.assertFalse(anyErrors, output)
+        self.assertEqual(output, 'None\nTrue\n')
+
     def testPrintNone(self):
         """.print None prints None, as a value like any other."""
         anyErrors, output = self._assemble('.print None\n')
