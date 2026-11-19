@@ -1333,7 +1333,7 @@ The versions are defined in `nopa/basic.py`, with the keywords as in the ROMs: `
 
 ## Passes, warnings and errors
 
-Nop Assembler assembles the source repeatedly, up to 42 passes, until the output no longer changes. This resolves forward references, and lets the size of instructions depend on labels defined later in the source. Errors are reported from the final pass only.
+Nop Assembler is a multi-pass assembler: it assembles the source in multiple passes, until the output no longer changes. This resolves forward references, and lets the size of instructions depend on labels defined later in the source. Errors are reported from the final pass only.
 
 Warnings do not stop the output from being written. They are given when:
 - a memory location is written more than once

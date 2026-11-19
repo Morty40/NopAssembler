@@ -15,9 +15,11 @@ from .context import Context
 from .cpu import CPU, CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
 
 # max passes until all symbols should have been resolved
-MAX_PASSES = 42
+MAX_PASSES = 10
 
 DEFAULT_ORIGIN = 0x1000 # the address when there is no .org
+
+MAX_NESTING = 100 # imports and generators nested deeper are an error, e.g. a file that imports itself
 
 TARGETS = ('c128', 'c16', 'c64', 'cx16', 'plus4', 'vic20') # the folders in imports/target
 
@@ -31,8 +33,8 @@ def _assembleAssignment(tokens: list, context: Context):
     """
     symbol = context.namespacedName(tokens[0].string)
     expression = lexer.join(tokens[2:])
-    value = evaluate.expression(expression, context)
-    if value is not None:
+    value, ok = evaluate.expression(expression, context)
+    if ok: # None is a value too
         if symbol.rsplit('.', 1)[-1].isupper(): # the name, without a namespace, e.g. SPEED in spr.SPEED
             if symbol in context.symbols and context.symbols[symbol] != value:
                 context.reportError(f'Constant "{symbol}" cannot be changed from {context.symbols[symbol]} to {value}')
@@ -105,10 +107,14 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
         while True:
             readPointer = context.readPointer()
             if readPointer is None: break
+            if len(context.readPointerStack) > MAX_NESTING: # at the first line of the file nested too deep
+                context.reportError(f'Imports and generators nested more than {MAX_NESTING} deep')
+                context.popReadPointer() # back to the file that imported it, after the .import
+                continue
 
             filename, lineIndex = readPointer
 
-            if not filename in chunks:
+            if filename not in chunks:
                 chunks[filename] = list(lexer.splitByNewline(lexer.tokenizeFile(filename)))
 
             allChunks = chunks[filename]
@@ -148,7 +154,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
                     context.reportError(f'Not an instruction of the {context.cpu.name}: "{lineTokens[0].string}", see .cpu and --cpu')
 
                 elif len(lineTokens) > 0:
-                    context.reportError(f'Invalid syntax')
+                    context.reportError('Invalid syntax')
 
                 if advance:
                     context.advanceReadPointer()
@@ -165,5 +171,9 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
         # prepare for next pass
         lastMemory = dict(context.memory)
         lastReferences = context.references
+
+    else: # no pass left, and the output still changed in the last one, with or without errors
+        if not context.errors: # else they say what failed
+            context.reportError(f'Failed to assemble: "{inFile}"')
 
     return context

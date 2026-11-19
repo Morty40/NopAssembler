@@ -10,7 +10,7 @@ import unittest
 
 from .. import directives
 from ..context import Context
-from ..assemble import assembleFile, TARGETS
+from ..assemble import assembleFile, MAX_PASSES, TARGETS
 
 
 class TestAssemble(unittest.TestCase):
@@ -241,6 +241,42 @@ class TestAssemble(unittest.TestCase):
             ('.error "stop"\n',      'test.asm:1: error: stop'),
         ])
 
+    def testOneErrorPerFailure(self):
+        """An expression that fails is one error, and nothing is assembled from it, e.g. no .repeat block."""
+        for source in ['lda nothing\n',
+                       'jsr nothing\n',
+                       'nothing = nothing\n',
+                       '.repeat nothing\n'
+                       '.byte 1\n'
+                       '.end\n',
+                       '@nothing()\n']:
+            with self.subTest(source=source):
+                context = self._assembleForTarget(source)
+                self.assertEqual(len(context.errors), 1, context.errors)
+                self.assertIn('test.asm:1: error: Name \'nothing\' is not defined', context.errors[0])
+                self.assertNotIn(1, context.memory.values()) # the .repeat block is skipped
+
+    def testUnderscoreAttributes(self):
+        """An attribute starting with _ after a dot is Python's, also after a global label, e.g. t._x and f.__name__."""
+        anyErrors, output = self._assemble('.python\n'
+                                           'class T:\n'
+                                           '    _x = 5\n'
+                                           't = T()\n'
+                                           '.end\n'
+                                           'start:     .byte t._x\n'
+                                           '           .print start.__class__.__name__\n'
+                                           '_loop:     bne _loop\n') # still a local label
+        self.assertFalse(anyErrors, output)
+        self.assertEqual(output, 'int\n')
+
+    def testAssignNone(self):
+        """None is a value like any other, so it can be assigned."""
+        anyErrors, output = self._assemble('flag = None\n'
+                                           '.print flag\n'
+                                           '.print flag is None\n')
+        self.assertFalse(anyErrors, output)
+        self.assertEqual(output, 'None\nTrue\n')
+
     def testPrintNone(self):
         """.print None prints None, as a value like any other."""
         anyErrors, output = self._assemble('.print None\n')
@@ -344,6 +380,18 @@ class TestAssemble(unittest.TestCase):
             ('.binary "nothere.bin"\n', 'test.asm:1: error: File not found: "nothere.bin"'),
         ])
 
+    def testNestingMessages(self):
+        """A file that imports itself, or a generator that calls itself, is an error at the first line nested
+        too deep, and assembly ends."""
+        self._assertMessages([
+            ('.import "test.asm"\n', 'test.asm:1: error: Imports and generators nested more than 100 deep'),
+            ('.python\n'
+             'def again():\n'
+             '    return "@again()"\n'
+             '.end\n'
+             '@again()\n',            ' @again():1: error: Imports and generators nested more than 100 deep'),
+        ])
+
     def testUnclosedBlockMessages(self):
         """A block without .end gives an error at the line that started it."""
         self._assertMessages([
@@ -382,6 +430,28 @@ class TestAssemble(unittest.TestCase):
                                       '.text "A"\n'
                                       '.encoding ENCODING_PETSCII_MIXED\n'
                                       '.text "A"\n'), [0x01, 0x41, 0x41, 0x61]) # A in each encoding
+
+    def testMaxPasses(self):
+        """A source with an error that doesn't go away is assembled MAX_PASSES times, the most passes."""
+        anyErrors, output = self._assemble('.python\n'
+                                           'passes = globals().get("passes", 0) + 1\n' # the symbols are kept between passes
+                                           '.end\n'
+                                           '.print passes\n'
+                                           '.byte nothing\n')
+        self.assertTrue(anyErrors)
+        self.assertTrue(output.startswith(f'{MAX_PASSES}\n'), output)
+
+    def testUnresolved(self):
+        """A source whose output still changes in the last pass is an error, and nothing else is."""
+        links = MAX_PASSES - 4 # one block more than the longest chain in testRef
+        source = '.word f0\n' + ''.join(f'.if ref("f{i}")\n'
+                                         f'f{i}: .word f{i + 1}\n'
+                                         '.end\n' for i in range(links)) + (f'.if ref("f{links}")\n'
+                                                                             f'f{links}: .byte 9\n'
+                                                                             '.end\n')
+        anyErrors, output = self._assemble(source)
+        self.assertTrue(anyErrors)
+        self.assertRegex(output, r'^error: Failed to assemble: ".*test\.asm"\n$') # the source file, in the folder of the test
 
     def testEncodingEachPass(self):
         """Every pass starts with the default encoding, whichever encoding the previous pass ended with."""
@@ -538,12 +608,13 @@ class TestAssemble(unittest.TestCase):
         block = ('.if ref("t")\n'
                  't: .byte 8\n'
                  '.end\n')
-        # 21 blocks, each assembled only when the one before it is
+        # each block assembled only when the one before it is, a pass later: the longest chain, which settles in MAX_PASSES
+        links = MAX_PASSES - 5
         chain = ''.join(f'.if ref("f{i}")\n'
                         f'f{i}: .word f{i + 1}\n'
-                        '.end\n' for i in range(20)) + ('.if ref("f20")\n'
-                                                         'f20: .byte 9\n'
-                                                         '.end\n')
+                        '.end\n' for i in range(links)) + (f'.if ref("f{links}")\n'
+                                                            f'f{links}: .byte 9\n'
+                                                            '.end\n')
         for source, expected in [
             ('.byte 0\n' + block,      [0]),                         # not referenced
             ('.word t\n' + block,      [0x02, 0x10, 8]),
@@ -555,7 +626,7 @@ class TestAssemble(unittest.TestCase):
              '.if ref("b")\n'
              'b: .byte 9\n'
              '.end\n',                 [0x02, 0x10, 0x04, 0x10, 9]), # by a block
-            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(20) for x in (0x04 + 2 * i, 0x10)] + [9]), # the whole chain
+            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(links) for x in (0x04 + 2 * i, 0x10)] + [9]), # the whole chain
             ('.byte 0\n' + chain,      [0]),                         # nothing to start the chain
             ('.byte 0\n'
              '.if ref("s")\n'

@@ -14,6 +14,14 @@ class TestContext(unittest.TestCase):
         """A pass assembles for the 6502."""
         self.assertIs(Context({}).cpu, CPU_6502)
 
+    def testMathSymbols(self):
+        """The public names of Python's math module are symbols, but not its module names, such as __name__."""
+        symbols = Context({}).symbols
+        self.assertIn('sin', symbols)
+        self.assertIn('pi', symbols)
+        self.assertNotIn('__name__', symbols)
+        self.assertNotIn('__doc__', symbols)
+
     def testCurrentAddress(self):
         """The current address is the symbol _, which the source reads and assigns."""
         context = Context({'_': 0x1000})

@@ -19,17 +19,17 @@ def exceptionMessage(exception: Exception) -> str:
     return f'{message[:1].upper()}{message[1:]}'
 
 
-def expression(e: str, context: Context, text: str | None = None):
-    """Evaluate a Python expression, or report an error and return None. The error shows the text, if given,
-    instead of the expression, e.g. without code around the source's own text."""
-    value = None
+def expression(e: str, context: Context, text: str | None = None) -> tuple:
+    """Evaluate a Python expression: (value, True), or (None, False) after reporting an error, so a value of
+    None is a value like any other. The error shows the text, if given, instead of the expression, e.g.
+    without code around the source's own text."""
     try:
         code = compile(e, '<string>', 'eval')
         context.noteReferences(code)
-        value = builtins.eval(code, context.namespaceSymbols())
+        return builtins.eval(code, context.namespaceSymbols()), True
     except Exception as exception:
         context.reportError(f'{exceptionMessage(exception)}: "{e if text is None else text}"')
-    return value
+        return None, False
 
 
 def intValue(value, context: Context, e: str | None = None) -> int:
@@ -63,15 +63,18 @@ def wordValue(value, context: Context, e: str | None = None) -> int:
 
 
 def intExpression(e: str, context: Context) -> int:
-    """Evaluate an int. Floats are truncated, other types give an error, as do infinity and NaN."""
-    return intValue(expression(e, context), context, e)
+    """Evaluate an int. Floats are truncated, other types give an error, as do infinity and NaN. 0 after an error."""
+    value, ok = expression(e, context)
+    return intValue(value, context, e) if ok else 0
 
 
 def byteExpression(e: str, context: Context) -> int:
-    """Evaluate a byte from -128 to 255, negative in two's complement."""
-    return byteValue(expression(e, context), context, e)
+    """Evaluate a byte from -128 to 255, negative in two's complement. 0 after an error."""
+    value, ok = expression(e, context)
+    return byteValue(value, context, e) if ok else 0
 
 
 def wordExpression(e: str, context: Context) -> int:
-    """Evaluate a word from -32768 to 65535, negative in two's complement."""
-    return wordValue(expression(e, context), context, e)
+    """Evaluate a word from -32768 to 65535, negative in two's complement. 0 after an error."""
+    value, ok = expression(e, context)
+    return wordValue(value, context, e) if ok else 0

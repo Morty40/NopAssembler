@@ -16,6 +16,16 @@ def _branchOffset(destination: int, size: int, context: Context) -> int:
     return dist & 0xff
 
 
+def _inBrackets(text: str) -> bool:
+    """True if the text is in one pair of brackets, e.g. (a+1) or ((a)+1), but not (a)+(b)."""
+    depth = 0
+    for index, char in enumerate(text):
+        depth += {'(': 1, ')': -1}.get(char, 0)
+        if depth == 0:
+            return char == ')' and index == len(text) - 1 # the first ( is closed by the last ), so not g or (a)+(b)
+    return False
+
+
 def has(text: str, context: Context) -> bool:
     """Check if an instruction, e.g. lax $12, would assemble on the current cpu, without storing anything.
 
@@ -62,25 +72,25 @@ def assemble(tokens: list, context: Context):
         v = evaluate.byteExpression(operand[1:], context)
         data = [opcodes[AddressMode.IMMEDIATE], v]
 
-    elif AddressMode.ZERO_PAGE_INDIRECT_X in opcodes and operand.startswith('(') and operand.endswith(',x)'):
+    elif AddressMode.ZERO_PAGE_INDIRECT_X in opcodes and _inBrackets(operand) and operand.endswith(',x)'):
         v = evaluate.byteExpression(operand[1:-3], context)
         data = [opcodes[AddressMode.ZERO_PAGE_INDIRECT_X], v]
 
-    elif AddressMode.ABSOLUTE_INDIRECT_X in opcodes and operand.startswith('(') and operand.endswith(',x)'): # 65C02
+    elif AddressMode.ABSOLUTE_INDIRECT_X in opcodes and _inBrackets(operand) and operand.endswith(',x)'): # 65C02
         v = evaluate.wordExpression(operand[1:-3], context)
         data = [opcodes[AddressMode.ABSOLUTE_INDIRECT_X], lo(v), hi(v)]
 
-    elif AddressMode.ZERO_PAGE_INDIRECT_Y in opcodes and operand.startswith('(') and operand.endswith('),y'):
+    elif AddressMode.ZERO_PAGE_INDIRECT_Y in opcodes and operand.endswith(',y') and _inBrackets(operand[:-2]):
         v = evaluate.byteExpression(operand[1:-3], context)
         data = [opcodes[AddressMode.ZERO_PAGE_INDIRECT_Y], v]
 
-    elif AddressMode.ABSOLUTE_INDIRECT in opcodes and operand.startswith('(') and operand.endswith(')'):
+    elif AddressMode.ABSOLUTE_INDIRECT in opcodes and _inBrackets(operand):
         v = evaluate.wordExpression(operand[1:-1], context)
         if lo(v) == 0xff and context.cpu is CPU_6502: # the 6502 reads the high byte from $xx00, not the next page
             context.reportWarning(f'Indirect address located on page boundary: ${v:04x}')
         data = [opcodes[AddressMode.ABSOLUTE_INDIRECT], lo(v), hi(v)]
 
-    elif AddressMode.ZERO_PAGE_INDIRECT in opcodes and operand.startswith('(') and operand.endswith(')'): # 65C02
+    elif AddressMode.ZERO_PAGE_INDIRECT in opcodes and _inBrackets(operand): # 65C02
         v = evaluate.byteExpression(operand[1:-1], context)
         data = [opcodes[AddressMode.ZERO_PAGE_INDIRECT], v]
 

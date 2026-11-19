@@ -136,7 +136,8 @@ class TestLexer(unittest.TestCase):
                 self.assertEqual(isValidGlobalSymbolName(name), expected)
 
     def testLocalLabelNames(self):
-        """A local label is named global_local, after the last global label. Before any global label, or in all capitals, it isn't changed."""
+        """A local label is named global_local, after the last global label. Before any global label, in all capitals,
+        or as an attribute after a dot, it isn't changed."""
         for source, expected in [
             ('a: nop\n'
              '_b: bne _b', ['a', ':', 'nop', 'a_b', ':', 'bne', 'a_b']),
@@ -146,6 +147,9 @@ class TestLexer(unittest.TestCase):
             ('_b: nop',    ['_b', ':', 'nop']),                        # no global label before it
             ('g: nop\n'
              '_B: bne _B', ['g', ':', 'nop', '_B', ':', 'bne', '_B']), # all capitals: a constant, not a local label
+            ('g: lda t._x', ['g', ':', 'lda', 't', '.', '_x']),         # an attribute, not a local label
+            ('g: lda f.__name__._b',
+                           ['g', ':', 'lda', 'f', '.', '__name__', '.', '_b']),
         ]:
             with self.subTest(source=source):
                 self.assertEqual([t.string for t in translateLocalLabels(tokenize(source))[:-1] if t.string != '\n'], expected)

@@ -170,7 +170,7 @@ class Context:
         self.namespaceViews: dict[str, NamespaceSymbols] = {} # namespace: the view of the symbols in it, see namespaceSymbols()
 
         # math, and ord/chr in the current text encoding, for expressions
-        symbols.update(math.__dict__)
+        symbols.update({name: value for name, value in vars(math).items() if not name.startswith('_')}) # not __name__ and the other module names
         symbols['ord'] = lambda char: text.ord(char, self.encoding)
         symbols['chr'] = lambda value: text.chr(value, self.encoding)
         symbols['ref'] = lambda label: label in self.lastReferences # in a namespace, NamespaceSymbols looks the label up first

@@ -447,8 +447,7 @@ class TestDirectives(unittest.TestCase):
         }
         for source, expected in [
             ('main: rts\n'
-             '.import "main.asm", "spr"\n',    ['main.asm:1: error: Name \'main\' is not defined: "main"',
-                                                'main.asm:1: error: Expected an int value instead of: "main"']),
+             '.import "main.asm", "spr"\n',    ['main.asm:1: error: Name \'main\' is not defined: "main"']),
             ('speed = 3\n'
              '.import "speed.asm", "spr"\n',   ['speed.asm:1: error: Name \'speed\' is not defined: "speed"']),
             ('.python\n'
@@ -456,8 +455,7 @@ class TestDirectives(unittest.TestCase):
              '    return 1\n'
              '.end\n'
              '.import "helper.asm", "spr"\n',  ['helper.asm:1: error: Name \'helper\' is not defined: "helper()"']),
-            ('.import "outer.asm", "spr"\n',   ['inner.asm:1: error: Name \'start\' is not defined: "start"',
-                                                'inner.asm:1: error: Expected an int value instead of: "start"']),
+            ('.import "outer.asm", "spr"\n',   ['inner.asm:1: error: Name \'start\' is not defined: "start"']),
             ('.import "pyouter.asm", "spr"\n'
              '.byte util.x\n',                 ['test.asm:2: error: Name \'util\' is not defined: "util.x"']),
             ('.import "sprites.asm", "spr"\n'

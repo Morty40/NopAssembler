@@ -12,22 +12,23 @@ class TestEvaluate(unittest.TestCase):
     """Tests of evaluating expressions."""
 
     def testEvalExpression(self):
-        """Any Python expression, with the symbols as variables. A failure is an error, and gives None."""
+        """Any Python expression, with the symbols as variables: (value, True), or (None, False) after an error."""
         context = Context({})
-        value = expression('123', context)
-        self.assertEqual(value, 123)
+        self.assertEqual(expression('123', context), (123, True))
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 0)
 
         context = Context({'abc': 234})
-        value = expression('abc', context)
-        self.assertEqual(value, 234)
+        self.assertEqual(expression('abc', context), (234, True))
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 0)
 
         context = Context({})
-        value = expression('abc', context)
-        self.assertEqual(value, None)
+        self.assertEqual(expression('None', context), (None, True)) # a value like any other
+        self.assertEqual(len(context.errors), 0)
+
+        context = Context({})
+        self.assertEqual(expression('abc', context), (None, False))
         self.assertEqual(len(context.warnings), 0)
         self.assertEqual(len(context.errors), 1)
 
@@ -70,11 +71,11 @@ class TestEvaluate(unittest.TestCase):
     def testEncodingFunctions(self):
         """ord() and chr() in expressions use the current encoding."""
         context = Context({})
-        self.assertEqual(expression('ord("A")', context), 1) # screen codes, the default encoding
-        self.assertEqual(expression('chr(1)', context), 'A')
+        self.assertEqual(expression('ord("A")', context), (1, True)) # screen codes, the default encoding
+        self.assertEqual(expression('chr(1)', context), ('A', True))
         context.encoding = text.ENCODING_PETSCII_UPPER
-        self.assertEqual(expression('ord("A")', context), 65)
-        self.assertEqual(expression('chr(65)', context), 'A')
+        self.assertEqual(expression('ord("A")', context), (65, True))
+        self.assertEqual(expression('chr(65)', context), ('A', True))
         self.assertEqual(len(context.errors), 0)
 
 

@@ -13,10 +13,10 @@ def pushRegisters():
         """
     return """
     pha
-	txa
-	pha
-	tya
-	pha
+    txa
+    pha
+    tya
+    pha
     """
 
 
@@ -29,11 +29,11 @@ def pullRegisters():
         pla
         """
     return """
-	pla
-	tay
-	pla
-	tax
-	pla
+    pla
+    tay
+    pla
+    tax
+    pla
     """
 
 
@@ -44,7 +44,7 @@ def storeRegisters(restore):
     stx {restore}+3
     sty {restore}+5
     """
-    
+
 
 def restoreRegisters():
     """Load A, X and Y with the values written by storeRegisters."""
