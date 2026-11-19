@@ -36,6 +36,11 @@ class TestInstructions(unittest.TestCase):
             ('lda $10',     [0xa5, 0x10]),       # zero page
             ('lda $1234',   [0xad, 0x34, 0x12]), # absolute
             ('jmp $10',     [0x4c, 0x10, 0x00]), # absolute, as jmp has no zero page
+            ('lda (($08)+8,x)',    [0xa1, 0x10]),             # indexed indirect, with brackets inside
+            ('lda (($08)+8),y',    [0xb1, 0x10]),             # indirect indexed, with brackets inside
+            ('lda ($10)+($20),y',  [0xb9, 0x30, 0x00]),       # absolute,y: the first ( isn't closed by the last )
+            ('jmp ($1000)+($234)', [0x4c, 0x34, 0x12]),       # absolute, not indirect
+            ('jmp 9',              [0x4c, 0x09, 0x00]),       # absolute, with an operand of one character
         ]:
             with self.subTest(line=line):
                 data, context = self._assemble(line)
@@ -50,6 +55,8 @@ class TestInstructions(unittest.TestCase):
             ('lda ($12),y',   [0xb1, 0x12],       []),
             ('jmp ($1234,x)', [0x7c, 0x34, 0x12], []),
             ('jmp ($1234)',   [0x6c, 0x34, 0x12], []),
+            ('lda ($10)+($02)', [0xa5, 0x12],     []),                                         # zero page, not (zp)
+            ('lda 5',           [0xa5, 0x05],     []),                                         # an operand of one character
             ('lda ($1234)',   [0xb2, 0x34],       ['error: Byte value out of range: 4660']), # (zp) is a zero page address
         ]:
             with self.subTest(line=line):
