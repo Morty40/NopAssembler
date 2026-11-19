@@ -183,7 +183,7 @@ class Context:
         self.errors: list[str] = []
         self.blockStack: list[tuple] = [] # per open .repeat, .for or .if: (kind, ...), see directives.py
         self.zpAddress = 2 # the next free zero page address, for zp(): $0 and $1 are reserved
-        self.sections: dict[str, int] = {} # section name: the address where it continues
+        self.sections: dict[str, range] = {} # section name: its addresses, from where it starts to where it continues
         self.currentSection: str | None = None # the name given to the last .section
         self.generatorCounts: dict[str, int] = {} # generator name: calls, gives each call its own local label scope
         self.breakpoints: list[tuple[int, str | None]] = [] # (address, VICE condition or None) for each .break

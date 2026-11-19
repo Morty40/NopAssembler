@@ -404,9 +404,9 @@ class TestMain(unittest.TestCase):
         self.assertIn('$1000: #+..............', output.getvalue())
 
     def testMemoryUseOutput(self):
-        """The whole output: the range, the page counts, and a map of 16 lines with 16 pages each."""
+        """The whole output: the range, if any memory is used, the page counts, and a map of 16 lines with 16 pages each."""
         for memory, used, pages, changed in [
-            ([],       'None',                  '0 full, 0 partial', {}),
+            ([],       None,                    '0 full, 0 partial', {}), # no range
             ([0x0000], '$0000-$0000 (1 bytes)', '0 full, 1 partial', {0: '+...............'}),
             ([0xffff], '$ffff-$ffff (1 bytes)', '0 full, 1 partial', {15: '...............+'}),
             ([*range(0x1000, 0x1100), 0x1234], '$1000-$1234 (565 bytes)', '1 full, 1 partial', {1: '#.+.............'}), # gaps counted: page $10 full, $11 empty, $12 partly used
@@ -417,7 +417,30 @@ class TestMain(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()) as output:
                     printMemoryUse(context)
                 pageMap = [f'${i:x}000: {changed.get(i, "................")}' for i in range(16)]
-                self.assertEqual(output.getvalue().splitlines(), [f'Memory used: {used}', f'Pages used: {pages}', *pageMap])
+                self.assertEqual(output.getvalue().splitlines(), ([f'Memory used: {used}'] if used else []) + [f'Pages used: {pages}', *pageMap])
+
+    def testMemoryUseSections(self):
+        """After the range, the range of each section, in the order they are first used: one range for a section
+        continued later, and up to the current address for the section active at the end. An empty one is left out."""
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile = os.path.join(directory, 'a.asm')
+            with open(asmFile, 'w') as f:
+                f.write('.section "code", $1000\n'
+                        'lda #1\n'
+                        '.section "data", $2000\n'
+                        '.byte 1, 2, 3\n'
+                        '.section "code"\n'
+                        'rts\n'
+                        '.section "empty", $3000\n'
+                        '.section "data"\n'
+                        '.byte 4\n')
+            context = assemble.assembleFile(asmFile)
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            printMemoryUse(context)
+        self.assertEqual(output.getvalue().splitlines()[:4], ['Memory used: $1000-$2003 (4100 bytes)',
+                                                              'Section "code": $1000-$1002 (3 bytes)',
+                                                              'Section "data": $2000-$2003 (4 bytes)',
+                                                              'Pages used: 0 full, 2 partial'])
 
     def _prgFile(self, directory: str) -> str:
         """Write a .prg file with an rts at $1000, and return its name."""

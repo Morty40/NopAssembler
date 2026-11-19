@@ -13,13 +13,17 @@ from .context import Context
 
 
 def printMemoryUse(context: Context):
-    """Print the memory range used, and a page map."""
+    """Print the memory range used, the range of each section, and a page map."""
     memory = context.memory
     if memory:
         first, last = min(memory), max(memory)
         print(f'Memory used: ${first:04x}-${last:04x} ({last - first + 1} bytes)')
-    else:
-        print('Memory used: None')
+
+    for name, section in context.sections.items():
+        if name == context.currentSection: # the section active at the end continues to the current address
+            section = range(section.start, context.currentAddress)
+        if section: # not an empty one
+            print(f'Section "{name}": ${section.start:04x}-${section.stop - 1:04x} ({len(section)} bytes)')
 
     pages = [0] * 256 # the number of bytes used in each page
     for address in memory:
