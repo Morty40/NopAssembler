@@ -10,7 +10,7 @@ import unittest
 
 from .. import directives
 from ..context import Context
-from ..assemble import assembleFile, TARGETS
+from ..assemble import assembleFile, MAX_PASSES, TARGETS
 
 
 class TestAssemble(unittest.TestCase):
@@ -396,14 +396,14 @@ class TestAssemble(unittest.TestCase):
                                       '.text "A"\n'), [0x01, 0x41, 0x41, 0x61]) # A in each encoding
 
     def testMaxPasses(self):
-        """A source with an error that doesn't go away is assembled 10 times, the most passes."""
+        """A source with an error that doesn't go away is assembled MAX_PASSES times, the most passes."""
         anyErrors, output = self._assemble('.python\n'
                                            'passes = globals().get("passes", 0) + 1\n' # the symbols are kept between passes
                                            '.end\n'
                                            '.print passes\n'
                                            '.byte nothing\n')
         self.assertTrue(anyErrors)
-        self.assertTrue(output.startswith('10\n'), output)
+        self.assertTrue(output.startswith(f'{MAX_PASSES}\n'), output)
 
     def testEncodingEachPass(self):
         """Every pass starts with the default encoding, whichever encoding the previous pass ended with."""
@@ -560,12 +560,13 @@ class TestAssemble(unittest.TestCase):
         block = ('.if ref("t")\n'
                  't: .byte 8\n'
                  '.end\n')
-        # 7 blocks, each assembled only when the one before it is, a pass later: the longest chain in 10 passes
+        # each block assembled only when the one before it is, a pass later: the longest chain, which settles in MAX_PASSES
+        links = MAX_PASSES - 4
         chain = ''.join(f'.if ref("f{i}")\n'
                         f'f{i}: .word f{i + 1}\n'
-                        '.end\n' for i in range(6)) + ('.if ref("f6")\n'
-                                                        'f6: .byte 9\n'
-                                                        '.end\n')
+                        '.end\n' for i in range(links)) + (f'.if ref("f{links}")\n'
+                                                            f'f{links}: .byte 9\n'
+                                                            '.end\n')
         for source, expected in [
             ('.byte 0\n' + block,      [0]),                         # not referenced
             ('.word t\n' + block,      [0x02, 0x10, 8]),
@@ -577,7 +578,7 @@ class TestAssemble(unittest.TestCase):
              '.if ref("b")\n'
              'b: .byte 9\n'
              '.end\n',                 [0x02, 0x10, 0x04, 0x10, 9]), # by a block
-            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(6) for x in (0x04 + 2 * i, 0x10)] + [9]),  # the whole chain
+            ('.word f0\n' + chain,     [0x02, 0x10] + [x for i in range(links) for x in (0x04 + 2 * i, 0x10)] + [9]), # the whole chain
             ('.byte 0\n' + chain,      [0]),                         # nothing to start the chain
             ('.byte 0\n'
              '.if ref("s")\n'
