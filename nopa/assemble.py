@@ -172,4 +172,8 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
         lastMemory = dict(context.memory)
         lastReferences = context.references
 
+    else: # no pass left, and the output still changed in the last one, with or without errors
+        if not context.errors: # else they say what failed
+            context.reportError(f'Failed to assemble: "{inFile}"')
+
     return context

@@ -405,6 +405,18 @@ class TestAssemble(unittest.TestCase):
         self.assertTrue(anyErrors)
         self.assertTrue(output.startswith(f'{MAX_PASSES}\n'), output)
 
+    def testUnresolved(self):
+        """A source whose output still changes in the last pass is an error, and nothing else is."""
+        links = MAX_PASSES - 4 # one block more than the longest chain in testRef
+        source = '.word f0\n' + ''.join(f'.if ref("f{i}")\n'
+                                         f'f{i}: .word f{i + 1}\n'
+                                         '.end\n' for i in range(links)) + (f'.if ref("f{links}")\n'
+                                                                             f'f{links}: .byte 9\n'
+                                                                             '.end\n')
+        anyErrors, output = self._assemble(source)
+        self.assertTrue(anyErrors)
+        self.assertRegex(output, r'^error: Failed to assemble: ".*test\.asm"\n$') # the source file, in the folder of the test
+
     def testEncodingEachPass(self):
         """Every pass starts with the default encoding, whichever encoding the previous pass ended with."""
         self.assertEqual(self._memory("""
@@ -561,7 +573,7 @@ class TestAssemble(unittest.TestCase):
                  't: .byte 8\n'
                  '.end\n')
         # each block assembled only when the one before it is, a pass later: the longest chain, which settles in MAX_PASSES
-        links = MAX_PASSES - 4
+        links = MAX_PASSES - 5
         chain = ''.join(f'.if ref("f{i}")\n'
                         f'f{i}: .word f{i + 1}\n'
                         '.end\n' for i in range(links)) + (f'.if ref("f{links}")\n'
