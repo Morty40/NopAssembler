@@ -15,7 +15,7 @@ from .context import Context
 from .cpu import CPU, CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
 
 # max passes until all symbols should have been resolved
-MAX_PASSES = 42
+MAX_PASSES = 10
 
 DEFAULT_ORIGIN = 0x1000 # the address when there is no .org
 
