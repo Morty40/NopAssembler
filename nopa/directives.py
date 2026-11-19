@@ -192,10 +192,10 @@ def section(context, name: str, address: int | None = None):
         context.reportError(f'Section already has an address: "{name}"')
     elif name not in context.sections and address is None:
         context.reportError(f'New section needs an address: "{name}"')
-    if context.currentSection is not None:
-        context.sections[context.currentSection] = context.currentAddress
+    if context.currentSection is not None: # the section switched from ends here, for now
+        context.sections[context.currentSection] = range(context.sections[context.currentSection].start, context.currentAddress)
     context.currentSection = name
-    context.currentAddress = context.sections.setdefault(name, address or 0)
+    context.currentAddress = context.sections.setdefault(name, range(address or 0, address or 0)).stop
 
 
 @directive('align')

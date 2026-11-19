@@ -82,7 +82,7 @@ nopa --version
 
 For example, `nopa game.asm -t c64 -D NTSC -D 'START=$c000' -o game.prg` defines `NTSC` as `True` and `START` as `$c000`. The value is an expression, as in an assignment. Put it in single quotes when it has a `$` or spaces, so the shell keeps it as it is.
 
-The output file is only written when there are no errors. Errors and warnings are printed to stderr with file name and line number, and the exit code is 1 on errors. After a successful assembly, Nop Assembler prints the memory range used, and a map of the 256 memory pages.
+The output file is only written when there are no errors. Errors and warnings are printed to stderr with file name and line number, and the exit code is 1 on errors. After a successful assembly, Nop Assembler prints the memory range used, the range of each [section](https://github.com/Morty40/NopAssembler#section), and a map of the 256 memory pages.
 
 The `.prg` file starts with the 2-byte load address (the lowest address used), followed by every byte up to the highest address used. Gaps are filled with zeros. A `bin` file is the same, without the load address.
 
