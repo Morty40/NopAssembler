@@ -444,8 +444,8 @@ class TestMain(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()) as output:
             printMemoryUse(context)
         self.assertEqual(output.getvalue().splitlines()[:4], ['Memory: $1000-$2003 (4100 bytes)',
-                                                              'Section "code": $1000-$1002 (3 bytes)',
-                                                              'Section "data": $2000-$2003 (4 bytes)',
+                                                              'Section: code $1000-$1002 (3 bytes)',
+                                                              'Section: data $2000-$2003 (4 bytes)',
                                                               'Pages: 0 full, 2 partial'])
 
     def _prgFile(self, directory: str) -> str:
