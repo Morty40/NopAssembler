@@ -2,7 +2,7 @@
 
 What's new in Nop Assembler.
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-11-20
 
 The first release: a 6502 cross assembler for Commodore computers, where every expression is Python, and a disassembler.
 
