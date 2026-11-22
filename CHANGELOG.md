@@ -2,6 +2,8 @@
 
 What's new in Nop Assembler.
 
+## [Unreleased]
+
 ## [0.1.0] - 2026-11-20
 
 The first release: a 6502 cross assembler for Commodore computers, where every expression is Python, and a disassembler.
@@ -28,4 +30,5 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 - a Python API, `nopa.assembleFile` and `nopa.disassembleFile`, e.g. for unit tests of 6502 code
 - requires Python 3.11 or later
 
+[Unreleased]: https://github.com/Morty40/NopAssembler/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Morty40/NopAssembler/releases/tag/v0.1.0
