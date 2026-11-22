@@ -1343,6 +1343,8 @@ Each target has the BASIC version of its machine: 2.0 on the `c64`, `vic20` and 
 start:      rts
 ```
 
+Control characters written by name, as in type-in listings and `petcat`, such as `{clr}` or `{3 down}`, are not supported: as any `{...}`, they are filled in as expressions, so `{clr}` is an error unless there is a symbol `clr`. Use `CHR$()` in the listing instead, such as `PRINT CHR$(147)` to clear the screen, and write `{{` and `}}` for a literal brace.
+
 `basic.float(number)` stores a number as BASIC stores a variable, in 5 bytes, the same in all versions: the exponent, and 4 bytes of the mantissa, with the sign in its top bit. The ROM's floating point routines, such as those that load or multiply a number, read it in this format. A number too small for it is 0, as in BASIC, and one larger than about 1.7 × 10^38 is an error:
 
 ```
