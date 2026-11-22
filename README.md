@@ -14,7 +14,7 @@ Nop Assembler is a multi-pass 6502 assembler for Commodore computers: the C64, C
 - named sections, to store code and data in separate areas of memory
 - PETSCII and screen code text encodings, and your own encoding tables
 - import of source and Python files, also into a namespace, such as `spr.draw` or `util.double()`, of binary files, and of SID music on the C64
-- built-in symbols for each machine with `-t`, such as its hardware registers and KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
+- built-in symbols for each machine with `-t`, such as its default cpu, hardware registers and KERNAL and BASIC routines, and BASIC lines with their keywords as tokens
 - `.assert`, `.print`, `.warning` and `.error`, to check and report while assembling
 - a labels file, and VICE monitor commands with labels and breakpoints
 - a disassembler, which turns any program into source that assembles to the same bytes, with a monitor view of every instruction
@@ -73,7 +73,7 @@ nopa --version
 | `-o`, `--output <outFile>` | the file to write. Without `-o` the source is assembled and checked, but nothing is saved. When disassembling, the source file to write. Without `-o` the source is printed |
 | `--format <prg\|bin>` | the format of the file to write: `prg` (the default), with the load address, or `bin`, only the bytes. The extension of the file name doesn't matter |
 | `-t`, `--target <c128\|c16\|c64\|cx16\|plus4\|vic20>` | the target machine, whose [symbols and generators](https://github.com/Morty40/NopAssembler#built-in-symbols) are imported. Without it, only the generic 6502 ones are. `cx16`, for the Commander X16, is experimental |
-| `--cpu <6502\|65C02\|R65C02\|W65C02\|DTV>` | the [cpu](https://github.com/Morty40/NopAssembler#cpu), and so the instructions: `6502` (the default), `65C02`, `R65C02`, `W65C02` or `DTV`. When assembling, `.cpu` can change it |
+| `--cpu <6502\|65C02\|R65C02\|W65C02\|DTV>` | the [cpu](https://github.com/Morty40/NopAssembler#cpu), and so the instructions: `6502`, `65C02`, `R65C02`, `W65C02` or `DTV`. When assembling, the default is the target's cpu, or `6502` without a target, and `.cpu` can change it. When disassembling, the default is `6502` |
 | `-D`, `--define <name>[=<value>]` | assign a symbol before the source, as `name = value`, or `name = True` without a value. Upper case names are [constants](https://github.com/Morty40/NopAssembler#constants), so the source can't change them, and lower case names are variables. The name can't start with `_`, or be a Python keyword or built-in, such as `len`, or a mnemonic. Can be given more than once |
 | `-l`, `--labels <labelsFile>` | the [labels](https://github.com/Morty40/NopAssembler#labels-file) file to write, as Python assignments. When disassembling, the labels file to read |
 | `--vice <viceFile>` | the [VICE monitor commands](https://github.com/Morty40/NopAssembler#vice-monitor-commands) file to write: labels and breakpoints |
@@ -242,7 +242,7 @@ for message in context.warnings + context.errors:
 source = nopa.disassembleFile('game.prg')
 ```
 
-`assembleFile(inFile, target=None, cpu=CPU_6502, defines=None)` assembles `inFile` for the target (`'c128'`, `'c16'`, `'c64'`, `'plus4'`, `'vic20'`, the experimental `'cx16'`, or none) and the cpu (`nopa.cpu.CPU_6502`, `CPU_65C02`, `CPU_R65C02`, `CPU_W65C02` or `CPU_DTV`), and returns the `Context` of the last pass. The defines are assigned before the source, as with `-D`: names and expressions, e.g. `{'NTSC': 'True', 'START': '$c000'}`. Nothing is saved: writing files is up to the caller. Its `memory` is a dict of address to byte, `symbols` has the labels and other symbols, `printed` the `.print` output, and `warnings` and `errors` the messages.
+`assembleFile(inFile, target=None, cpu=None, defines=None)` assembles `inFile` for the target (`'c128'`, `'c16'`, `'c64'`, `'plus4'`, `'vic20'`, the experimental `'cx16'`, or none) and the cpu (`nopa.cpu.CPU_6502`, `CPU_65C02`, `CPU_R65C02`, `CPU_W65C02` or `CPU_DTV`, by default the target's cpu, or `CPU_6502` without a target), and returns the `Context` of the last pass. The defines are assigned before the source, as with `-D`: names and expressions, e.g. `{'NTSC': 'True', 'START': '$c000'}`. Nothing is saved: writing files is up to the caller. Its `memory` is a dict of address to byte, `symbols` has the labels and other symbols, `printed` the `.print` output, and `warnings` and `errors` the messages.
 
 `disassembleFile(inFile, labelsFile=None, cpu=CPU_6502)` returns the source.
 
@@ -913,11 +913,11 @@ Use screen codes for text written directly to screen memory, and PETSCII for tex
 ```
 .cpu cpu
 ```
-Chooses the cpu, and so the instructions, from the next line on. Each pass starts with the 6502, or the cpu given with `--cpu`, so `.cpu` is usually at the top of the source.
+Chooses the cpu, and so the instructions, from the next line on. Each pass starts with the cpu given with `--cpu`, or else the target's cpu, `CPU_DEFAULT_TYPE`, or else the 6502, so `.cpu` is usually at the top of the source. `.cpu CPU_DEFAULT_TYPE` goes back to the target's cpu.
 
 | Cpu | Instructions |
 |---|---|
-| `CPU_6502` | the documented instructions, and the [illegal instructions](https://github.com/Morty40/NopAssembler#illegal-instructions) that work the same on all C64 and C128 cpus (default) |
+| `CPU_6502` | the documented instructions, and the [illegal instructions](https://github.com/Morty40/NopAssembler#illegal-instructions) that work the same on all C64 and C128 cpus (the default without a target) |
 | `CPU_65C02` | the documented instructions, and those the 65C02 adds: `bra`, `phx`, `phy`, `plx`, `ply`, `stz`, `trb`, `tsb`, more modes for `bit`, `inc a` and `dec a` as `inc` and `dec` without an operand, `(zp)` for `adc`, `and`, `cmp`, `eor`, `lda`, `ora`, `sbc` and `sta`, and `jmp (address,x)` |
 | `CPU_R65C02` | the 65C02's instructions, and the Rockwell bit instructions: `rmb0` to `rmb7` and `smb0` to `smb7` reset and set a bit in zero page, and `bbr0` to `bbr7` and `bbs0` to `bbs7` branch if a bit in zero page is reset or set, e.g. `bbr3 $12,label` |
 | `CPU_W65C02` | the R65C02's instructions, and those only the WDC 65C02 has: `wai` waits for an interrupt, and `stp` stops the cpu until a reset |
@@ -1273,6 +1273,7 @@ For example `@ldax(message)` loads the address of `message` into A (low byte) an
 |---|---|---|
 | `c64` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$0801`) |
 | `c64` | `cia.py` | CIA 1 and 2 registers, `CIA1_...` and `CIA2_...` |
+| `c64` | `cpu.py` | the default cpu, `CPU_DEFAULT_TYPE`: `CPU_6502`, for the 6510 |
 | `c64` | `ioport.py` | the 6510 processor port at `$00` and `$01`, `IO_PORT_DATA_DIRECTION` and `IO_PORT_DATA`, which chooses RAM, ROM or I/O at `$a000`, `$d000` and `$e000` |
 | `c64` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c64` | `keyboard.py` | keyboard matrix codes, `KEYBOARD_CODE_...` |
@@ -1281,28 +1282,32 @@ For example `@ldax(message)` loads the address of `message` into A (low byte) an
 | `c64` | `sid.py` | SID registers, `SID_...` |
 | `c64` | `vic.py` | VIC-II registers, `VIC_...` |
 | `c16` | `basic.py` | [BASIC 3.5](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1001`) |
+| `c16` | `cpu.py` | the default cpu, `CPU_DEFAULT_TYPE`: `CPU_6502`, for the 7501 or 8501 |
 | `c16` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c16` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM` |
 | `c16` | `ted.py` | TED registers and colors, `TED_...`, and `tedColor(color, luminance)` |
 | `plus4` | | the same files as `c16` |
 | `c128` | `basic.py` | [BASIC 7.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1C01`) |
 | `c128` | `cia.py`, `sid.py`, `vic.py`, `ioport.py` | the same as `c64` |
+| `c128` | `cpu.py` | the default cpu, `CPU_DEFAULT_TYPE`: `CPU_6502`, for the 8502 |
 | `c128` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c128` | `machine.py` | `SCREEN_RAM`, `COLOR_RAM` and `CHAR_ROM`, in 40 columns |
 | `c128` | `mmu.py`, `vdc.py` | MMU and VDC registers, `MMU_...` and `VDC_...` |
 | `vic20` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1001`, without a memory expansion) |
+| `vic20` | `cpu.py` | the default cpu, `CPU_DEFAULT_TYPE`: `CPU_6502` |
 | `vic20` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...`, without `SCINIT`, `IOINIT` and `RAMTAS` |
 | `vic20` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM`, and `SCREEN_RAM_EXPANDED` and `COLOR_RAM_EXPANDED` with 8K or more of memory expansion |
 | `vic20` | `via.py` | VIA 1 and 2 registers, `VIA1_...` and `VIA2_...` |
 | `vic20` | `vic.py` | VIC registers and colors, `VIC_...` |
 | `cx16` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$0801`) |
+| `cx16` | `cpu.py` | the default cpu, `CPU_DEFAULT_TYPE`: `CPU_W65C02`, for the WDC 65C02S |
 | `cx16` | `kernal.py` | the C64's KERNAL ROM routines, `KERNAL_ROM_...`, at the same addresses, and `KERNAL_R0` to `KERNAL_R15`, the 16-bit registers in zero page for the X16's own KERNAL calls |
 | `cx16` | `machine.py` | the bank registers `RAM_BANK` and `ROM_BANK`, the windows `BANKED_RAM` and `BANKED_ROM`, the ROM banks `ROM_BANK_...`, and the zero page free for programs, `ZERO_PAGE_USER` to `ZERO_PAGE_USER_END` |
 | `cx16` | `vera.py` | VERA registers, `VERA_...`, and its VRAM layout, `VERA_VRAM_...` |
 | `cx16` | `via.py` | VIA 1 and 2 registers, `VIA1_...` and `VIA2_...` |
 | `cx16` | `ym2151.py` | the YM2151's ports, `YM2151_ADDRESS` and `YM2151_DATA`, and the numbers of its internal registers, `YM2151_REGISTER_...`, to write to `YM2151_ADDRESS`. For a channel's register add the channel, 0-7, and for an operator's also 8 times the operator, 0-3 |
 
-The `cx16` target, for the Commander X16, is experimental: it hasn't been tried on an emulator or the real machine yet. The X16 has a WDC 65C02, so use `.cpu CPU_W65C02` or `--cpu W65C02` for its instructions. Its KERNAL uses `$02`-`$21` in zero page, where `zp()` starts, so with the X16's own KERNAL calls, reserve those bytes first, and `zp()` continues from `ZERO_PAGE_USER`: `kernalZeroPage = zp(ZERO_PAGE_USER - 2)`.
+The `cx16` target, for the Commander X16, is experimental: it hasn't been tried on an emulator or the real machine yet. The X16 has a WDC 65C02, so the target assembles for `CPU_W65C02`, without the 6502's illegal instructions. Its KERNAL uses `$02`-`$21` in zero page, where `zp()` starts, so with the X16's own KERNAL calls, reserve those bytes first, and `zp()` continues from `ZERO_PAGE_USER`: `kernalZeroPage = zp(ZERO_PAGE_USER - 2)`.
 
 `importMusic(file, prefix)`, with `-t c64`, stores the music data from a SID file, without the header. PSID versions 1 to 4 and RSID versions 2 to 4 are supported, but not Compute!'s Sidplayer MUS data. The symbols `prefix_LOAD`, `prefix_INIT` and `prefix_PLAY` are defined with the load, init and play addresses. The path is relative to the folder of the main source file:
 

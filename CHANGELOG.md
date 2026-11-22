@@ -8,8 +8,10 @@ What's new in Nop Assembler.
 - `@basic.float(number)`, a number in BASIC's 5-byte floating point format, for the ROM's floating point routines
 - `@basic.load(filename)`, the lines of a BASIC listing in a text file, such as `10 PRINT "HELLO"`, with `{expression}` filled in
 - the C64 DTV's cpu, `CPU_DTV` and `--cpu DTV`: the 6502's instructions, also the illegal ones, and `bra`, `sac` and `sir`
+- the default cpu of each target, `CPU_DEFAULT_TYPE`, which `-t` assembles for unless `--cpu` chooses another, e.g. `CPU_W65C02` on the `cx16`
 
 ### Changed
+- the `cx16` target assembles for the W65C02, as the X16 has a WDC 65C02, so without the 6502's illegal instructions
 - the BASIC generators are in the namespace `basic`: `@basic.start()`, `@basic.line()`, `@basic.sys()` and `@basic.end()`, which were `@basicStart()`, `@basicLine()`, `@basicSys()` and `@basicEnd()`
 
 ### Removed
