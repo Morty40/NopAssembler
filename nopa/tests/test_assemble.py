@@ -1160,6 +1160,7 @@ class TestAssemble(unittest.TestCase):
             ('pi',         [0x82, 0x49, 0x0f, 0xda, 0xa2]),
             ('1.7e38',     [0xff, 0x7f, 0xc9, 0x9e, 0x3c]), # near the largest
             ('1 - 2**-40', [0x81, 0x00, 0x00, 0x00, 0x00]), # rounded up to 1
+            ('1 + 2**-32', [0x81, 0x00, 0x00, 0x00, 0x01]), # exactly halfway, rounded up, as BASIC does
             ('1e-39',      [0x00, 0x00, 0x00, 0x00, 0x00]), # too small, so zero, as in BASIC
         ]:
             with self.subTest(number=number):

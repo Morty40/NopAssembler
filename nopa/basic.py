@@ -180,7 +180,7 @@ def _float(number):
     """A number in BASIC's 5-byte floating point format, the same in all versions: the exponent, biased by 128,
     and 4 bytes of the mantissa, highest first, with the sign in its top bit, as BASIC stores a variable."""
     mantissa, exponent = math.frexp(abs(number)) # abs(number) is mantissa * 2**exponent, with mantissa from 0.5 to 1
-    mantissa = round(mantissa * 2**32)            # 32 bits, rounded to the nearest
+    mantissa = int(mantissa * 2**32 + 0.5)        # 32 bits, rounded to the nearest, and halfway up, as BASIC does
     if mantissa == 2**32:                         # rounded up to 1.0
         mantissa, exponent = 2**31, exponent + 1
     exponent += 128
