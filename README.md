@@ -86,7 +86,7 @@ The output file is only written when there are no errors. Errors and warnings ar
 
 The `.prg` file starts with the 2-byte load address (the lowest address used), followed by every byte up to the highest address used. Gaps are filled with zeros. A `bin` file is the same, without the load address.
 
-A Makefile rule for building `.prg` files for the C64, with its built-in symbols and generators such as `@basicStart()`:
+A Makefile rule for building `.prg` files for the C64, with its built-in symbols and generators such as `@basic.start()`:
 
 ```make
 %.prg: %.asm
@@ -365,9 +365,9 @@ The same approach scales to larger code, e.g. comparing a line drawing routine w
 ```
 ; hello.asm - prints a message, makes the border red, and returns to BASIC
 
-            @basicStart()
-            @basicLine(10, "SYS {start}")    ; 10 SYS 2062
-            @basicEnd()
+            @basic.start()
+            @basic.line(10, "SYS {start}")   ; 10 SYS 2062
+            @basic.end()
 
 start:      ldx #0
 _loop:      lda message,x
@@ -1270,7 +1270,7 @@ For example `@ldax(message)` loads the address of `message` into A (low byte) an
 
 | Target | File | Contents |
 |---|---|---|
-| `c64` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM` |
+| `c64` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$0801`) |
 | `c64` | `cia.py` | CIA 1 and 2 registers, `CIA1_...` and `CIA2_...` |
 | `c64` | `ioport.py` | the 6510 processor port at `$00` and `$01`, `IO_PORT_DATA_DIRECTION` and `IO_PORT_DATA`, which chooses RAM, ROM or I/O at `$a000`, `$d000` and `$e000` |
 | `c64` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
@@ -1279,22 +1279,22 @@ For example `@ldax(message)` loads the address of `message` into A (low byte) an
 | `c64` | `music.py` | SID music files, and the generator `importMusic(file, prefix)` |
 | `c64` | `sid.py` | SID registers, `SID_...` |
 | `c64` | `vic.py` | VIC-II registers, `VIC_...` |
-| `c16` | `basic.py` | [BASIC 3.5](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1001`), and `BASIC_ROM` |
+| `c16` | `basic.py` | [BASIC 3.5](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1001`) |
 | `c16` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c16` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM` |
 | `c16` | `ted.py` | TED registers and colors, `TED_...`, and `tedColor(color, luminance)` |
 | `plus4` | | the same files as `c16` |
-| `c128` | `basic.py` | [BASIC 7.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1C01`), and `BASIC_ROM` |
+| `c128` | `basic.py` | [BASIC 7.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1C01`) |
 | `c128` | `cia.py`, `sid.py`, `vic.py`, `ioport.py` | the same as `c64` |
 | `c128` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...` |
 | `c128` | `machine.py` | `SCREEN_RAM`, `COLOR_RAM` and `CHAR_ROM`, in 40 columns |
 | `c128` | `mmu.py`, `vdc.py` | MMU and VDC registers, `MMU_...` and `VDC_...` |
-| `vic20` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$1001`, without a memory expansion), and `BASIC_ROM` |
+| `vic20` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$1001`, without a memory expansion) |
 | `vic20` | `kernal.py` | KERNAL ROM routines, `KERNAL_ROM_...`, without `SCINIT`, `IOINIT` and `RAMTAS` |
 | `vic20` | `machine.py` | `SCREEN_RAM` and `COLOR_RAM`, and `SCREEN_RAM_EXPANDED` and `COLOR_RAM_EXPANDED` with 8K or more of memory expansion |
 | `vic20` | `via.py` | VIA 1 and 2 registers, `VIA1_...` and `VIA2_...` |
 | `vic20` | `vic.py` | VIC registers and colors, `VIC_...` |
-| `cx16` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic), `BASIC_START_ADDRESS` (`$0801`), and `BASIC_ROM`, in ROM bank 4 |
+| `cx16` | `basic.py` | [BASIC 2.0](https://github.com/Morty40/NopAssembler#basic) and `BASIC_START_ADDRESS` (`$0801`) |
 | `cx16` | `kernal.py` | the C64's KERNAL ROM routines, `KERNAL_ROM_...`, at the same addresses, and `KERNAL_R0` to `KERNAL_R15`, the 16-bit registers in zero page for the X16's own KERNAL calls |
 | `cx16` | `machine.py` | the bank registers `RAM_BANK` and `ROM_BANK`, the windows `BANKED_RAM` and `BANKED_ROM`, the ROM banks `ROM_BANK_...`, and the zero page free for programs, `ZERO_PAGE_USER` to `ZERO_PAGE_USER_END` |
 | `cx16` | `vera.py` | VERA registers, `VERA_...`, and its VRAM layout, `VERA_VRAM_...` |
@@ -1317,15 +1317,39 @@ The `cx16` target, for the Commander X16, is experimental: it hasn't been tried 
 Each target has the BASIC version of its machine: 2.0 on the `c64`, `vic20` and `cx16`, 3.5 on the `c16` and `plus4`, and 7.0 on the `c128`. Its `basic.py` defines:
 
 - the tokens, `BASIC_TOKEN_...`, named after the keywords without `$` and `(`, such as `BASIC_TOKEN_CHR` for `CHR$`, or after the characters, such as `BASIC_TOKEN_PLUS` for `+` and `BASIC_TOKEN_PRINT_FILE` for `PRINT#`, and `BASIC_TOKEN_PI` for the pi character
-- generators for a BASIC start line: `basicStart()`, which sets the address to `BASIC_START_ADDRESS`, `basicLine(lineNumber, text)`, `basicSys(lineNumber, address)`, a line with just a `SYS` to the address, and `basicEnd()`
+- `basic`, with the generators for a BASIC start line: `basic.start()`, which sets the address to `BASIC_START_ADDRESS`, `basic.line(lineNumber, text)`, `basic.sys(lineNumber, address)`, a line with just a `SYS` to the address, and `basic.end()`, `basic.load(filename)`, the lines of a BASIC listing, and `basic.float(number)`, a number in BASIC's floating point format
 
-`basicLine` writes any BASIC line, with the keywords of the target's BASIC as tokens, including the two-byte tokens of BASIC 7.0, such as `BANK`. Keywords of a later version are converted as when typed on the machine: on the C64, `GRAPHIC` stays as text, and `COLOR` becomes `COL` and the token of `OR`. Both give a syntax error when the program runs:
+`basic.line` writes any BASIC line, with the keywords of the target's BASIC as tokens, including the two-byte tokens of BASIC 7.0, such as `BANK`. Keywords of a later version are converted as when typed on the machine: on the C64, `GRAPHIC` stays as text, and `COLOR` becomes `COL` and the token of `OR`. Both give a syntax error when the program runs:
 
 ```
-            @basicStart()
-            @basicLine(10, 'POKE 53280,0:PRINT "HELLO"')
-            @basicLine(20, "SYS {start}")
-            @basicEnd()
+            @basic.start()
+            @basic.line(10, 'POKE 53280,0:PRINT "HELLO"')
+            @basic.line(20, "SYS {start}")
+            @basic.end()
+```
+
+`basic.load(filename)` writes the lines of a BASIC listing in a text file, as typed on the machine, each as `basic.line` writes it. The path is relative to the folder of the main source file. Blank lines are skipped, and `{expression}` is filled in, as in a string, so the listing can use labels:
+
+```
+10 POKE 53280,0
+20 PRINT "HELLO"
+30 SYS {start}
+```
+
+```
+            @basic.start()
+            @basic.load("menu.bas")
+            @basic.end()
+start:      rts
+```
+
+Control characters written by name, as in type-in listings and `petcat`, such as `{clr}` or `{3 down}`, are not supported: as any `{...}`, they are filled in as expressions, so `{clr}` is an error unless there is a symbol `clr`. Use `CHR$()` in the listing instead, such as `PRINT CHR$(147)` to clear the screen, and write `{{` and `}}` for a literal brace.
+
+`basic.float(number)` stores a number as BASIC stores a variable, in 5 bytes, the same in all versions: the exponent, and 4 bytes of the mantissa, with the sign in its top bit. The ROM's floating point routines, such as those that load or multiply a number, read it in this format. A number too small for it is 0, as in BASIC, and one larger than about 1.7 × 10^38 is an error:
+
+```
+half:       @basic.float(0.5)           ; 80 00 00 00 00
+angle:      @basic.float(pi / 4)        ; 80 49 0f da a2
 ```
 
 The versions are defined in `nopa/basic.py`, with the keywords as in the ROMs: `BASIC_1`, `BASIC_2`, `BASIC_3_5`, `BASIC_4`, `BASIC_4_PLUS` and `BASIC_7`. BASIC 1.0 and 4.0 of the PET, and 4.0+ of the CBM-II, are ready for future targets.

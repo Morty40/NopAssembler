@@ -4,6 +4,11 @@
 Each target chooses the version of its machine, in imports/target/<target>/basic.py.
 """
 
+import math
+import os
+import re
+import types
+
 # The keywords of BASIC 1.0, with tokens from $80, in token order. As in the PET ROM
 _BASIC_1_KEYWORDS = (
     'END', 'FOR', 'NEXT', 'DATA', 'INPUT#', 'INPUT', 'DIM', 'READ', 'LET', 'GOTO', 'RUN', 'IF',
@@ -117,10 +122,12 @@ class Basic:
 
         return data
 
-    def symbols(self) -> dict:
-        """The symbols of a target with this version: the BASIC_TOKEN_ values, and the generators."""
+    def symbols(self, folder: str) -> dict:
+        """The symbols of a target with this version: the BASIC_TOKEN_ values, and basic, with the generators
+        basic.start(), basic.line(), basic.sys(), basic.end(), basic.float() and basic.load(), which reads
+        files in the folder, that of the main source file."""
 
-        def basicLine(lineNumber, text):
+        def line(lineNumber, text):
             """A BASIC line, with keywords as tokens, e.g. "POKE 53280,0:SYS 2061"."""
             data = self.encode(text) + [0]
             return f"""
@@ -129,24 +136,62 @@ class Basic:
             .byte {', '.join(map(str, data))}
             """
 
-        def basicSys(lineNumber, address):
-            """A BASIC line with just a SYS to the address, the same as basicLine(lineNumber, f"SYS{address}")."""
-            return basicLine(lineNumber, f"SYS{address}")
+        def sys(lineNumber, address):
+            """A BASIC line with just a SYS to the address, the same as basic.line(lineNumber, f"SYS{address}")."""
+            return line(lineNumber, f"SYS{address}")
 
-        return self.tokens() | {'basicStart': _basicStart, 'basicLine': basicLine, 'basicSys': basicSys, 'basicEnd': _basicEnd}
+        def load(filename):
+            """The lines of a BASIC listing in a text file, e.g. 10 PRINT "HELLO", each as basic.line writes it,
+            with {expression} filled in, as in a string. Blank lines are skipped."""
+            try:
+                with open(os.path.join(folder, filename), encoding='utf-8') as f:
+                    lines = f.read().splitlines()
+            except FileNotFoundError:
+                raise ValueError(f'File not found: "{filename}"')
+            code = []
+            for index, text in enumerate(lines, 1):
+                if text.strip():
+                    match = re.fullmatch(r'\s*(\d+)\s*(.*?)\s*', text) # the line number, then the text
+                    if match is None:
+                        raise ValueError(f'Line {index} of "{filename}" has no line number: "{text.strip()}"')
+                    number, basicText = match.groups()
+                    escaped = basicText.replace('\\', '\\\\').replace('"', '\\"') # in a string, where {expression} is filled in
+                    code.append(f'@basic.line({int(number)}, "{escaped}")')
+            return '\n'.join(code) + '\n'
+
+        return self.tokens() | {'basic': types.SimpleNamespace(start=_start, line=line, sys=sys, end=_end, float=_float, load=load)}
 
 
-def _basicStart():
+def _start():
     """Set the address to the start of the BASIC program, BASIC_START_ADDRESS, which each target defines."""
     return """
     .org BASIC_START_ADDRESS
     """
 
 
-def _basicEnd():
+def _end():
     """The end of the BASIC program."""
     return """
     .word 0
+    """
+
+
+def _float(number):
+    """A number in BASIC's 5-byte floating point format, the same in all versions: the exponent, biased by 128,
+    and 4 bytes of the mantissa, highest first, with the sign in its top bit, as BASIC stores a variable."""
+    mantissa, exponent = math.frexp(abs(number)) # abs(number) is mantissa * 2**exponent, with mantissa from 0.5 to 1
+    mantissa = int(mantissa * 2**32 + 0.5)        # 32 bits, rounded to the nearest, and halfway up, as BASIC does
+    if mantissa == 2**32:                         # rounded up to 1.0
+        mantissa, exponent = 2**31, exponent + 1
+    exponent += 128
+    if exponent > 255:
+        raise OverflowError(f'Too large for a BASIC float: {number}')
+    if number == 0 or exponent < 1:               # zero, also for a number too small, as in BASIC
+        data = [0] * 5
+    else: # the top bit of the mantissa, always 1, holds the sign instead
+        data = [exponent, *((mantissa & 0x7fffffff) | (0x80000000 if number < 0 else 0)).to_bytes(4, 'big')]
+    return f"""
+    .byte {', '.join(map(str, data))}
     """
 
 

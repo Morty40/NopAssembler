@@ -4,6 +4,16 @@ What's new in Nop Assembler.
 
 ## [Unreleased]
 
+### Added
+- `@basic.float(number)`, a number in BASIC's 5-byte floating point format, for the ROM's floating point routines
+- `@basic.load(filename)`, the lines of a BASIC listing in a text file, such as `10 PRINT "HELLO"`, with `{expression}` filled in
+
+### Changed
+- the BASIC generators are in the namespace `basic`: `@basic.start()`, `@basic.line()`, `@basic.sys()` and `@basic.end()`, which were `@basicStart()`, `@basicLine()`, `@basicSys()` and `@basicEnd()`
+
+### Removed
+- `BASIC_ROM`, the address of the BASIC ROM, from the targets
+
 ## [0.1.0] - 2026-11-20
 
 The first release: a 6502 cross assembler for Commodore computers, where every expression is Python, and a disassembler.
