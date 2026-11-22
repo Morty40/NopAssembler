@@ -4,6 +4,7 @@
 Each target chooses the version of its machine, in imports/target/<target>/basic.py.
 """
 
+import math
 import types
 
 # The keywords of BASIC 1.0, with tokens from $80, in token order. As in the PET ROM
@@ -136,7 +137,7 @@ class Basic:
             """A BASIC line with just a SYS to the address, the same as basic.line(lineNumber, f"SYS{address}")."""
             return line(lineNumber, f"SYS{address}")
 
-        return self.tokens() | {'basic': types.SimpleNamespace(start=_start, line=line, sys=sys, end=_end)}
+        return self.tokens() | {'basic': types.SimpleNamespace(start=_start, line=line, sys=sys, end=_end, float=_float)}
 
 
 def _start():
@@ -150,6 +151,25 @@ def _end():
     """The end of the BASIC program."""
     return """
     .word 0
+    """
+
+
+def _float(number):
+    """A number in BASIC's 5-byte floating point format, the same in all versions: the exponent, biased by 128,
+    and 4 bytes of the mantissa, highest first, with the sign in its top bit, as BASIC stores a variable."""
+    mantissa, exponent = math.frexp(abs(number)) # abs(number) is mantissa * 2**exponent, with mantissa from 0.5 to 1
+    mantissa = round(mantissa * 2**32)            # 32 bits, rounded to the nearest
+    if mantissa == 2**32:                         # rounded up to 1.0
+        mantissa, exponent = 2**31, exponent + 1
+    exponent += 128
+    if exponent > 255:
+        raise OverflowError(f'Too large for a BASIC float: {number}')
+    if number == 0 or exponent < 1:               # zero, also for a number too small, as in BASIC
+        data = [0] * 5
+    else: # the top bit of the mantissa, always 1, holds the sign instead
+        data = [exponent, *((mantissa & 0x7fffffff) | (0x80000000 if number < 0 else 0)).to_bytes(4, 'big')]
+    return f"""
+    .byte {', '.join(map(str, data))}
     """
 
 

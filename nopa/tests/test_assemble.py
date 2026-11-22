@@ -1145,6 +1145,30 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(context.errors, [])
         self.assertEqual([context.memory[address] for address in sorted(context.memory)], [0x07, 0x10, 10, 0, 0x80, 0, 0, 0]) # END is $80
 
+    def testBasicFloat(self):
+        """@basic.float stores a number in BASIC's 5-byte floating point format: the exponent, biased by 128, and
+        4 bytes of the mantissa, with the sign in its top bit. Several values are constants in the C64's BASIC ROM."""
+        for number, expected in [
+            ('0',          [0x00, 0x00, 0x00, 0x00, 0x00]), # zero has exponent 0
+            ('1',          [0x81, 0x00, 0x00, 0x00, 0x00]),
+            ('-1',         [0x81, 0x80, 0x00, 0x00, 0x00]), # the sign bit set
+            ('0.5',        [0x80, 0x00, 0x00, 0x00, 0x00]), # 0.5, in the ROM at $bf11
+            ('0.25',       [0x7f, 0x00, 0x00, 0x00, 0x00]),
+            ('10',         [0x84, 0x20, 0x00, 0x00, 0x00]), # 10, in the ROM at $baf9
+            ('-32768',     [0x90, 0x80, 0x00, 0x00, 0x00]), # -32768, in the ROM at $b1a5
+            ('sqrt(0.5)',  [0x80, 0x35, 0x04, 0xf3, 0x34]), # SQR(0.5), in the ROM at $e2e5, rounded to the nearest
+            ('pi',         [0x82, 0x49, 0x0f, 0xda, 0xa2]),
+            ('1.7e38',     [0xff, 0x7f, 0xc9, 0x9e, 0x3c]), # near the largest
+            ('1 - 2**-40', [0x81, 0x00, 0x00, 0x00, 0x00]), # rounded up to 1
+            ('1e-39',      [0x00, 0x00, 0x00, 0x00, 0x00]), # too small, so zero, as in BASIC
+        ]:
+            with self.subTest(number=number):
+                self.assertEqual(self._memory(f'@basic.float({number})\n', 'c64'), expected)
+
+    def testBasicFloatMessages(self):
+        """A number too large for BASIC is an error."""
+        self.assertIn('test.asm:1: error: Too large for a BASIC float: 1e+39', self._assembleForTarget('@basic.float(1e39)\n', 'c64').errors[0])
+
     def testBasicLineMessages(self):
         """Text that BASIC can't store is an error."""
         self.assertIn("test.asm:1: error: 'ascii' codec can't encode", self._assembleForTarget('@basic.line(10, "PRINT \\"é\\"")\n', 'c64').errors[0])
