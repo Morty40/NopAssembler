@@ -1,9 +1,7 @@
-"""BASIC 3.5 on the C16: the tokens and generators, the start address of a program, and the address of the ROM."""
+"""BASIC 3.5 on the C16: the tokens, the generators, and the start address of a program."""
 
 from nopa.basic import BASIC_3_5 as _BASIC
 
-globals().update(_BASIC.symbols()) # the BASIC_TOKEN_ symbols, and the generators basicStart(), basicLine(), basicSys() and basicEnd()
+globals().update(_BASIC.symbols()) # the BASIC_TOKEN_ symbols, and the generators basic.start(), basic.line(), basic.sys() and basic.end()
 
 BASIC_START_ADDRESS = 0x1001
-
-BASIC_ROM           = 0x8000

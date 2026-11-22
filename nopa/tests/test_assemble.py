@@ -1095,29 +1095,29 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(self._assembleForTarget('@ldax($1234)\n'
                                                  '@pushRegisters()\n'
                                                  'lda INTERRUPT_VECTOR_NMI\n').errors, [])
-        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_ROM', 'BASIC_TOKEN_SYS', 'basicLine', 'CHAR_ROM', 'IO_PORT_DATA']:
+        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_TOKEN_SYS', 'basic', 'CHAR_ROM', 'IO_PORT_DATA']:
             with self.subTest(name=name):
                 self.assertIn(f"Name '{name}' is not defined", self._assembleForTarget(f'.word {name}\n').errors[0])
 
     def testBasicVersions(self):
-        """Each target has the BASIC version of its machine: its tokens, and the keywords @basicLine converts."""
+        """Each target has the BASIC version of its machine: its tokens, and the keywords @basic.line converts."""
         for target, graphic in [('c64', None), ('vic20', None), ('c16', 0xde), ('plus4', 0xde), ('c128', 0xde), ('cx16', None)]:
             with self.subTest(target=target):
                 context = self._assembleForTarget('.org $1000\n'
-                                                  '@basicLine(10, "GRAPHIC 1")\n', target)
+                                                  '@basic.line(10, "GRAPHIC 1")\n', target)
                 self.assertEqual(context.errors, [])
                 self.assertEqual(context.symbols.get('BASIC_TOKEN_GRAPHIC'), graphic)
                 self.assertEqual(context.memory[0x1004], graphic or ord('G')) # the text, after the link and the line number
         context = self._assembleForTarget('.org $1000\n'
-                                          '@basicLine(10, "BANK 15")\n', 'c128') # BASIC 7.0, not 3.5
+                                          '@basic.line(10, "BANK 15")\n', 'c128') # BASIC 7.0, not 3.5
         self.assertEqual([context.memory[0x1004], context.memory[0x1005]], [0xfe, 0x02])
 
     def testBasicLineProgram(self):
         """Each line links to the next, labels can be used, and the text encoding is unchanged."""
         memory = self._memory('.org $1001\n'
-                              '@basicLine(10, "SYS {start}")\n'
-                              '@basicLine(20, "END")\n'
-                              '@basicEnd()\n'
+                              '@basic.line(10, "SYS {start}")\n'
+                              '@basic.line(20, "END")\n'
+                              '@basic.end()\n'
                               'start: .text "A"\n', 'c64')
         self.assertEqual(memory[:2], [0x0c, 0x10])                     # 2 + 2 + 7 bytes of text and the end, from $1001
         self.assertEqual(memory[4:11], [0x9e, *b' 4116', 0])           # start is $1014
@@ -1125,16 +1125,29 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(memory[-1], 1)                                # a screen code, the default
 
     def testBasicSys(self):
-        """@basicSys is a @basicLine with a SYS, so it has the same link to the next line, and text encoding."""
+        """@basic.sys is a @basic.line with a SYS, so it has the same link to the next line, and text encoding."""
         memory = self._memory('.org $1001\n'
-                              '@basicSys(10, start)\n'
-                              '@basicEnd()\n'
+                              '@basic.sys(10, start)\n'
+                              '@basic.end()\n'
                               'start: .text "A"\n', 'c64')
         self.assertEqual(memory, [0x0b, 0x10, 10, 0, 0x9e, *b'4109', 0, 0, 0, 1]) # the link to $100b, line 10, SYS 4109 ($100d), the ends of the line and program, and A
 
+    def testBasicInNamespace(self):
+        """basic is a built-in symbol, so code in a namespace can use its generators too."""
+        with tempfile.TemporaryDirectory() as directory:
+            for name, source in [('test.asm', '.org $1001\n'
+                                              '.import "boot.asm", "spr"\n'
+                                              '@basic.end()\n'),
+                                 ('boot.asm', '@basic.line(10, "END")\n')]:
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(source)
+            context = assembleFile(os.path.join(directory, 'test.asm'), target='c64')
+        self.assertEqual(context.errors, [])
+        self.assertEqual([context.memory[address] for address in sorted(context.memory)], [0x07, 0x10, 10, 0, 0x80, 0, 0, 0]) # END is $80
+
     def testBasicLineMessages(self):
         """Text that BASIC can't store is an error."""
-        self.assertIn("test.asm:1: error: 'ascii' codec can't encode", self._assembleForTarget('@basicLine(10, "PRINT \\"é\\"")\n', 'c64').errors[0])
+        self.assertIn("test.asm:1: error: 'ascii' codec can't encode", self._assembleForTarget('@basic.line(10, "PRINT \\"é\\"")\n', 'c64').errors[0])
 
     def testDefines(self):
         """Defines are assigned before the source in each pass: upper case names are constants, lower case names variables."""
@@ -1159,9 +1172,9 @@ class TestAssemble(unittest.TestCase):
 
     def testTargets(self):
         """A target adds the imports of its folder, to the generic ones."""
-        source = ('@basicStart()\n'
-                  '@basicLine(10, "SYS {start}")\n'
-                  '@basicEnd()\n'
+        source = ('@basic.start()\n'
+                  '@basic.line(10, "SYS {start}")\n'
+                  '@basic.end()\n'
                   'start: @ldax($1234)\n')
         for target, start in [('c64', 0x0801), ('vic20', 0x1001), ('c16', 0x1001), ('plus4', 0x1001), ('c128', 0x1c01), ('cx16', 0x0801)]:
             with self.subTest(target=target):
@@ -1242,12 +1255,6 @@ class TestAssemble(unittest.TestCase):
                          {'c64': 0xe000, 'vic20': 0xe000, 'c16': 0xc000, 'plus4': 0xc000, 'c128': 0xc000, 'cx16': 0xc000})
         self.assertEqual({symbols['c16']['KERNAL_ROM_SCINIT'], symbols['c16']['KERNAL_ROM_IOINIT'], symbols['c16']['KERNAL_ROM_RAMTAS']}, {0xff81, 0xff84, 0xff87})
         self.assertNotIn('KERNAL_ROM_SCINIT', symbols['vic20'])                # the VIC-20 table starts at $ff8a
-
-    def testBasicRom(self):
-        """The address of the BASIC ROM, on each target."""
-        for target, rom in [('c64', 0xa000), ('vic20', 0xc000), ('c16', 0x8000), ('plus4', 0x8000), ('c128', 0x4000), ('cx16', 0xc000)]:
-            with self.subTest(target=target):
-                self.assertEqual(self._assembleForTarget('nop\n', target).symbols['BASIC_ROM'], rom)
 
     def testC16Machine(self):
         """The screen and color RAM of the C16."""
