@@ -8,7 +8,7 @@ from . import __version__
 from . import assemble
 from . import disassemble
 from . import lexer
-from .cpu import CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
+from .cpu import CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, CPU_DTV, isMnemonic, lo, hi
 from .context import Context
 
 
@@ -92,7 +92,7 @@ def viceMonitorCommands(context: Context) -> str:
     return ''.join(f'{command}\n' for command in commands)
 
 
-CPUS = {'6502': CPU_6502, '65C02': CPU_65C02, 'R65C02': CPU_R65C02, 'W65C02': CPU_W65C02} # the choices of --cpu
+CPUS = {'6502': CPU_6502, '65C02': CPU_65C02, 'R65C02': CPU_R65C02, 'W65C02': CPU_W65C02, 'DTV': CPU_DTV} # the choices of --cpu
 
 
 def main():
@@ -107,7 +107,7 @@ def main():
                         help='the target machine, whose symbols and generators are imported (default: none)')
     parser.add_argument('-l', '--labels', dest='labelsFile', help='the labels file, as Python assignments: written when assembling, read when disassembling')
     parser.add_argument('--cpu', dest='cpu', choices=list(CPUS), default='6502',
-                        help='the cpu, and so the instructions: 6502 (default), 65C02, R65C02 or W65C02')
+                        help='the cpu, and so the instructions: 6502 (default), 65C02, R65C02, W65C02 or DTV')
     parser.add_argument('-D', '--define', dest='defines', action='append', default=[], metavar='NAME[=VALUE]',
                         help='assign a symbol before the source, True without a value. Upper case names are constants')
     parser.add_argument('--vice', dest='viceFile', help='the VICE monitor commands file to write: labels and breakpoints')

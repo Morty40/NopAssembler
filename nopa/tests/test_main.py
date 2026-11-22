@@ -83,7 +83,7 @@ class TestMain(unittest.TestCase):
         self.assertIn('--output OUTFILE', output) # Python 3.13 shows '-o, --output OUTFILE', older versions '-o OUTFILE, --output OUTFILE'
         self.assertIn('--labels LABELSFILE', output)
         self.assertIn('--vice VICEFILE', output)
-        self.assertIn('--cpu {6502,65C02,R65C02,W65C02}', output)
+        self.assertIn('--cpu {6502,65C02,R65C02,W65C02,DTV}', output)
         self.assertIn('--format {prg,bin}', output)
         self.assertIn('--version', output)
         self.assertIn(f'Nop Assembler v{__version__}', output)
@@ -456,7 +456,7 @@ class TestMain(unittest.TestCase):
         return prgFile
 
     def testCPUOption(self):
-        """--cpu chooses the cpu, the 6502 by default, the 65C02, the R65C02 or the W65C02, both when assembling and disassembling."""
+        """--cpu chooses the cpu, the 6502 by default, the 65C02, the R65C02, the W65C02 or the DTV, both when assembling and disassembling."""
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.prg')
             with open(asmFile, 'w') as f:
@@ -497,6 +497,16 @@ class TestMain(unittest.TestCase):
             self.assertEqual(code, 0, errors)
             self.assertIn('.cpu CPU_W65C02', [line.strip() for line in output.splitlines()])
             self.assertIn('wai', [line.split(';')[0].strip() for line in output.splitlines()])
+            with open(asmFile, 'w') as f:
+                f.write('sac #$01\n'
+                        'rts\n')
+            self.assertEqual(self._main([asmFile])[0], 1) # the 6502 has no sac
+            code, output, errors = self._main([asmFile, '-o', prgFile, '--cpu', 'DTV'])
+            self.assertEqual(code, 0, errors)
+            code, output, errors = self._main(['-d', prgFile, '--cpu', 'DTV'])
+            self.assertEqual(code, 0, errors)
+            self.assertIn('.cpu CPU_DTV', [line.strip() for line in output.splitlines()])
+            self.assertIn('sac #$01', [line.split(';')[0].strip() for line in output.splitlines()])
 
     def testDisassembleToFile(self):
         """-d disassembles to the -o file, also with the long option names."""

@@ -175,6 +175,11 @@ class TestDirectives(unittest.TestCase):
              'wai\n'
              'stp\n'
              'smb0 $12\n',       [0xcb, 0xdb, 0x87, 0x12]),
+            ('.cpu CPU_DTV\n'
+             'loop: sac #$01\n'
+             'sir #$23\n'
+             'bra loop\n'
+             'lax $10\n',        [0x32, 0x01, 0x42, 0x23, 0x12, 0xfa, 0xa7, 0x10]), # back to loop is offset -6
         ]:
             with self.subTest(source=source):
                 self._assertBytes(source, expected)

@@ -12,7 +12,7 @@ from . import instructions
 from . import lexer
 from . import text
 from .context import Context
-from .cpu import CPU, CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, isMnemonic, lo, hi
+from .cpu import CPU, CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, CPU_DTV, isMnemonic, lo, hi
 
 # max passes until all symbols should have been resolved
 MAX_PASSES = 10
@@ -67,6 +67,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
         'CPU_65C02': CPU_65C02,
         'CPU_R65C02': CPU_R65C02,
         'CPU_W65C02': CPU_W65C02,
+        'CPU_DTV': CPU_DTV,
         'SOURCE_FOLDER': path} # for generators that read files
 
     root = os.path.abspath(os.path.dirname(__file__))

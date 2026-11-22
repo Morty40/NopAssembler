@@ -700,6 +700,10 @@ class TestAssemble(unittest.TestCase):
             ('CPU_6502',   'jmp ($1234,x)', False),
             ('CPU_65C02',  'jmp ($1234,x)', True),
             ('CPU_6502',   'lda #300',      False), # out of range
+            ('CPU_6502',   'sac #$12',      False),
+            ('CPU_DTV',    'sac #$12',      True),
+            ('CPU_DTV',    'lax $12',       True),  # the 6502's illegal instructions too
+            ('CPU_DTV',    'stz $12',       False), # not the 65C02's
         ):
             with self.subTest(cpu=cpu, instruction=instruction):
                 anyErrors, output = self._assemble(f'.cpu {cpu}\n'

@@ -99,7 +99,7 @@ class TestDisassemble(unittest.TestCase):
         bytes, also without telling the assembler the cpu, as the source starts with .cpu."""
         with tempfile.TemporaryDirectory() as directory:
             asmFile, prgFile = os.path.join(directory, 'test.asm'), os.path.join(directory, 'test.prg')
-            for theCpu in [cpu.CPU_6502, cpu.CPU_65C02, cpu.CPU_R65C02, cpu.CPU_W65C02]:
+            for theCpu in [cpu.CPU_6502, cpu.CPU_65C02, cpu.CPU_R65C02, cpu.CPU_W65C02, cpu.CPU_DTV]:
                 for opcode in range(0x100):
                     if not (found := theCpu.instructionForOpcode(opcode)):
                         continue
