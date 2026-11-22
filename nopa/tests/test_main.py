@@ -508,6 +508,16 @@ class TestMain(unittest.TestCase):
             self.assertIn('.cpu CPU_DTV', [line.strip() for line in output.splitlines()])
             self.assertIn('sac #$01', [line.split(';')[0].strip() for line in output.splitlines()])
 
+    def testTargetCPU(self):
+        """The target's cpu is the default, which --cpu overrides."""
+        with tempfile.TemporaryDirectory() as directory:
+            asmFile = os.path.join(directory, 'test.asm')
+            with open(asmFile, 'w') as f:
+                f.write('wai\n')
+            self.assertEqual(self._main([asmFile, '-t', 'cx16'])[0], 0)
+            self.assertEqual(self._main([asmFile, '-t', 'cx16', '--cpu', '6502'])[0], 1)
+            self.assertEqual(self._main([asmFile, '-t', 'c64'])[0], 1)
+
     def testDisassembleToFile(self):
         """-d disassembles to the -o file, also with the long option names."""
         with tempfile.TemporaryDirectory() as directory:

@@ -11,6 +11,7 @@ import unittest
 from .. import directives
 from ..context import Context
 from ..assemble import assembleFile, MAX_PASSES, TARGETS
+from ..cpu import CPU, CPU_6502, CPU_W65C02
 
 
 class TestAssemble(unittest.TestCase):
@@ -1086,20 +1087,20 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(context.breakpoints, [(0x1001, None), (0x1002, 'RL > $40 && A == $00')])
         self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5']) # without the folder
 
-    def _assembleForTarget(self, source: str, target: str | None = None) -> Context:
+    def _assembleForTarget(self, source: str, target: str | None = None, cpu: CPU | None = None) -> Context:
         """Assemble source for the target, and return the context."""
         with tempfile.TemporaryDirectory() as directory:
             filename = os.path.join(directory, 'test.asm')
             with open(filename, 'w') as f:
                 f.write(source)
-            return assembleFile(filename, target=target)
+            return assembleFile(filename, target=target, cpu=cpu)
 
     def testNoTarget(self):
         """Without a target only the generic 6502 imports are available, and no BASIC."""
         self.assertEqual(self._assembleForTarget('@ldax($1234)\n'
                                                  '@pushRegisters()\n'
                                                  'lda INTERRUPT_VECTOR_NMI\n').errors, [])
-        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_TOKEN_SYS', 'basic', 'CHAR_ROM', 'IO_PORT_DATA']:
+        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_TOKEN_SYS', 'basic', 'CHAR_ROM', 'IO_PORT_DATA', 'CPU_DEFAULT_TYPE']:
             with self.subTest(name=name):
                 self.assertIn(f"Name '{name}' is not defined", self._assembleForTarget(f'.word {name}\n').errors[0])
 
@@ -1366,6 +1367,20 @@ class TestAssemble(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(symbols[name], value)
         self.assertNotIn('VIC_BORDER_COLOR', symbols)
+
+    def testCPUDefaultType(self):
+        """Each target has its cpu as CPU_DEFAULT_TYPE, which it assembles for unless a cpu is given."""
+        for target, cpu in [('c64', CPU_6502), ('vic20', CPU_6502), ('c16', CPU_6502), ('plus4', CPU_6502), ('c128', CPU_6502), ('cx16', CPU_W65C02)]:
+            with self.subTest(target=target):
+                context = self._assembleForTarget('nop\n', target)
+                self.assertIs(context.symbols['CPU_DEFAULT_TYPE'], cpu)
+                self.assertIs(context.cpu, cpu)
+        self.assertEqual(self._assembleForTarget('wai\n', 'cx16').errors, [])
+        self.assertIn('Not an instruction of the 6502: "wai"', self._assembleForTarget('wai\n', 'cx16', CPU_6502).errors[0])
+        self.assertIs(self._assembleForTarget('nop\n').cpu, CPU_6502)
+        self.assertEqual(self._assembleForTarget('.cpu CPU_6502\n'
+                                                 '.cpu CPU_DEFAULT_TYPE\n'
+                                                 'wai\n', 'cx16').errors, [])
 
     def testTargetOnlyHasItsOwnImports(self):
         """The imports of one target are not available in another."""

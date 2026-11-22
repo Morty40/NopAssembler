@@ -42,11 +42,12 @@ def _assembleAssignment(tokens: list, context: Context):
         context.setSymbol(symbol, value)
 
 
-def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
+def assembleFile(inFile: str, target: str | None = None, cpu: CPU | None = None,
                  defines: dict[str, str] | None = None) -> Context:
     """Assemble inFile. Returns the context of the last pass: memory, symbols, messages and errors,
     for the caller to use, e.g. to save the memory to a file. The target is one of TARGETS,
-    whose imports are added to the generic ones. Each pass starts with the cpu, which .cpu can change.
+    whose imports are added to the generic ones. Each pass starts with the cpu, which .cpu can change:
+    by default the target's CPU_DEFAULT_TYPE, or the 6502 without a target.
     The defines, {name: expression}, are assigned before the source, so upper case names are constants.
     Raises OSError if inFile can't be read, and ValueError for an unknown target.
 
@@ -78,6 +79,7 @@ def assembleFile(inFile: str, target: str | None = None, cpu: CPU = CPU_6502,
     for filename in imports:
         with open(filename) as f:
             exec(compile(f.read(), filename, 'exec'), symbols) # the file name shows in tracebacks
+    cpu = cpu or symbols.get('CPU_DEFAULT_TYPE', CPU_6502)
 
     lastMemory: dict[int, int] = {}
     lastReferences: set[str] = set()

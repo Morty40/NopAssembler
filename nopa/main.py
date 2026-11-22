@@ -106,8 +106,8 @@ def main():
     parser.add_argument('-t', '--target', dest='target', choices=assemble.TARGETS,
                         help='the target machine, whose symbols and generators are imported (default: none)')
     parser.add_argument('-l', '--labels', dest='labelsFile', help='the labels file, as Python assignments: written when assembling, read when disassembling')
-    parser.add_argument('--cpu', dest='cpu', choices=list(CPUS), default='6502',
-                        help='the cpu, and so the instructions: 6502 (default), 65C02, R65C02, W65C02 or DTV')
+    parser.add_argument('--cpu', dest='cpu', choices=list(CPUS),
+                        help="the cpu, and so the instructions: 6502, 65C02, R65C02, W65C02 or DTV (default: the target's cpu, or 6502)")
     parser.add_argument('-D', '--define', dest='defines', action='append', default=[], metavar='NAME[=VALUE]',
                         help='assign a symbol before the source, True without a value. Upper case names are constants')
     parser.add_argument('--vice', dest='viceFile', help='the VICE monitor commands file to write: labels and breakpoints')
@@ -127,10 +127,10 @@ def main():
         if not lexer.isValidGlobalSymbolName(name) or isMnemonic(name): # a mnemonic would make name = value an instruction
             parser.error(f'Invalid define: {define}')
         defines[name] = value if equals else 'True'
-    cpu = CPUS[arguments.cpu]
+    cpu = CPUS.get(arguments.cpu)
     try:
         if arguments.disassemble:
-            source = disassemble.disassembleFile(arguments.file, arguments.labelsFile, cpu)
+            source = disassemble.disassembleFile(arguments.file, arguments.labelsFile, cpu or CPU_6502)
             if arguments.outFile:
                 with open(arguments.outFile, 'w') as f:
                     f.write(source)
