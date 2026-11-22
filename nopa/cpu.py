@@ -385,6 +385,13 @@ _wdcInstructionSet = {
     Instruction('stp', IMPLIED=(0xdb, '3')),
     Instruction('wai', IMPLIED=(0xcb, '3'))}
 
+# the instructions only the C64 DTV has, the DTV2 and DTV3, on opcodes that stop a 6502: bra branches always,
+# and sac and sir choose which of the DTV's 16 registers are the accumulator, and x and y
+_dtvInstructionSet = {
+    Instruction('bra', RELATIVE=(0x12, '3*')),
+    Instruction('sac', IMMEDIATE=(0x32, '2')),
+    Instruction('sir', IMMEDIATE=(0x42, '2'))}
+
 
 class CPU:
     """A CPU of the 6502 family: its instructions, looked up by mnemonic or by opcode."""
@@ -446,7 +453,10 @@ CPU_R65C02 = CPU('R65C02', _documentedInstructionSet, _cmosInstructionSet, _rock
 # the WDC 65C02: the Rockwell 65C02, and wai and stp
 CPU_W65C02 = CPU('W65C02', _documentedInstructionSet, _cmosInstructionSet, _rockwellInstructionSet, _wdcInstructionSet)
 
+# the C64 DTV: the 6502, with the stable illegal instructions, and bra, sac and sir
+CPU_DTV = CPU('DTV', _documentedInstructionSet, _illegalInstructionSet, _dtvInstructionSet)
+
 
 def isMnemonic(mnemonic: str) -> bool:
     """Check if a string is an instruction mnemonic of any of the cpus, e.g. for the lexer, which runs before a cpu is chosen."""
-    return any(cpu.isMnemonic(mnemonic) for cpu in (CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02))
+    return any(cpu.isMnemonic(mnemonic) for cpu in (CPU_6502, CPU_65C02, CPU_R65C02, CPU_W65C02, CPU_DTV))

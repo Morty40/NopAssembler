@@ -11,6 +11,7 @@ import unittest
 from .. import directives
 from ..context import Context
 from ..assemble import assembleFile, MAX_PASSES, TARGETS
+from ..cpu import CPU, CPU_6502, CPU_W65C02, CPU_DTV
 
 
 class TestAssemble(unittest.TestCase):
@@ -700,6 +701,10 @@ class TestAssemble(unittest.TestCase):
             ('CPU_6502',   'jmp ($1234,x)', False),
             ('CPU_65C02',  'jmp ($1234,x)', True),
             ('CPU_6502',   'lda #300',      False), # out of range
+            ('CPU_6502',   'sac #$12',      False),
+            ('CPU_DTV',    'sac #$12',      True),
+            ('CPU_DTV',    'lax $12',       True),  # the 6502's illegal instructions too
+            ('CPU_DTV',    'stz $12',       False), # not the 65C02's
         ):
             with self.subTest(cpu=cpu, instruction=instruction):
                 anyErrors, output = self._assemble(f'.cpu {cpu}\n'
@@ -1082,26 +1087,26 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(context.breakpoints, [(0x1001, None), (0x1002, 'RL > $40 && A == $00')])
         self.assertEqual([e.split('/')[-1] for e in context.errors], ['test.asm:6: error: Invalid directive: .break 5']) # without the folder
 
-    def _assembleForTarget(self, source: str, target: str | None = None) -> Context:
+    def _assembleForTarget(self, source: str, target: str | None = None, cpu: CPU | None = None) -> Context:
         """Assemble source for the target, and return the context."""
         with tempfile.TemporaryDirectory() as directory:
             filename = os.path.join(directory, 'test.asm')
             with open(filename, 'w') as f:
                 f.write(source)
-            return assembleFile(filename, target=target)
+            return assembleFile(filename, target=target, cpu=cpu)
 
     def testNoTarget(self):
         """Without a target only the generic 6502 imports are available, and no BASIC."""
         self.assertEqual(self._assembleForTarget('@ldax($1234)\n'
                                                  '@pushRegisters()\n'
                                                  'lda INTERRUPT_VECTOR_NMI\n').errors, [])
-        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_TOKEN_SYS', 'basic', 'CHAR_ROM', 'IO_PORT_DATA']:
+        for name in ['VIC_BORDER_COLOR', 'KERNAL_ROM', 'BASIC_START_ADDRESS', 'BASIC_TOKEN_SYS', 'basic', 'CHAR_ROM', 'IO_PORT_DATA', 'CPU_DEFAULT_TYPE']:
             with self.subTest(name=name):
                 self.assertIn(f"Name '{name}' is not defined", self._assembleForTarget(f'.word {name}\n').errors[0])
 
     def testBasicVersions(self):
         """Each target has the BASIC version of its machine: its tokens, and the keywords @basic.line converts."""
-        for target, graphic in [('c64', None), ('vic20', None), ('c16', 0xde), ('plus4', 0xde), ('c128', 0xde), ('cx16', None)]:
+        for target, graphic in [('c64', None), ('vic20', None), ('c16', 0xde), ('plus4', 0xde), ('c128', 0xde), ('cx16', None), ('dtv', None)]:
             with self.subTest(target=target):
                 context = self._assembleForTarget('.org $1000\n'
                                                   '@basic.line(10, "GRAPHIC 1")\n', target)
@@ -1242,7 +1247,7 @@ class TestAssemble(unittest.TestCase):
                   '@basic.line(10, "SYS {start}")\n'
                   '@basic.end()\n'
                   'start: @ldax($1234)\n')
-        for target, start in [('c64', 0x0801), ('vic20', 0x1001), ('c16', 0x1001), ('plus4', 0x1001), ('c128', 0x1c01), ('cx16', 0x0801)]:
+        for target, start in [('c64', 0x0801), ('vic20', 0x1001), ('c16', 0x1001), ('plus4', 0x1001), ('c128', 0x1c01), ('cx16', 0x0801), ('dtv', 0x0801)]:
             with self.subTest(target=target):
                 context = self._assembleForTarget(source, target)
                 self.assertEqual(context.errors, [])
@@ -1318,7 +1323,7 @@ class TestAssemble(unittest.TestCase):
         self.assertEqual(symbols['c16']['KERNAL_ROM_CHROUT'], 0xffd2)
         self.assertEqual((symbols['c64']['KERNAL_ROM_MEMTOP'], symbols['c64']['KERNAL_ROM_MEMBOT']), (0xff99, 0xff9c))
         self.assertEqual({target: symbols[target]['KERNAL_ROM'] for target in TARGETS},
-                         {'c64': 0xe000, 'vic20': 0xe000, 'c16': 0xc000, 'plus4': 0xc000, 'c128': 0xc000, 'cx16': 0xc000})
+                         {'c64': 0xe000, 'vic20': 0xe000, 'c16': 0xc000, 'plus4': 0xc000, 'c128': 0xc000, 'cx16': 0xc000, 'dtv': 0xe000})
         self.assertEqual({symbols['c16']['KERNAL_ROM_SCINIT'], symbols['c16']['KERNAL_ROM_IOINIT'], symbols['c16']['KERNAL_ROM_RAMTAS']}, {0xff81, 0xff84, 0xff87})
         self.assertNotIn('KERNAL_ROM_SCINIT', symbols['vic20'])                # the VIC-20 table starts at $ff8a
 
@@ -1345,6 +1350,38 @@ class TestAssemble(unittest.TestCase):
                     self.assertEqual(symbols['plus4'][name], value)
         self.assertEqual(symbols['plus4']['TED_BORDER_COLOR'], 0xff19)
 
+    def testDtv(self):
+        """The C64 DTV has the C64's symbols, and its own: the VIC's extended registers and palette, the cpu's registers,
+        the SID's extra registers, the memory mapper, the flash, DMA and the blitter."""
+        symbols = {target: self._assembleForTarget('nop\n', target).symbols for target in ['c64', 'dtv']}
+        for name, value in symbols['c64'].items():
+            if name.isupper() and name not in ['SOURCE_FOLDER', 'CPU_DEFAULT_TYPE']:
+                with self.subTest(name=name):
+                    self.assertEqual(symbols['dtv'][name], value)
+        symbols = symbols['dtv']
+        for name, value in [('VIC_COLOR_BANK_LO', 0xd036), ('VIC_LINEAR_A_START_LO', 0xd03a), ('VIC_EXTENDED_CONTROL', 0xd03c), ('VIC_GRAPHICS_BANK', 0xd03d),
+                            ('VIC_EXTENDED', 0xd03f), ('VIC_IRQ_CYCLE', 0xd044), ('VIC_LINEAR_B_STEP', 0xd04c), ('VIC_SPRITE_BANK', 0xd04d),
+                            ('VIC_PALETTE', 0xd200), ('VIC_PALETTE_COLOR15', 0xd20f), ('VIC_EXTENDED_ON', 0x01), ('VIC_EXTENDED_LOCK', 0x02),
+                            ('SID_VOICE1_ACCUMULATOR_HI', 0xd41e), ('SID_VOICE2_ENVELOPE', 0xd41f),
+                            ('CPU_REGISTER_A', 0), ('CPU_REGISTER_Y', 1), ('CPU_REGISTER_X', 2), ('CPU_REGISTER_ACCESS', 8), ('CPU_REGISTER_CONTROL', 9),
+                            ('CPU_REGISTER_ZERO_PAGE', 10), ('CPU_REGISTER_STACK', 11), ('CPU_REGISTER_BANK0', 12), ('CPU_REGISTER_BANK3', 15),
+                            ('MAPPER_KERNAL', 0xd100), ('MAPPER_BASIC', 0xd101), ('FLASH_SIZE', 0x200000),
+                            ('DMA_SOURCE_LO', 0xd300), ('DMA_LENGTH_LO', 0xd30a), ('DMA_CONTROL', 0xd31f),
+                            ('BLITTER_SOURCE_A_LO', 0xd320), ('BLITTER_DESTINATION_LO', 0xd330), ('BLITTER_LENGTH_LO', 0xd338), ('BLITTER_CONTROL', 0xd33a),
+                            ('BLITTER_STATUS', 0xd33f)]:
+            with self.subTest(name=name):
+                self.assertEqual(symbols[name], value)
+        self.assertEqual(symbols['vicColor'](3, 6), 0x36)                  # chroma in the high nibble, luminance in the low
+        self.assertEqual(symbols['VIC_PALETTE_DEFAULT'][:3], (0x00, 0x0f, 0x36)) # black, white, red
+        self.assertEqual(len(symbols['VIC_PALETTE_DEFAULT']), 16)
+        self.assertEqual(symbols['cpuAccumulators'](10, 0), 0xa0)         # sac: writes go to the zero page register, reads come from a
+        self.assertEqual(symbols['cpuIndexRegisters'](1, 2), 0x12)        # sir: y and x as after a reset
+        context = self._assembleForTarget('.org $1000\n'
+                                          'sac #cpuAccumulators(CPU_REGISTER_ZERO_PAGE, CPU_REGISTER_A)\n'
+                                          '.byte *VIC_PALETTE_DEFAULT\n', 'dtv')
+        self.assertEqual(context.errors, [])
+        self.assertEqual([context.memory[0x1000], context.memory[0x1001], context.memory[0x1004]], [0x32, 0xa0, 0x36])
+
     def testCx16(self):
         """The Commander X16: the bank registers and windows, the ROM banks, zero page, the VIAs, VERA and its VRAM, and the YM2151."""
         symbols = self._assembleForTarget('nop\n', 'cx16').symbols
@@ -1362,6 +1399,20 @@ class TestAssemble(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(symbols[name], value)
         self.assertNotIn('VIC_BORDER_COLOR', symbols)
+
+    def testCPUDefaultType(self):
+        """Each target has its cpu as CPU_DEFAULT_TYPE, which it assembles for unless a cpu is given."""
+        for target, cpu in [('c64', CPU_6502), ('vic20', CPU_6502), ('c16', CPU_6502), ('plus4', CPU_6502), ('c128', CPU_6502), ('cx16', CPU_W65C02), ('dtv', CPU_DTV)]:
+            with self.subTest(target=target):
+                context = self._assembleForTarget('nop\n', target)
+                self.assertIs(context.symbols['CPU_DEFAULT_TYPE'], cpu)
+                self.assertIs(context.cpu, cpu)
+        self.assertEqual(self._assembleForTarget('wai\n', 'cx16').errors, [])
+        self.assertIn('Not an instruction of the 6502: "wai"', self._assembleForTarget('wai\n', 'cx16', CPU_6502).errors[0])
+        self.assertIs(self._assembleForTarget('nop\n').cpu, CPU_6502)
+        self.assertEqual(self._assembleForTarget('.cpu CPU_6502\n'
+                                                 '.cpu CPU_DEFAULT_TYPE\n'
+                                                 'wai\n', 'cx16').errors, [])
 
     def testTargetOnlyHasItsOwnImports(self):
         """The imports of one target are not available in another."""

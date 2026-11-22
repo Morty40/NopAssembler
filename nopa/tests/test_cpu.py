@@ -8,6 +8,7 @@ from ..cpu import (
     CPU,
     CPU_6502,
     CPU_65C02,
+    CPU_DTV,
     CPU_R65C02,
     CPU_W65C02,
     Instruction,
@@ -125,6 +126,17 @@ class TestCpu(unittest.TestCase):
         self.assertEqual(sum(CPU_W65C02.instructionForOpcode(opcode) is not None for opcode in range(256)), 151 + 27 + 32 + 2)
         self.assertEqual(CPU_W65C02.instructionForOpcode(0xcb), (CPU_W65C02.instructionWithMnemonic('wai'), AddressMode.IMPLIED))
         self.assertEqual((CPU_W65C02.isMnemonic('bbr0'), CPU_W65C02.isMnemonic('stp'), CPU_R65C02.isMnemonic('stp')), (True, True, False))
+
+    def testCPUDTV(self):
+        """The C64 DTV is the 6502, with the stable illegal instructions, and its own bra, sac and sir, on opcodes
+        that stop a 6502."""
+        self.assertEqual(CPU_DTV.name, 'DTV')
+        self.assertEqual(sum(CPU_DTV.instructionForOpcode(opcode) is not None for opcode in range(256)), 208 + 3)
+        for opcode, mnemonic, mode in [(0x12, 'bra', AddressMode.RELATIVE), (0x32, 'sac', AddressMode.IMMEDIATE), (0x42, 'sir', AddressMode.IMMEDIATE)]:
+            with self.subTest(mnemonic=mnemonic):
+                self.assertEqual(CPU_DTV.instructionForOpcode(opcode), (CPU_DTV.instructionWithMnemonic(mnemonic), mode))
+                self.assertIsNone(CPU_6502.instructionForOpcode(opcode))
+        self.assertEqual((CPU_DTV.isMnemonic('lax'), CPU_DTV.isMnemonic('stz'), CPU_65C02.isMnemonic('sac')), (True, False, False))
 
     def testCPUClashes(self):
         """Two instructions with the same opcode, or two opcodes for the same mode of an instruction, are an error.

@@ -1,0 +1,166 @@
+"""The DTV's VIC-II: its banks and registers, the extended registers and the palette.
+
+The extended registers, from $d036, and the palette, the memory mapper, DMA and the blitter, from $d100, are only there
+after VIC_EXTENDED_ON is written to VIC_EXTENDED. Then VIC_BORDER_COLOR is 8 bits, and VIC_BACKGROUND_COLOR0-3 are with
+VIC_EXTENDED_HIGH_COLOR: 0-15 are the colors of the palette, and 16-255 a color of vicColor().
+
+With VIC_EXTENDED_LINEAR or VIC_EXTENDED_HIGH_COLOR, the modes of VIC_CONTROL_SCROLL_Y and VIC_CONTROL_SCROLL_X are the 8-bit modes:
+- text, multicolor text, multicolor bitmap and extended color text, as on the C64
+- extended color and multicolor: the chunky mode with VIC_EXTENDED_COLOR_FETCH_OFF, or else the pixel cell mode with VIC_EXTENDED_HIGH_COLOR
+- extended color and bitmap: the two plane bitmap mode
+- extended color, bitmap and multicolor: the FRED mode, or FRED2 without VIC_EXTENDED_HIGH_COLOR
+"""
+
+VIC_BANK0_ADDRESS = 0x0000
+VIC_BANK1_ADDRESS = 0x4000
+VIC_BANK2_ADDRESS = 0x8000
+VIC_BANK3_ADDRESS = 0xc000
+
+VIC_COLOR_BLACK       =  0
+VIC_COLOR_WHITE       =  1
+VIC_COLOR_RED         =  2
+VIC_COLOR_CYAN        =  3
+VIC_COLOR_PURPLE      =  4
+VIC_COLOR_GREEN       =  5
+VIC_COLOR_BLUE        =  6
+VIC_COLOR_YELLOW      =  7
+VIC_COLOR_ORANGE      =  8
+VIC_COLOR_BROWN       =  9
+VIC_COLOR_LIGHT_RED   = 10
+VIC_COLOR_DARK_GREY   = 11
+VIC_COLOR_GREY        = 12
+VIC_COLOR_LIGHT_GREEN = 13
+VIC_COLOR_LIGHT_BLUE  = 14
+VIC_COLOR_LIGHT_GREY  = 15
+
+VIC_SPRITE0_POSITION_X_LO = 0xd000
+VIC_SPRITE0_POSITION_Y    = 0xd001
+VIC_SPRITE1_POSITION_X_LO = 0xd002
+VIC_SPRITE1_POSITION_Y    = 0xd003
+VIC_SPRITE2_POSITION_X_LO = 0xd004
+VIC_SPRITE2_POSITION_Y    = 0xd005
+VIC_SPRITE3_POSITION_X_LO = 0xd006
+VIC_SPRITE3_POSITION_Y    = 0xd007
+VIC_SPRITE4_POSITION_X_LO = 0xd008
+VIC_SPRITE4_POSITION_Y    = 0xd009
+VIC_SPRITE5_POSITION_X_LO = 0xd00a
+VIC_SPRITE5_POSITION_Y    = 0xd00b
+VIC_SPRITE6_POSITION_X_LO = 0xd00c
+VIC_SPRITE6_POSITION_Y    = 0xd00d
+VIC_SPRITE7_POSITION_X_LO = 0xd00e
+VIC_SPRITE7_POSITION_Y    = 0xd00f
+VIC_SPRITES_POSITION_X_HI = 0xd010
+VIC_CONTROL_SCROLL_Y      = 0xd011
+VIC_RASTER_COUNTER        = 0xd012
+VIC_LIGHT_PEN_X           = 0xd013
+VIC_LIGHT_PEN_Y           = 0xd014
+VIC_SPRITES_ENABLED       = 0xd015
+VIC_CONTROL_SCROLL_X      = 0xd016
+VIC_SPRITES_EXPANSION_Y   = 0xd017
+VIC_MEMORY_POINTERS       = 0xd018
+VIC_INTERRUPT_REGISTER    = 0xd019
+VIC_INTERRUPT_ENABLED     = 0xd01a
+VIC_SPRITES_PRIORITY      = 0xd01b
+VIC_SPRITES_MCM_ENABLED   = 0xd01c
+VIC_SPRITES_EXPANSION_X   = 0xd01d
+VIC_SPRITES_COLLISION     = 0xd01e
+VIC_BACKGROUND_COLLISION  = 0xd01f
+VIC_BORDER_COLOR          = 0xd020
+VIC_BACKGROUND_COLOR0     = 0xd021
+VIC_BACKGROUND_COLOR1     = 0xd022
+VIC_BACKGROUND_COLOR2     = 0xd023
+VIC_BACKGROUND_COLOR3     = 0xd024
+VIC_SPRITES_MULTICOLOR0   = 0xd025
+VIC_SPRITES_MULTICOLOR1   = 0xd026
+VIC_SPRITE0_COLOR         = 0xd027
+VIC_SPRITE1_COLOR         = 0xd028
+VIC_SPRITE2_COLOR         = 0xd029
+VIC_SPRITE3_COLOR         = 0xd02a
+VIC_SPRITE4_COLOR         = 0xd02b
+VIC_SPRITE5_COLOR         = 0xd02c
+VIC_SPRITE6_COLOR         = 0xd02d
+VIC_SPRITE7_COLOR         = 0xd02e
+
+VIC_COLOR_BANK_LO         = 0xd036 # bits 17-10 of the color RAM's address in RAM
+VIC_COLOR_BANK_HI         = 0xd037 # bits 2-0: bits 20-18
+VIC_LINEAR_A_MODULO_LO    = 0xd038 # counter A, for the linear modes: its modulo
+VIC_LINEAR_A_MODULO_HI    = 0xd039 # bits 3-0
+VIC_LINEAR_A_START_LO     = 0xd03a # its address at the start of each frame
+VIC_LINEAR_A_START_MIDDLE = 0xd03b
+VIC_EXTENDED_CONTROL      = 0xd03c # see VIC_EXTENDED_...
+VIC_GRAPHICS_BANK         = 0xd03d # bits 4-0: the 64K segment of RAM of the characters and bitmap
+VIC_EXTENDED              = 0xd03f # VIC_EXTENDED_ON turns the extended registers on, and with VIC_EXTENDED_LOCK later writes are ignored
+VIC_IRQ_CYCLE             = 0xd044 # bits 6-0: the cycle of the raster line the raster interrupt comes at. Read: the current cycle, with bit 7 set
+VIC_LINEAR_A_START_HI     = 0xd045 # bits 4-0: bits 20-16, and the 64K segment of RAM of the screen
+VIC_LINEAR_A_STEP         = 0xd046 # its step
+VIC_LINEAR_B_MODULO_LO    = 0xd047 # counter B, the same as counter A
+VIC_LINEAR_B_MODULO_HI    = 0xd048
+VIC_LINEAR_B_START_LO     = 0xd049
+VIC_LINEAR_B_START_MIDDLE = 0xd04a
+VIC_LINEAR_B_START_HI     = 0xd04b
+VIC_LINEAR_B_STEP         = 0xd04c
+VIC_SPRITE_BANK           = 0xd04d # bits 4-0: the 64K segment of RAM of the sprites
+
+VIC_EXTENDED_LINEAR          = 0x01 # the 8-bit modes, see above
+VIC_EXTENDED_BORDER_OFF      = 0x02
+VIC_EXTENDED_HIGH_COLOR      = 0x04 # 8-bit background colors, and the 8-bit modes
+VIC_EXTENDED_OVERSCAN        = 0x08 # 384 pixels, or 48 columns, wide
+VIC_EXTENDED_COLOR_FETCH_OFF = 0x10
+VIC_EXTENDED_BADLINES_OFF    = 0x20
+
+VIC_EXTENDED_ON   = 0x01
+VIC_EXTENDED_LOCK = 0x02
+
+VIC_PALETTE         = 0xd200 # the color of each of the 16 colors, see vicColor
+VIC_PALETTE_COLOR0  = 0xd200
+VIC_PALETTE_COLOR1  = 0xd201
+VIC_PALETTE_COLOR2  = 0xd202
+VIC_PALETTE_COLOR3  = 0xd203
+VIC_PALETTE_COLOR4  = 0xd204
+VIC_PALETTE_COLOR5  = 0xd205
+VIC_PALETTE_COLOR6  = 0xd206
+VIC_PALETTE_COLOR7  = 0xd207
+VIC_PALETTE_COLOR8  = 0xd208
+VIC_PALETTE_COLOR9  = 0xd209
+VIC_PALETTE_COLOR10 = 0xd20a
+VIC_PALETTE_COLOR11 = 0xd20b
+VIC_PALETTE_COLOR12 = 0xd20c
+VIC_PALETTE_COLOR13 = 0xd20d
+VIC_PALETTE_COLOR14 = 0xd20e
+VIC_PALETTE_COLOR15 = 0xd20f
+
+VIC_PALETTE_DEFAULT = (0x00, 0x0f, 0x36, 0xbe, 0x58, 0xdb, 0x86, 0xff, 0x29, 0x26, 0x3b, 0x05, 0x07, 0xdf, 0x9a, 0x0a) # the C64's colors, e.g. .byte *VIC_PALETTE_DEFAULT
+
+vicColor = lambda chroma, luminance: ((chroma & 0xf) << 4) | (luminance & 0xf)
+
+VIC_COLOR_RAM = 0xd800
+
+vicSpritePointer = lambda a: (a>>6) & 0xff
+vicPackedColor = lambda a, b: (a & 0xf) | ((b & 0xf) << 4)
+vicScreenAndCharsetPointer = lambda a, b: (((a & 0x3fff) >> 6) & 0xf0) | (((b & 0x3fff) >> 10) & 0x0e)
+
+VIC_CHARSET_MEMORY_ALIGNMENT = 0x800
+VIC_SCREEN_MEMORY_ALIGNMENT  = 0x400
+VIC_SPRITE_MEMORY_ALIGNMENT  = 0x40
+
+VIC_SCREEN_WIDTH  = 320
+VIC_SCREEN_HEIGHT = 200
+
+VIC_CHAR_COLUMNS = 40
+VIC_CHAR_ROWS    = 25
+
+VIC_SPRITE_ORIGIN_X = 24
+VIC_SPRITE_ORIGIN_Y = 50
+
+VIC_SPRITE_WIDTH = 24
+VIC_SPRITE_HEIGHT = 21
+
+VIC_SPRITE_POINTERS_OFFSET = 0x03f8
+VIC_SPRITE0_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+0
+VIC_SPRITE1_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+1
+VIC_SPRITE2_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+2
+VIC_SPRITE3_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+3
+VIC_SPRITE4_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+4
+VIC_SPRITE5_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+5
+VIC_SPRITE6_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+6
+VIC_SPRITE7_POINTER_OFFSET = VIC_SPRITE_POINTERS_OFFSET+7

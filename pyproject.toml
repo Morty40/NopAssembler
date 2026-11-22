@@ -40,7 +40,7 @@ Changelog = "https://github.com/Morty40/NopAssembler/blob/main/CHANGELOG.md"
 nopa = "nopa.main:main"
 
 [tool.setuptools]
-packages = ["nopa", "nopa.imports", "nopa.imports.target.c128", "nopa.imports.target.c16", "nopa.imports.target.c64", "nopa.imports.target.cx16", "nopa.imports.target.plus4", "nopa.imports.target.vic20"]
+packages = ["nopa", "nopa.imports", "nopa.imports.target.c128", "nopa.imports.target.c16", "nopa.imports.target.c64", "nopa.imports.target.cx16", "nopa.imports.target.dtv", "nopa.imports.target.plus4", "nopa.imports.target.vic20"]
 zip-safe = false
 include-package-data = false # the tests in MANIFEST.in are for the source distribution only, not the installed package
 
