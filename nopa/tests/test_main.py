@@ -102,7 +102,7 @@ class TestMain(unittest.TestCase):
             with open(asmFile, 'w') as f:
                 f.write('.print BASIC_START_ADDRESS\n')
             # BASIC_START_ADDRESS in decimal: $0801 on the C64, $1001 on the VIC-20 and C16
-            for arguments, expected in [(['-t', 'c64'], '2049'), (['--target', 'vic20'], '4097'), (['-t', 'c16'], '4097'), (['--target=c64'], '2049')]:
+            for arguments, expected in [(['-t', 'c64'], '2049'), (['--target', 'vic20'], '4097'), (['-t', 'c16'], '4097'), (['--target=c64'], '2049'), (['-t', 'dtv'], '2049')]:
                 with self.subTest(arguments=arguments):
                     code, output, errors = self._main([asmFile] + arguments)
                     self.assertEqual(code, 0, errors)

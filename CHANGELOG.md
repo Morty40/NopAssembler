@@ -8,6 +8,7 @@ What's new in Nop Assembler.
 - `@basic.float(number)`, a number in BASIC's 5-byte floating point format, for the ROM's floating point routines
 - `@basic.load(filename)`, the lines of a BASIC listing in a text file, such as `10 PRINT "HELLO"`, with `{expression}` filled in
 - the C64 DTV's cpu, `CPU_DTV` and `--cpu DTV`: the 6502's instructions, also the illegal ones, and `bra`, `sac` and `sir`
+- the `dtv` target, for the C64 DTV: the C64's symbols, and the DTV's extended VIC registers and palette, cpu registers, memory mapper, flash, DMA and blitter
 - the default cpu of each target, `CPU_DEFAULT_TYPE`, which `-t` assembles for unless `--cpu` chooses another, e.g. `CPU_W65C02` on the `cx16`
 
 ### Changed

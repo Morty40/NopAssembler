@@ -21,7 +21,7 @@ DEFAULT_ORIGIN = 0x1000 # the address when there is no .org
 
 MAX_NESTING = 100 # imports and generators nested deeper are an error, e.g. a file that imports itself
 
-TARGETS = ('c128', 'c16', 'c64', 'cx16', 'plus4', 'vic20') # the folders in imports/target
+TARGETS = ('c128', 'c16', 'c64', 'cx16', 'dtv', 'plus4', 'vic20') # the folders in imports/target
 
 
 def _assembleAssignment(tokens: list, context: Context):
