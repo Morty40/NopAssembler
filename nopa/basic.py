@@ -5,6 +5,8 @@ Each target chooses the version of its machine, in imports/target/<target>/basic
 """
 
 import math
+import os
+import re
 import types
 
 # The keywords of BASIC 1.0, with tokens from $80, in token order. As in the PET ROM
@@ -120,9 +122,10 @@ class Basic:
 
         return data
 
-    def symbols(self) -> dict:
+    def symbols(self, folder: str) -> dict:
         """The symbols of a target with this version: the BASIC_TOKEN_ values, and basic, with the generators
-        basic.start(), basic.line(), basic.sys() and basic.end()."""
+        basic.start(), basic.line(), basic.sys(), basic.end(), basic.float() and basic.load(), which reads
+        files in the folder, that of the main source file."""
 
         def line(lineNumber, text):
             """A BASIC line, with keywords as tokens, e.g. "POKE 53280,0:SYS 2061"."""
@@ -137,7 +140,26 @@ class Basic:
             """A BASIC line with just a SYS to the address, the same as basic.line(lineNumber, f"SYS{address}")."""
             return line(lineNumber, f"SYS{address}")
 
-        return self.tokens() | {'basic': types.SimpleNamespace(start=_start, line=line, sys=sys, end=_end, float=_float)}
+        def load(filename):
+            """The lines of a BASIC listing in a text file, e.g. 10 PRINT "HELLO", each as basic.line writes it,
+            with {expression} filled in, as in a string. Blank lines are skipped."""
+            try:
+                with open(os.path.join(folder, filename), encoding='utf-8') as f:
+                    lines = f.read().splitlines()
+            except FileNotFoundError:
+                raise ValueError(f'File not found: "{filename}"')
+            code = []
+            for index, text in enumerate(lines, 1):
+                if text.strip():
+                    match = re.fullmatch(r'\s*(\d+)\s*(.*?)\s*', text) # the line number, then the text
+                    if match is None:
+                        raise ValueError(f'Line {index} of "{filename}" has no line number: "{text.strip()}"')
+                    number, basicText = match.groups()
+                    escaped = basicText.replace('\\', '\\\\').replace('"', '\\"') # in a string, where {expression} is filled in
+                    code.append(f'@basic.line({int(number)}, "{escaped}")')
+            return '\n'.join(code) + '\n'
+
+        return self.tokens() | {'basic': types.SimpleNamespace(start=_start, line=line, sys=sys, end=_end, float=_float, load=load)}
 
 
 def _start():

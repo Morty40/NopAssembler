@@ -1169,6 +1169,47 @@ class TestAssemble(unittest.TestCase):
         """A number too large for BASIC is an error."""
         self.assertIn('test.asm:1: error: Too large for a BASIC float: 1e+39', self._assembleForTarget('@basic.float(1e39)\n', 'c64').errors[0])
 
+    def _assembleFiles(self, files: dict, target: str) -> Context:
+        """Assemble test.asm for the target, with the other files {name: text} beside it, and return the context."""
+        with tempfile.TemporaryDirectory() as directory:
+            for name, text in files.items():
+                with open(os.path.join(directory, name), 'w') as f:
+                    f.write(text)
+            return assembleFile(os.path.join(directory, 'test.asm'), target=target)
+
+    def testBasicLoad(self):
+        """@basic.load writes the lines of a BASIC listing as @basic.line does, with {expression} filled in, skipping
+        blank lines. The file is beside the main source file."""
+        loaded = self._assembleFiles({'test.asm': '@basic.start()\n'
+                                                  '@basic.load("menu.bas")\n'
+                                                  '@basic.end()\n'
+                                                  'start: rts\n',
+                                      'menu.bas': '10 POKE 53280,0\n'
+                                                  '\n'
+                                                  '20 PRINT "HELLO"\n'
+                                                  '  30   SYS {start}  \n'}, 'c64') # spaces around the line number and text
+        written = self._assembleFiles({'test.asm': '@basic.start()\n'
+                                                   '@basic.line(10, "POKE 53280,0")\n'
+                                                   '@basic.line(20, \'PRINT "HELLO"\')\n'
+                                                   '@basic.line(30, "SYS {start}")\n'
+                                                   '@basic.end()\n'
+                                                   'start: rts\n'}, 'c64')
+        self.assertEqual(loaded.errors, [])
+        self.assertEqual(loaded.memory, written.memory)
+
+    def testBasicLoadMessages(self):
+        """A file that isn't found, or a line without a line number, is an error."""
+        for files, message in [
+            ({'test.asm': '@basic.load("nothere.bas")\n'},  'test.asm:1: error: File not found: "nothere.bas"'),
+            ({'test.asm': '@basic.load("menu.bas")\n',
+              'menu.bas': '10 PRINT 1\n'
+                          'PRINT 2\n'},                       'test.asm:1: error: Line 2 of "menu.bas" has no line number: "PRINT 2"'),
+        ]:
+            with self.subTest(files=files):
+                errors = self._assembleFiles(files, 'c64').errors
+                self.assertEqual(len(errors), 1, errors)
+                self.assertIn(message, errors[0])
+
     def testBasicLineMessages(self):
         """Text that BASIC can't store is an error."""
         self.assertIn("test.asm:1: error: 'ascii' codec can't encode", self._assembleForTarget('@basic.line(10, "PRINT \\"é\\"")\n', 'c64').errors[0])

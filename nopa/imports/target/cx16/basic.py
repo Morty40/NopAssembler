@@ -5,6 +5,6 @@ The X16's own keywords, such as VPOKE, are not tokens, so @basic.line writes the
 
 from nopa.basic import BASIC_2 as _BASIC
 
-globals().update(_BASIC.symbols()) # the BASIC_TOKEN_ symbols, and the generators basic.start(), basic.line(), basic.sys() and basic.end()
+globals().update(_BASIC.symbols(SOURCE_FOLDER)) # the BASIC_TOKEN_ symbols, and basic, with the generators, such as basic.line()
 
 BASIC_START_ADDRESS = 0x0801

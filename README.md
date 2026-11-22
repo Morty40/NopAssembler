@@ -1317,7 +1317,7 @@ The `cx16` target, for the Commander X16, is experimental: it hasn't been tried 
 Each target has the BASIC version of its machine: 2.0 on the `c64`, `vic20` and `cx16`, 3.5 on the `c16` and `plus4`, and 7.0 on the `c128`. Its `basic.py` defines:
 
 - the tokens, `BASIC_TOKEN_...`, named after the keywords without `$` and `(`, such as `BASIC_TOKEN_CHR` for `CHR$`, or after the characters, such as `BASIC_TOKEN_PLUS` for `+` and `BASIC_TOKEN_PRINT_FILE` for `PRINT#`, and `BASIC_TOKEN_PI` for the pi character
-- `basic`, with the generators for a BASIC start line: `basic.start()`, which sets the address to `BASIC_START_ADDRESS`, `basic.line(lineNumber, text)`, `basic.sys(lineNumber, address)`, a line with just a `SYS` to the address, and `basic.end()`, and `basic.float(number)`, a number in BASIC's floating point format
+- `basic`, with the generators for a BASIC start line: `basic.start()`, which sets the address to `BASIC_START_ADDRESS`, `basic.line(lineNumber, text)`, `basic.sys(lineNumber, address)`, a line with just a `SYS` to the address, and `basic.end()`, `basic.load(filename)`, the lines of a BASIC listing, and `basic.float(number)`, a number in BASIC's floating point format
 
 `basic.line` writes any BASIC line, with the keywords of the target's BASIC as tokens, including the two-byte tokens of BASIC 7.0, such as `BANK`. Keywords of a later version are converted as when typed on the machine: on the C64, `GRAPHIC` stays as text, and `COLOR` becomes `COL` and the token of `OR`. Both give a syntax error when the program runs:
 
@@ -1326,6 +1326,21 @@ Each target has the BASIC version of its machine: 2.0 on the `c64`, `vic20` and 
             @basic.line(10, 'POKE 53280,0:PRINT "HELLO"')
             @basic.line(20, "SYS {start}")
             @basic.end()
+```
+
+`basic.load(filename)` writes the lines of a BASIC listing in a text file, as typed on the machine, each as `basic.line` writes it. The path is relative to the folder of the main source file. Blank lines are skipped, and `{expression}` is filled in, as in a string, so the listing can use labels:
+
+```
+10 POKE 53280,0
+20 PRINT "HELLO"
+30 SYS {start}
+```
+
+```
+            @basic.start()
+            @basic.load("menu.bas")
+            @basic.end()
+start:      rts
 ```
 
 `basic.float(number)` stores a number as BASIC stores a variable, in 5 bytes, the same in all versions: the exponent, and 4 bytes of the mantissa, with the sign in its top bit. The ROM's floating point routines, such as those that load or multiply a number, read it in this format. A number too small for it is 0, as in BASIC, and one larger than about 1.7 × 10^38 is an error:
