@@ -7,6 +7,7 @@ What's new in Nop Assembler.
 ### Added
 - `@basic.float(number)`, a number in BASIC's 5-byte floating point format, for the ROM's floating point routines
 - `@basic.load(filename)`, the lines of a BASIC listing in a text file, such as `10 PRINT "HELLO"`, with `{expression}` filled in
+- the C64 DTV's cpu, `CPU_DTV` and `--cpu DTV`: the 6502's instructions, also the illegal ones, and `bra`, `sac` and `sir`
 
 ### Changed
 - the BASIC generators are in the namespace `basic`: `@basic.start()`, `@basic.line()`, `@basic.sys()` and `@basic.end()`, which were `@basicStart()`, `@basicLine()`, `@basicSys()` and `@basicEnd()`
