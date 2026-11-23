@@ -2,7 +2,7 @@
 
 What's new in Nop Assembler.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-23
 
 ### Added
 - `@basic.float(number)`, a number in BASIC's 5-byte floating point format, for the ROM's floating point routines
@@ -44,5 +44,5 @@ The first release: a 6502 cross assembler for Commodore computers, where every e
 - a Python API, `nopa.assembleFile` and `nopa.disassembleFile`, e.g. for unit tests of 6502 code
 - requires Python 3.11 or later
 
-[Unreleased]: https://github.com/Morty40/NopAssembler/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/Morty40/NopAssembler/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Morty40/NopAssembler/releases/tag/v0.1.0
